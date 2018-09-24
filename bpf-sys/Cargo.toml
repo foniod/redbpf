@@ -1,0 +1,11 @@
+[package]
+name = "bpf-sys"
+version = "0.1.0"
+authors = ["Peter Parkanyi <peter@redsift.io>"]
+links = "bpf"
+edition = "2018"
+license = "GPLv3"
+keywords = ["bpf", "ebpf", "ffi"]
+
+[dependencies]
+zero = "0.1"

@@ -1,0 +1,26 @@
+[package]
+name = "redbpf"
+version = "0.1.0"
+authors = ["Peter Parkanyi <peter@redsift.io>"]
+edition = "2018"
+license = "GPLv3"
+keywords = ["bpf", "ebpf", "build", "bindgen"]
+readme = "README.md"
+
+[dependencies]
+bpf-sys = { path = "./bpf-sys" }
+goblin = "^0.0.15"
+zero = "0.1"
+libc = "0.2"
+bindgen = "0.37"
+regex = "1.0"
+lazy_static = "1.0"
+
+serde = { version = "^1.0", optional = true}
+serde_derive = { version = "^1.0", optional = true}
+serde_json = { version = "^1.0", optional = true}
+ring = { version = "0.13", optional = true }
+
+[features]
+default = []
+build = ["serde", "serde_derive", "serde_json", "ring"]
