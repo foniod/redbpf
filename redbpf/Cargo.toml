@@ -10,6 +10,10 @@ repository = "https://github.com/redsift/redbpf"
 description = "eBPF build and runtime library"
 
 
+[badges]
+circle-ci = { repository = "redsift/redbpf", branch = "master" }
+maintenance = { status = "actively-developed" }
+
 [dependencies]
 bpf-sys = { path = "../bpf-sys", version = "0.1.0" }
 goblin = "^0.0.15"
