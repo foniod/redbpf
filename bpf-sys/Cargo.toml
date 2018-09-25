@@ -6,6 +6,7 @@ links = "bpf"
 edition = "2018"
 license = "GPLv3"
 keywords = ["bpf", "ebpf", "ffi"]
+repository = "https://github.com/redsift/redbpf"
 
 [dependencies]
 zero = "0.1"
