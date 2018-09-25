@@ -4,9 +4,10 @@ version = "0.1.0"
 authors = ["Peter Parkanyi <peter@redsift.io>"]
 links = "bpf"
 edition = "2018"
-license = "GPLv3"
+license = "GPL-3.0"
 keywords = ["bpf", "ebpf", "ffi"]
 repository = "https://github.com/redsift/redbpf"
+description = "Bindings for libbpf from BCC"
 
 [dependencies]
 zero = "0.1"
