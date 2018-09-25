@@ -1,0 +1,40 @@
+image: &default_image rustlang/rust:nightly
+
+version: 2
+jobs:
+  build:
+    docker:
+      - image: *default_image
+    steps:
+      - checkout
+      - run:
+          name: Build package
+          command: |
+            cargo package
+  publish:
+    docker:
+      - image: *default_image
+    steps:
+      - checkout      
+      - run:
+          name: Publish package
+          command: |
+            cargo login $CRATES_KEY
+            cargo publish  
+workflows:
+  version: 2
+  build_publish:
+    jobs:
+      - build:
+          filters:
+            tags:
+              only: /^v.*/      
+      - publish:
+          context: org-global
+          requires:
+            - build
+          filters:
+            tags:
+              only: /^v.*/
+            branches:
+              ignore: /.*/    
