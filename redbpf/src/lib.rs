@@ -104,7 +104,7 @@ pub struct Module {
 /// }
 /// ```
 ///
-/// XDP and socket filters require an additionally require an interface to attach to.
+/// XDP and socket filters additionally require an interface to attach to.
 /// Note that in case of XDP, the driver needs to support XDP probes, so, for
 /// example, network bridges may not work out of the box.
 ///
