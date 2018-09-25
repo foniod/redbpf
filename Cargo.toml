@@ -12,6 +12,10 @@ description = "eBPF build and runtime library"
 [workspace]
 members = ["bpf-sys"]
 
+[badges]
+circle-ci = { repository = "redsift/redbpf", branch = "master" }
+maintenance = { status = "actively-developed" }
+
 [dependencies]
 bpf-sys = { path = "./bpf-sys", version = "0.1.0" }
 goblin = "^0.0.15"
