@@ -6,9 +6,14 @@ edition = "2018"
 license = "GPLv3"
 keywords = ["bpf", "ebpf", "build", "bindgen"]
 readme = "README.md"
+repository = "https://github.com/redsift/redbpf"
+description = "eBPF build and runtime library"
+
+[workspace]
+members = ["bpf-sys"]
 
 [dependencies]
-bpf-sys = { path = "./bpf-sys" }
+bpf-sys = { path = "./bpf-sys", version = "0.1.0" }
 goblin = "^0.0.15"
 zero = "0.1"
 libc = "0.2"

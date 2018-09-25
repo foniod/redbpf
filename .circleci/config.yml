@@ -8,9 +8,9 @@ jobs:
     steps:
       - checkout
       - run:
-          name: Build package
+          name: Build
           command: |
-            cargo package
+            cargo build
   publish:
     docker:
       - image: *default_image
@@ -20,7 +20,11 @@ jobs:
           name: Publish package
           command: |
             cargo login $CRATES_KEY
+            cd bpf-sys
             cargo publish  
+            cd ..
+            cargo publish  
+
 workflows:
   version: 2
   build_publish:
