@@ -1,13 +1,14 @@
 [package]
 name = "redbpf"
-version = "0.1.0"
+version = "0.1.1"
+description = "eBPF build and runtime library"
+repository = "https://github.com/redsift/redbpf"
+documentation = "https://redsift.github.io/rust/redbpf/doc/redbpf/"
 authors = ["Peter Parkanyi <peter@redsift.io>"]
 edition = "2018"
 license = "GPL-3.0"
 keywords = ["bpf", "ebpf", "build", "bindgen"]
 readme = "README.md"
-repository = "https://github.com/redsift/redbpf"
-description = "eBPF build and runtime library"
 
 
 [badges]

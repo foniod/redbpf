@@ -14,19 +14,6 @@ jobs:
             cargo test --bins --tests
             cargo doc --no-deps -p redbpf -p bpf-sys
 
-            git config --global user.email "team@redsift.com"
-            git config --global user.name "CircleCI bot"
-            git clone https://$GITHUB_HTTP_TOKEN:@github.com/redsift/redsift.github.io publish
-
-            rm -rf publish/rust/redbpf/doc
-            mkdir -p publish/rust/redbpf/
-            cp -r target/doc publish/rust/redbpf/
-
-            cd publish
-            git add *
-            git commit -a -m '[CI] Update redbpf docs'
-            git push
-
   publish:
     docker:
       - image: *default_image
@@ -43,12 +30,25 @@ jobs:
             cargo publish  
             cargo doc --no-deps --release -p redbpf -p bpf-sys
 
+            git config --global user.email "team@redsift.com"
+            git config --global user.name "CircleCI bot"
+            git clone https://$GITHUB_HTTP_TOKEN:@github.com/redsift/redsift.github.io publish
+
+            rm -rf publish/rust/redbpf/doc
+            mkdir -p publish/rust/redbpf/
+            cp -r target/doc publish/rust/redbpf/
+
+            cd publish
+            git add *
+            git commit -a -m '[CI] Update redbpf docs'
+            git push
+
+
 workflows:
   version: 2
   build_publish:
     jobs:
       - build:
-          context: org-global
           filters:
             tags:
               only: /^v.*/      

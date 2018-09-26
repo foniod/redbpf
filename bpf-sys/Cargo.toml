@@ -1,13 +1,14 @@
 [package]
 name = "bpf-sys"
-version = "0.1.0"
+version = "0.1.1"
+description = "Bindings for libbpf from BCC"
+repository = "https://github.com/redsift/redbpf"
+documentation = "https://redsift.github.io/rust/redbpf/doc/bpf_sys/"
 authors = ["Peter Parkanyi <peter@redsift.io>"]
 links = "bpf"
 edition = "2018"
 license = "GPL-3.0"
 keywords = ["bpf", "ebpf", "ffi"]
-repository = "https://github.com/redsift/redbpf"
-description = "Bindings for libbpf from BCC"
 
 [dependencies]
 zero = "0.1"
