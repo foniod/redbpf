@@ -9,22 +9,30 @@
 //! require unsafe code to transform into a data structure.
 //!
 //! ```rust
-//! use redbpf::{Event, PerfMap};
+//! use std::slice;
+//! use redbpf::{Map, Event, PerfMap};
 //!
-//! let perfmap = PerfMap::bind(map, -1, cpuid, 16, -1, 0).unwrap();
+//! let cpuid = 0;
+//! let name = "my_perf_map";
+//!
+//! // maps are usually automatically loaded with ELF objects
+//! let mut map = Map::load(name, &vec![]).unwrap();
+//!
+//! let perfmap = PerfMap::bind(&mut map, -1, cpuid, 16, -1, 0).unwrap();
 //! while let Some(ev) = perfmap.read() {
 //!     match ev {
 //!         Event::Lost(lost) => {
-//!             println!("Possibly lost {} samples for {}", lost.count, &self.name);
+//!             println!("Possibly lost {} samples for {}", lost.count, name);
 //!         }
 //!         Event::Sample(sample) => {
-//!             let msg = unsafe {
-//!                 (self.callback)(slice::from_raw_parts(
+//!             let sample = unsafe {
+//!                 slice::from_raw_parts(
 //!                     sample.data.as_ptr(),
 //!                     sample.size as usize,
-//!                 ))
+//!                 )
 //!             };
-//!             msg.and_then(|m| Some(send_to(&self.backends, m)));
+//!
+//!             // do something with the sample
 //!         }
 //!     }
 //! }

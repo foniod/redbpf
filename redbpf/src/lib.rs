@@ -82,7 +82,8 @@ pub struct Module {
 ///
 /// ```rust
 /// use redbpf::Module;
-/// let mut module = Module::parse(elf_bytes)?;
+///
+/// let mut module = Module::parse(&vec![]).unwrap();
 /// for prog in module.programs.iter_mut() {
 ///     prog.load(module.version, module.license.clone()).unwrap();
 /// }
@@ -94,7 +95,11 @@ pub struct Module {
 /// You can attach kprobes like very easily:
 ///
 /// ```rust
+/// use redbpf::Module;
 /// use redbpf::ProgramKind::*;
+///
+/// let code = std::fs::read("bpf.elf").unwrap();
+/// let mut module = Module::parse(&code).unwrap();
 /// for prog in module
 ///     .programs
 ///     .iter_mut()
@@ -109,7 +114,11 @@ pub struct Module {
 /// example, network bridges may not work out of the box.
 ///
 /// ```rust
+/// use redbpf::Module;
 /// use redbpf::ProgramKind::*;
+///
+/// let code = std::fs::read("bpf.elf").unwrap();
+/// let mut module = Module::parse(&code).unwrap();
 /// for prog in module
 ///     .programs
 ///     .iter_mut()
