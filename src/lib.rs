@@ -235,7 +235,7 @@ impl Program {
         let buf_size = 64 * 65535 as u32;
 
         let fd = unsafe {
-            bpf_sys::bpf_prog_load(
+            bpf_sys::bcc_prog_load(
                 self.kind.to_prog_type(),
                 cname.as_ptr() as *const i8,
                 self.code.as_ptr(),
@@ -332,7 +332,7 @@ impl Module {
                     license = zero::read_str(content).to_string()
                 }
                 (hdr::SHT_PROGBITS, Some("maps"), Some(name)) => {
-                    // Maps are immediately bpf_create_map'd
+                    // Maps are immediately bcc_create_map'd
                     maps.insert(shndx, Map::load(name, &content)?);
                 }
                 (hdr::SHT_PROGBITS, Some(kind @ "kprobe"), Some(name))
@@ -411,7 +411,7 @@ impl Map {
         let config: &bpf_map_def = zero::read(code);
         let cname = CString::new(name.clone())?;
         let fd = unsafe {
-            bpf_sys::bpf_create_map(
+            bpf_sys::bcc_create_map(
                 config.kind,
                 cname.as_ptr(),
                 config.key_size as i32,
