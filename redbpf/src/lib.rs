@@ -142,6 +142,7 @@ pub enum ProgramKind {
     Kretprobe,
     XDP,
     SocketFilter,
+    Tracepoint,
 }
 
 /// Maps are loaded automatically, so you normally do not have to do anything to
@@ -177,6 +178,7 @@ impl ProgramKind {
             Kprobe | Kretprobe => bpf_sys::bpf_prog_type_BPF_PROG_TYPE_KPROBE,
             XDP => bpf_sys::bpf_prog_type_BPF_PROG_TYPE_XDP,
             SocketFilter => bpf_sys::bpf_prog_type_BPF_PROG_TYPE_SOCKET_FILTER,
+            Tracepoint => bpf_sys::bpf_prog_type_BPF_PROG_TYPE_TRACEPOINT,
         }
     }
 
@@ -185,8 +187,9 @@ impl ProgramKind {
         match self {
             Kprobe => bpf_sys::bpf_probe_attach_type_BPF_PROBE_ENTRY,
             Kretprobe => bpf_sys::bpf_probe_attach_type_BPF_PROBE_RETURN,
-            SocketFilter => panic!(),
-            XDP => panic!(),
+            a @ Tracepoint => panic!("Program type cannot be used with attach(): {:?}", a),
+            a @ SocketFilter => panic!("Program type cannot be used with attach(): {:?}", a),
+            a @ XDP => panic!("Program type cannot be used with attach(): {:?}", a),
         }
     }
 
@@ -197,6 +200,7 @@ impl ProgramKind {
             "kprobe" => Ok(Kprobe),
             "xdp" => Ok(XDP),
             "socketfilter" => Ok(SocketFilter),
+            "tracepoint" => Ok(Tracepoint),
             sec => Err(LoadError::Section(sec.to_string())),
         }
     }
@@ -274,6 +278,24 @@ impl Program {
         } else {
             self.pfd = Some(pfd);
             Ok(pfd)
+        }
+    }
+
+    pub fn attach_tracepoint(&mut self, category: &str, name: &str) -> Result<RawFd> {
+        let category = CString::new(category)?;
+        let name = CString::new(name)?;
+        let res = unsafe {
+            bpf_sys::bpf_attach_tracepoint(
+                self.fd.unwrap(),
+                category.as_c_str().as_ptr(),
+                name.as_c_str().as_ptr(),
+            )
+        };
+
+        if res < 0 {
+            Err(LoadError::BPF)
+        } else {
+            Ok(res)
         }
     }
 
