@@ -57,7 +57,8 @@ pub mod sys;
 pub mod uname;
 
 use bpf_sys::{bpf_insn, bpf_map_def};
-use goblin::elf::{section_header as hdr, Elf, Reloc, SectionHeader, Sym};
+use goblin::elf::{section_header as hdr, Elf, SectionHeader, Sym,
+                  reloc::RelocSection};
 
 use std::collections::HashMap;
 use std::ffi::CString;
@@ -348,7 +349,7 @@ impl Module {
             let content = data(&bytes, &shdr);
 
             match (section_type, kind, name) {
-                (hdr::SHT_REL, _, _) => add_rel(&mut rels, shndx, &shdr, &shdr_relocs),
+                (hdr::SHT_REL, _, _) => add_rel(&mut rels, shndx, &shdr, shdr_relocs),
                 (hdr::SHT_PROGBITS, Some("version"), _) => version = get_version(&content),
                 (hdr::SHT_PROGBITS, Some("license"), _) => {
                     license = zero::read_str(content).to_string()
@@ -475,7 +476,7 @@ fn add_rel(
     rels: &mut Vec<Rel>,
     shndx: usize,
     shdr: &SectionHeader,
-    shdr_relocs: &Vec<(usize, Vec<Reloc>)>,
+    shdr_relocs: &[(usize, RelocSection<'_>)],
 ) {
     // if unwrap blows up, something's really bad
     let section_rels = &shdr_relocs.iter().find(|(idx, _)| idx == &shndx).unwrap().1;
