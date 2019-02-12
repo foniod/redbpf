@@ -262,8 +262,12 @@ impl Program {
     }
 
     pub fn attach_probe(&mut self) -> Result<RawFd> {
-        let ev_name = CString::new(format!("{}{}", self.name, self.kind.to_attach_type())).unwrap();
-        let cname = CString::new(self.name.clone()).unwrap();
+        self.attach_probe_to_name(&self.name.clone())
+    }
+
+    pub fn attach_probe_to_name(&mut self, name: &str) -> Result<RawFd> {
+        let ev_name = CString::new(format!("{}{}", name, self.kind.to_attach_type())).unwrap();
+        let cname = CString::new(name).unwrap();
         let pfd = unsafe {
             bpf_sys::bpf_attach_kprobe(
                 self.fd.unwrap(),
