@@ -444,7 +444,7 @@ impl Map {
             )
         };
         if fd < 0 {
-            return Err(LoadError::BPF);
+            return Err(LoadError::Map);
         }
 
         Ok(Map {
