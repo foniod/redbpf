@@ -57,7 +57,8 @@ pub mod sys;
 pub mod uname;
 
 use bpf_sys::{bpf_insn, bpf_map_def};
-use goblin::elf::{section_header as hdr, Elf, Reloc, SectionHeader, Sym};
+use goblin::elf::{section_header as hdr, Elf, SectionHeader, Sym,
+                  reloc::RelocSection};
 
 use std::collections::HashMap;
 use std::ffi::CString;
@@ -142,6 +143,7 @@ pub enum ProgramKind {
     Kretprobe,
     XDP,
     SocketFilter,
+    Tracepoint,
 }
 
 /// Maps are loaded automatically, so you normally do not have to do anything to
@@ -177,6 +179,7 @@ impl ProgramKind {
             Kprobe | Kretprobe => bpf_sys::bpf_prog_type_BPF_PROG_TYPE_KPROBE,
             XDP => bpf_sys::bpf_prog_type_BPF_PROG_TYPE_XDP,
             SocketFilter => bpf_sys::bpf_prog_type_BPF_PROG_TYPE_SOCKET_FILTER,
+            Tracepoint => bpf_sys::bpf_prog_type_BPF_PROG_TYPE_TRACEPOINT,
         }
     }
 
@@ -185,8 +188,9 @@ impl ProgramKind {
         match self {
             Kprobe => bpf_sys::bpf_probe_attach_type_BPF_PROBE_ENTRY,
             Kretprobe => bpf_sys::bpf_probe_attach_type_BPF_PROBE_RETURN,
-            SocketFilter => panic!(),
-            XDP => panic!(),
+            a @ Tracepoint => panic!("Program type cannot be used with attach(): {:?}", a),
+            a @ SocketFilter => panic!("Program type cannot be used with attach(): {:?}", a),
+            a @ XDP => panic!("Program type cannot be used with attach(): {:?}", a),
         }
     }
 
@@ -197,6 +201,7 @@ impl ProgramKind {
             "kprobe" => Ok(Kprobe),
             "xdp" => Ok(XDP),
             "socketfilter" => Ok(SocketFilter),
+            "tracepoint" => Ok(Tracepoint),
             sec => Err(LoadError::Section(sec.to_string())),
         }
     }
@@ -235,7 +240,7 @@ impl Program {
         let buf_size = 64 * 65535 as u32;
 
         let fd = unsafe {
-            bpf_sys::bpf_prog_load(
+            bpf_sys::bcc_prog_load(
                 self.kind.to_prog_type(),
                 cname.as_ptr() as *const i8,
                 self.code.as_ptr(),
@@ -257,8 +262,12 @@ impl Program {
     }
 
     pub fn attach_probe(&mut self) -> Result<RawFd> {
-        let ev_name = CString::new(format!("{}{}", self.name, self.kind.to_attach_type())).unwrap();
-        let cname = CString::new(self.name.clone()).unwrap();
+        self.attach_probe_to_name(&self.name.clone())
+    }
+
+    pub fn attach_probe_to_name(&mut self, name: &str) -> Result<RawFd> {
+        let ev_name = CString::new(format!("{}{}", name, self.kind.to_attach_type())).unwrap();
+        let cname = CString::new(name).unwrap();
         let pfd = unsafe {
             bpf_sys::bpf_attach_kprobe(
                 self.fd.unwrap(),
@@ -274,6 +283,24 @@ impl Program {
         } else {
             self.pfd = Some(pfd);
             Ok(pfd)
+        }
+    }
+
+    pub fn attach_tracepoint(&mut self, category: &str, name: &str) -> Result<RawFd> {
+        let category = CString::new(category)?;
+        let name = CString::new(name)?;
+        let res = unsafe {
+            bpf_sys::bpf_attach_tracepoint(
+                self.fd.unwrap(),
+                category.as_c_str().as_ptr(),
+                name.as_c_str().as_ptr(),
+            )
+        };
+
+        if res < 0 {
+            Err(LoadError::BPF)
+        } else {
+            Ok(res)
         }
     }
 
@@ -326,13 +353,13 @@ impl Module {
             let content = data(&bytes, &shdr);
 
             match (section_type, kind, name) {
-                (hdr::SHT_REL, _, _) => add_rel(&mut rels, shndx, &shdr, &shdr_relocs),
+                (hdr::SHT_REL, _, _) => add_rel(&mut rels, shndx, &shdr, shdr_relocs),
                 (hdr::SHT_PROGBITS, Some("version"), _) => version = get_version(&content),
                 (hdr::SHT_PROGBITS, Some("license"), _) => {
                     license = zero::read_str(content).to_string()
                 }
                 (hdr::SHT_PROGBITS, Some("maps"), Some(name)) => {
-                    // Maps are immediately bpf_create_map'd
+                    // Maps are immediately bcc_create_map'd
                     maps.insert(shndx, Map::load(name, &content)?);
                 }
                 (hdr::SHT_PROGBITS, Some(kind @ "kprobe"), Some(name))
@@ -411,7 +438,7 @@ impl Map {
         let config: &bpf_map_def = zero::read(code);
         let cname = CString::new(name.clone())?;
         let fd = unsafe {
-            bpf_sys::bpf_create_map(
+            bpf_sys::bcc_create_map(
                 config.kind,
                 cname.as_ptr(),
                 config.key_size as i32,
@@ -421,7 +448,7 @@ impl Map {
             )
         };
         if fd < 0 {
-            return Err(LoadError::BPF);
+            return Err(LoadError::Map);
         }
 
         Ok(Map {
@@ -453,7 +480,7 @@ fn add_rel(
     rels: &mut Vec<Rel>,
     shndx: usize,
     shdr: &SectionHeader,
-    shdr_relocs: &Vec<(usize, Vec<Reloc>)>,
+    shdr_relocs: &[(usize, RelocSection<'_>)],
 ) {
     // if unwrap blows up, something's really bad
     let section_rels = &shdr_relocs.iter().find(|(idx, _)| idx == &shndx).unwrap().1;
