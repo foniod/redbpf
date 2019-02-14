@@ -176,7 +176,7 @@ pub fn generate_bindings(flags: &[String], out_dir: &Path, source: &Path) -> Res
         let trait_impl = r"
 impl<'a> From<&'a [u8]> for ### {
     fn from(x: &'a [u8]) -> ### {
-        unsafe { ptr::read(x.as_ptr() as *const ###) }
+        unsafe { std::ptr::read(x.as_ptr() as *const ###) }
     }
 }
 ".replace("###", &data_type[1]);

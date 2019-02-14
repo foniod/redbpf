@@ -2,6 +2,7 @@
 pub enum LoadError {
     StringConversion,
     BPF,
+    Map,
     Section(String),
     Parse(::goblin::error::Error),
     KernelRelease(String),
