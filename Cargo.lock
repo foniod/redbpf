@@ -81,7 +81,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "bpf-sys"
-version = "0.1.1"
+version = "0.2.1"
 dependencies = [
  "zero 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
@@ -267,7 +267,7 @@ name = "redbpf"
 version = "0.2.0"
 dependencies = [
  "bindgen 0.47.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "bpf-sys 0.1.1",
+ "bpf-sys 0.2.1",
  "goblin 0.0.20 (registry+https://github.com/rust-lang/crates.io-index)",
  "lazy_static 1.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "libc 0.2.48 (registry+https://github.com/rust-lang/crates.io-index)",
