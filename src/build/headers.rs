@@ -16,7 +16,10 @@ pub const KERNEL_HEADERS: [&'static str; 6] = [
 ];
 
 pub fn headers() -> Result<Vec<OsString>, Error> {
-    let headers_base_path = env_kernel_path().or_else(|_| arch_kernel_path())?;
+    let mut headers_base_path = env_kernel_path().or_else(|_| arch_kernel_path())?;
+    if !headers_base_path.ends_with("/") {
+        headers_base_path.push('/');
+    }
 
     Ok(KERNEL_HEADERS
         .iter()
