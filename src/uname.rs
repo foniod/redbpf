@@ -3,6 +3,7 @@ use std::ffi::CStr;
 use std::mem;
 use std::str::from_utf8_unchecked;
 use std::str::FromStr;
+use std::fs;
 
 pub fn uname() -> Result<::libc::utsname> {
     let mut uname = unsafe { mem::zeroed() };
@@ -16,20 +17,15 @@ pub fn uname() -> Result<::libc::utsname> {
 
 #[inline]
 pub fn get_kernel_internal_version() -> Result<u32> {
-    let uname = uname()?;
+    let version = if let Ok(version) = fs::read_to_string("/proc/version_signature") {
+        parse_version_signature(&version.trim()).ok_or(LoadError::KernelRelease(version))?
+    } else {
+        to_str(&uname()?.release).into()
+    };
 
-    let urelease = to_str(&uname.release);
-    let err = || LoadError::KernelRelease(urelease.to_string());
-    let err_ = |_| LoadError::KernelRelease(urelease.to_string());
-
-    let mut release_package = urelease.splitn(2, '-');
-    let mut release = release_package.next().ok_or(err())?.splitn(3, '.');
-
-    let major = u32::from_str(release.next().ok_or(err())?).map_err(err_)?;
-    let minor = u32::from_str(release.next().ok_or(err())?).map_err(err_)?;
-    let patch = u32::from_str(release.next().ok_or(err())?).map_err(err_)?;
-
-    Ok(major << 16 | minor << 8 | patch)
+    parse_version(&version).map(|(major, minor, patch)| {
+        major << 16 | minor << 8 | patch
+    }).ok_or(LoadError::KernelRelease(version))
 }
 
 #[inline]
@@ -48,4 +44,50 @@ pub fn get_fqdn() -> Result<String> {
 #[inline]
 pub fn to_str(bytes: &[i8]) -> &str {
     unsafe { from_utf8_unchecked(CStr::from_ptr(bytes.as_ptr()).to_bytes()) }
+}
+
+fn parse_version_signature(signature: &str) -> Option<String> {
+    let parts: Vec<_> = signature.split(" ").collect();
+    if parts.len() != 3 {
+        return None;
+    }
+
+    parts.last().map(|v| v.clone().into())
+}
+
+fn parse_version(version: &str) -> Option<(u32, u32, u32)> {
+    if let Some(version) = version.splitn(2, "-").next() {
+        let parts: Vec<_> = version.splitn(3, ".").filter_map(|v| u32::from_str(v).ok()).collect();
+        if parts.len() != 3 {
+            return None;
+        }
+        return Some((parts[0], parts[1], parts[2]))
+    }
+
+    None
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_parse_version() {
+        assert_eq!(parse_version("4.15.18"), Some((4, 15, 18)));
+        assert_eq!(parse_version("4.15.1-generic"), Some((4, 15, 1)));
+        assert_eq!(parse_version("4.15.1-generic-foo"), Some((4, 15, 1)));
+        assert_eq!(parse_version("4.3.2.1"), None);
+        assert_eq!(parse_version("4.2.foo"), None);
+        assert_eq!(parse_version("4.2."), None);
+        assert_eq!(parse_version("4.2"), None);
+        assert_eq!(parse_version("foo"), None);
+        assert_eq!(parse_version(""), None);
+    }
+
+    #[test]
+    fn test_parse_version_signature() {
+        assert_eq!(parse_version_signature("Ubuntu 4.15.0-55.60-generic 4.15.18"), Some("4.15.18".into()));
+        assert_eq!(parse_version_signature("Ubuntu 4.15.0-55.60-generic 4.15.18 foo"), None);
+        assert_eq!(parse_version_signature("Ubuntu 4.15.0-55.60-generic"), None);
+    }
 }
