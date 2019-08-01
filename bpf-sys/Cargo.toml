@@ -12,3 +12,7 @@ keywords = ["bpf", "ebpf", "ffi"]
 
 [dependencies]
 zero = "0.1"
+
+[build-dependencies]
+cc = "1.0"
+bindgen = "0.51.0"
