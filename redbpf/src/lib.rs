@@ -54,7 +54,7 @@ pub mod cpus;
 mod error;
 mod perf;
 pub mod sys;
-pub mod uname;
+pub use bpf_sys::uname;
 
 use bpf_sys::{bpf_insn, bpf_map_def};
 use goblin::elf::{section_header as hdr, Elf, SectionHeader, Sym,

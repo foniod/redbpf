@@ -1,35 +1,34 @@
-use crate::error::{LoadError, Result};
 use std::ffi::CStr;
 use std::mem;
 use std::str::from_utf8_unchecked;
 use std::str::FromStr;
 use std::fs;
 
-pub fn uname() -> Result<::libc::utsname> {
+pub fn uname() -> Result<::libc::utsname, ()> {
     let mut uname = unsafe { mem::zeroed() };
     let res = unsafe { ::libc::uname(&mut uname) };
     if res < 0 {
-        Err(LoadError::Uname)
+        Err(())
     } else {
         Ok(uname)
     }
 }
 
 #[inline]
-pub fn get_kernel_internal_version() -> Result<u32> {
+pub fn get_kernel_internal_version() -> Option<u32> {
     let version = if let Ok(version) = fs::read_to_string("/proc/version_signature") {
-        parse_version_signature(&version.trim()).ok_or(LoadError::KernelRelease(version))?
+        parse_version_signature(&version.trim())?
     } else {
-        to_str(&uname()?.release).into()
+        to_str(&uname().ok()?.release).into()
     };
 
     parse_version(&version).map(|(major, minor, patch)| {
         major << 16 | minor << 8 | patch
-    }).ok_or(LoadError::KernelRelease(version))
+    })
 }
 
 #[inline]
-pub fn get_fqdn() -> Result<String> {
+pub fn get_fqdn() -> Result<String, ()> {
     let uname = uname()?;
     let mut hostname = to_str(&uname.nodename).to_string();
     let domainname = to_str(&uname.domainname);

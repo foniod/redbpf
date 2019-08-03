@@ -119,14 +119,14 @@ fn link_target(out_dir: &Path, source: &Path) -> Option<PathBuf> {
     Some(out_dir.join(Path::new(&target_name)))
 }
 
-pub fn build(flags: &[OsString], out_dir: &Path, source: &Path) -> Result<PathBuf, Error> {
+pub fn build(flags: &[String], out_dir: &Path, source: &Path) -> Result<PathBuf, Error> {
     println!("Building eBPF module: {:?} ", source);
 
     let llc_args = ["-march=bpf", "-filetype=obj", "-o"];
     let cc_target = compile_target(out_dir, source).unwrap();
     let elf_target = link_target(out_dir, source).unwrap();
 
-    println!("Flags: {:?}", &flags);
+    println!("Flags: {:?}", flags);
 
     if !Command::new("clang")
         .args(flags)
