@@ -3,7 +3,9 @@
 #![allow(non_snake_case)]
 
 extern crate zero;
+pub mod headers;
 pub mod perf_reader;
+pub mod uname;
 
 pub const BUF_SIZE_MAP_NS: usize = 256;
 pub struct bpf_map_def {
