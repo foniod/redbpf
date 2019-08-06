@@ -64,7 +64,6 @@
 use regex::Regex;
 
 use std::io;
-use std::ffi::OsString;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
