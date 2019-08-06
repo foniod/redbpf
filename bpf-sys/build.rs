@@ -11,11 +11,11 @@ pub const KERNEL_HEADERS: [&'static str; 6] = [
     "include",
 ];
 
-mod uname {
+pub mod uname {
     include!(concat!(env!("CARGO_MANIFEST_DIR"), "/src/uname.rs"));
 }
 
-mod headers {
+pub mod headers {
     include!(concat!(env!("CARGO_MANIFEST_DIR"), "/src/headers.rs"));
 }
 
