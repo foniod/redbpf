@@ -1,8 +1,9 @@
+#![deny(clippy::all)]
 use std::env;
 use std::path::PathBuf;
 use std::fs;
 
-pub const KERNEL_HEADERS: [&'static str; 6] = [
+const KERNEL_HEADERS: [&'static str; 6] = [
     "arch/x86/include/generated/uapi",
     "arch/x86/include/uapi",
     "arch/x86/include/",

@@ -1,5 +1,3 @@
-#![allow(non_upper_case_globals)]
-
 //! # Perf Event handling
 //!
 //! The perf event module makes it easier to hook up and consume perf events,
@@ -41,6 +39,9 @@
 //! The `PerfMap::bind` call semantics closely follow that of the
 //! `perf_event_open(2)`
 //! [syscall](http://www.man7.org/linux/man-pages/man2/perf_event_open.2.html).
+#![allow(non_upper_case_globals)]
+#![allow(clippy::cast_lossless)]
+#![allow(clippy::cast_ptr_alignment)]
 
 use crate::{LoadError, Map, Result, VoidPtr};
 use std::cell::RefCell;

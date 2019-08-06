@@ -1,6 +1,3 @@
-#![warn(rust_2018_idioms)]
-#![cfg_attr(feature = "cargo-clippy", allow(clippy:all))]
-
 //! # RedBPF
 //!
 //! This crate provides a build-load-run workflow for eBPF modules. If the
@@ -40,6 +37,7 @@
 //! The magic version number is compatible with GoBPF's convention: during
 //! loading it is replaced with the currently running kernel's internal version,
 //! as returned by `uname()`.
+#![deny(clippy::all)]
 
 #[cfg(feature = "build")]
 #[macro_use]
@@ -400,7 +398,7 @@ fn get_split_section_name<'o>(
     let name = object
         .shdr_strtab
         .get_unsafe(shdr.sh_name)
-        .ok_or(LoadError::Section(format!(
+        .ok_or_else(|| LoadError::Section(format!(
             "Section name not found: {}",
             shndx
         )))?;
@@ -419,7 +417,7 @@ impl Rel {
         &self,
         programs: &mut HashMap<usize, Program>,
         maps: &HashMap<usize, Map>,
-        symtab: &Vec<Sym>,
+        symtab: &[Sym],
     ) -> Result<()> {
         let prog = programs.get_mut(&self.target).ok_or(LoadError::Reloc)?;
         let map = maps
@@ -437,7 +435,7 @@ impl Rel {
 impl Map {
     pub fn load(name: &str, code: &[u8]) -> Result<Map> {
         let config: &bpf_map_def = zero::read(code);
-        let cname = CString::new(name.clone())?;
+        let cname = CString::new(name.to_owned())?;
         let fd = unsafe {
             bpf_sys::bcc_create_map(
                 config.kind,
@@ -497,8 +495,8 @@ fn add_rel(
 fn get_version(bytes: &[u8]) -> u32 {
     let version = zero::read::<u32>(bytes);
     match version {
-        0xFFFFFFFE => get_kernel_internal_version().unwrap(),
-        _ => version.clone(),
+        0xFFFF_FFFE => get_kernel_internal_version().unwrap(),
+        _ => *version,
     }
 }
 
