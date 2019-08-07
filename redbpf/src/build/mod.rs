@@ -71,7 +71,7 @@ use std::process::Command;
 pub mod cache;
 pub mod headers;
 
-pub const BUILD_FLAGS: [&'static str; 16] = [
+pub const BUILD_FLAGS: [&str; 16] = [
     "-D__BPF_TRACING__",
     "-D__KERNEL__",
     "-D__ASM_SYSREG_H",

@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use crate::build::Error;
 use bpf_sys::headers::kernel_headers_path;
 
-pub const KERNEL_HEADERS: [&'static str; 6] = [
+pub const KERNEL_HEADERS: [&str; 6] = [
     "arch/x86/include",
     "arch/x86/include/generated",
     "include",
