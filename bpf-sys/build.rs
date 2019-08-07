@@ -64,6 +64,9 @@ fn main() {
 
     let bindings = bindgen::Builder::default()
         .header("bcc/libbpf.h")
+        .clang_arg("-Ilibbpf/include/uapi")
+        .clang_arg("-Ilibbpf/include")
+        .clang_arg("-Ibcc")
         .generate()
         .expect("Unable to generate bindings");
     bindings
@@ -71,6 +74,9 @@ fn main() {
         .expect("Couldn't write bindings!");
     let bindings = bindgen::Builder::default()
         .header("bcc/perf_reader.h")
+        .clang_arg("-Ilibbpf/include/uapi")
+        .clang_arg("-Ilibbpf/include")
+        .clang_arg("-Ibcc")
         .generate()
         .expect("Unable to generate bindings");
     bindings
