@@ -63,8 +63,8 @@
 
 use regex::Regex;
 
-use std::io;
-use std::fs;
+use std::io::{self, Write};
+use std::fs::File;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -183,6 +183,14 @@ impl<'a> From<&'a [u8]> for ### {
     }
 
     let filename = out_dir.join(source.with_extension("rs").file_name().unwrap());
-    fs::write(&filename, &code)?;
+    let mut file = File::create(&filename)?;
+    writeln!(&mut file, r"
+mod bindings {{
+#![allow(non_camel_case_types)]
+#![allow(clippy::all)]
+{}
+}}
+pub use bindings::*;
+", code)?;
     Ok(filename)
 }
