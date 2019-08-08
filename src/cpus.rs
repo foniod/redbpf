@@ -2,7 +2,7 @@ use std::fs::read;
 use std::io::Error;
 use std::str::FromStr;
 
-const SYS_CPU_ONLINE: &'static str = "/sys/devices/system/cpu/online";
+const SYS_CPU_ONLINE: &str = "/sys/devices/system/cpu/online";
 
 pub type CpuId = i32;
 
