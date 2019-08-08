@@ -1,6 +1,6 @@
 [package]
 name = "redbpf"
-version = "0.2.0"
+version = "0.3.0"
 description = "eBPF build and runtime library"
 repository = "https://github.com/redsift/redbpf"
 documentation = "https://redsift.github.io/rust/redbpf/doc/redbpf/"
