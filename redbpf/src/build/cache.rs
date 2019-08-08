@@ -16,7 +16,7 @@ impl BuildCache {
         let file = dir.join(".build_manifest");
         let cache = match File::open(&file)
             .map_err(serde_json::Error::io)
-            .and_then(|f| serde_json::from_reader(f))
+            .and_then(serde_json::from_reader)
         {
             Ok(cache) => cache,
             Err(_) => HashMap::new(),

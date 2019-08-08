@@ -63,29 +63,29 @@
 
 use regex::Regex;
 
-use std::io;
-use std::ffi::OsString;
-use std::fs;
+use std::io::{self, Write};
+use std::fs::File;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
 pub mod cache;
 pub mod headers;
 
-pub const BUILD_FLAGS: [&'static str; 16] = [
+pub const BUILD_FLAGS: [&str; 17] = [
     "-D__BPF_TRACING__",
     "-D__KERNEL__",
     "-D__ASM_SYSREG_H",
+    "-Wall",
+    "-Werror",
+    "-Wunused",
     "-Wno-unused-value",
     "-Wno-pointer-sign",
     "-Wno-compare-distinct-pointer-types",
     "-Wno-unused-parameter",
     "-Wno-missing-field-initializers",
     "-Wno-initializer-overrides",
+    "-Wno-unknown-pragmas",
     "-fno-stack-protector",
-    "-Wunused",
-    "-Wall",
-    "-Werror",
     "-O2",
     "-emit-llvm",
     "-c",
@@ -119,14 +119,14 @@ fn link_target(out_dir: &Path, source: &Path) -> Option<PathBuf> {
     Some(out_dir.join(Path::new(&target_name)))
 }
 
-pub fn build(flags: &[OsString], out_dir: &Path, source: &Path) -> Result<PathBuf, Error> {
+pub fn build(flags: &[String], out_dir: &Path, source: &Path) -> Result<PathBuf, Error> {
     println!("Building eBPF module: {:?} ", source);
 
     let llc_args = ["-march=bpf", "-filetype=obj", "-o"];
     let cc_target = compile_target(out_dir, source).unwrap();
     let elf_target = link_target(out_dir, source).unwrap();
 
-    println!("Flags: {:?}", &flags);
+    println!("Flags: {:?}", flags);
 
     if !Command::new("clang")
         .args(flags)
@@ -184,6 +184,14 @@ impl<'a> From<&'a [u8]> for ### {
     }
 
     let filename = out_dir.join(source.with_extension("rs").file_name().unwrap());
-    fs::write(&filename, &code)?;
+    let mut file = File::create(&filename)?;
+    writeln!(&mut file, r"
+mod bindings {{
+#![allow(non_camel_case_types)]
+#![allow(clippy::all)]
+{}
+}}
+pub use bindings::*;
+", code)?;
     Ok(filename)
 }
