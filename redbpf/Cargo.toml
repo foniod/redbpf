@@ -16,7 +16,7 @@ circle-ci = { repository = "redsift/redbpf", branch = "master" }
 maintenance = { status = "actively-developed" }
 
 [dependencies]
-bpf-sys = { path = "../bpf-sys", version = "0.2.0" }
+bpf-sys = { path = "../bpf-sys", version = "^0.3.0" }
 goblin = "^0.0.20"
 zero = "0.1"
 libc = "0.2"
