@@ -29,7 +29,7 @@ jobs:
             git config --global url."https://$GITHUB_HTTP_TOKEN:@github.com".insteadOf "https://github.com"
             cargo login $CRATES_KEY
             cd bpf-sys
-            cargo publish  
+            cargo publish || true
             cd ..
             cargo publish  
             cargo doc --no-deps --release -p redbpf -p bpf-sys
