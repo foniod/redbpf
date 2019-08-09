@@ -1,4 +1,4 @@
-image: &default_image rustlang/rust:nightly
+image: &default_image redsift/ingraind-build:latest
 
 version: 2
 jobs:
