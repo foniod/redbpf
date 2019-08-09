@@ -1,4 +1,4 @@
-image: &default_image redsift/ingraind-build:latest
+image: &default_image quay.io/redsift/ingraind-build:latest
 
 version: 2
 jobs:
