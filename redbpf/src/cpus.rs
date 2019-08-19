@@ -23,8 +23,16 @@ pub fn get_online() -> Result<Vec<CpuId>, Error> {
 fn list_from_string(cpus: &str) -> Vec<CpuId> {
     let cpu_list = cpus.split(',').flat_map(|group| {
         let mut split = group.split('-');
-        let start = CpuId::from_str(split.next().unwrap()).unwrap();
-        let end = CpuId::from_str(split.next().unwrap()).unwrap();
+        let start = split.next();
+        let end = split.next();
+
+        if let (Some(start), None) = (start, end) {
+            let cpuid = CpuId::from_str(start).unwrap();
+            return cpuid..=cpuid;
+        }
+
+        let start = CpuId::from_str(start.unwrap()).unwrap();
+        let end = CpuId::from_str(end.unwrap()).unwrap();
         (start..=end)
     });
     cpu_list.collect()
@@ -34,6 +42,7 @@ mod test {
     #[test]
     fn test() {
         use crate::cpus::list_from_string;
+        assert_eq!(list_from_string("0"), vec![0]);
         assert_eq!(list_from_string("0-4"), vec![0, 1, 2, 3, 4]);
         assert_eq!(list_from_string("0-2,5-6"), vec![0, 1, 2, 5, 6]);
     }
