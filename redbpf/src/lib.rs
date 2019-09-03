@@ -70,6 +70,17 @@ use crate::uname::get_kernel_internal_version;
 
 pub type VoidPtr = *mut std::os::raw::c_void;
 
+
+#[cfg(target_arch = "aarch64")]
+pub type DataPtr = *const u8;
+#[cfg(target_arch = "aarch64")]
+pub type MutDataPtr = *mut u8;
+
+#[cfg(target_arch = "x86_64")]
+pub type DataPtr = *const i8;
+#[cfg(target_arch = "x86_64")]
+pub type MutDataPtr = *mut i8;
+
 pub struct Module {
     pub programs: Vec<Program>,
     pub maps: Vec<Map>,
@@ -233,17 +244,17 @@ impl Program {
     pub fn load(&mut self, kernel_version: u32, license: String) -> Result<RawFd> {
         let clicense = CString::new(license)?;
         let cname = CString::new(self.name.clone())?;
-        let log_buffer: *mut i8 =
-            unsafe { libc::malloc(mem::size_of::<i8>() * 16 * 65535) as *mut i8 };
+        let log_buffer: MutDataPtr =
+            unsafe { libc::malloc(mem::size_of::<i8>() * 16 * 65535) as MutDataPtr };
         let buf_size = 64 * 65535 as u32;
 
         let fd = unsafe {
             bpf_sys::bcc_prog_load(
                 self.kind.to_prog_type(),
-                cname.as_ptr() as *const i8,
+                cname.as_ptr() as DataPtr,
                 self.code.as_ptr(),
                 self.code_bytes,
-                clicense.as_ptr() as *const i8,
+                clicense.as_ptr() as DataPtr,
                 kernel_version as u32,
                 0 as i32,
                 log_buffer,
