@@ -71,10 +71,32 @@ use std::process::Command;
 pub mod cache;
 pub mod headers;
 
+#[cfg(target_arch = "x86_64")]
 pub const BUILD_FLAGS: [&str; 17] = [
     "-D__BPF_TRACING__",
     "-D__KERNEL__",
     "-D__ASM_SYSREG_H",
+    "-Wall",
+    "-Werror",
+    "-Wunused",
+    "-Wno-unused-value",
+    "-Wno-pointer-sign",
+    "-Wno-compare-distinct-pointer-types",
+    "-Wno-unused-parameter",
+    "-Wno-missing-field-initializers",
+    "-Wno-initializer-overrides",
+    "-Wno-unknown-pragmas",
+    "-fno-stack-protector",
+    "-O2",
+    "-emit-llvm",
+    "-c",
+];
+
+#[cfg(target_arch = "aarch64")]
+pub const BUILD_FLAGS: [&str; 18] = [
+    "-D__BPF_TRACING__",
+    "-D__KERNEL__",
+    "-target", "aarch64",
     "-Wall",
     "-Werror",
     "-Wunused",
