@@ -1,3 +1,4 @@
+use std::os::raw::c_char;
 use std::ffi::CStr;
 use std::mem;
 use std::str::from_utf8_unchecked;
@@ -41,14 +42,7 @@ pub fn get_fqdn() -> Result<String, ()> {
 }
 
 #[inline]
-#[cfg(target_arch = "x86_64")]
-pub fn to_str(bytes: &[i8]) -> &str {
-    unsafe { from_utf8_unchecked(CStr::from_ptr(bytes.as_ptr()).to_bytes()) }
-}
-
-#[inline]
-#[cfg(target_arch = "aarch64")]
-pub fn to_str(bytes: &[u8]) -> &str {
+pub fn to_str(bytes: &[c_char]) -> &str {
     unsafe { from_utf8_unchecked(CStr::from_ptr(bytes.as_ptr()).to_bytes()) }
 }
 
