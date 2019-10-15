@@ -23,6 +23,7 @@ pub fn cmd_bindgen(header: &PathBuf, extra_args: &[&str]) -> Result<(), CommandE
     let mut bindgen_flags = bindgen::builder()
         .clang_args(&flags)
         .header(header.to_str().unwrap())
+        .use_core()
         .ctypes_prefix("::cty")
         .command_line_flags();
     let p = bindgen_flags
@@ -32,9 +33,10 @@ pub fn cmd_bindgen(header: &PathBuf, extra_args: &[&str]) -> Result<(), CommandE
     for (i, flag) in extra_args.iter().enumerate() {
         bindgen_flags.insert(p + i, String::from(*flag));
     }
-    let bindings = Command::new("bindgen").args(bindgen_flags).output()?.stdout;
+    let output = Command::new("bindgen").args(bindgen_flags).output()?;
+    io::stderr().write_all(&output.stderr)?;
+    let bindings = output.stdout;
     let bindings = str::from_utf8(&bindings).unwrap();
-
     let mut out = io::stdout();
     writeln!(
         &mut out,
