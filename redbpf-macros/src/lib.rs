@@ -94,8 +94,11 @@ pub fn map(attrs: TokenStream, item: TokenStream) -> TokenStream {
     tokens.into()
 }
 
-fn bpf_helpers() -> Block {
-    let funcs = include!(concat!(env!("OUT_DIR"), "/gen_helper_funcs.rs"));
+fn bpf_helpers(prefix: Option<&str>) -> Block {
+    let mut funcs = String::from(include!(concat!(env!("OUT_DIR"), "/gen_helper_funcs.rs")));
+    if let Some(prefix) = prefix {
+        funcs = funcs.replace(":: redbpf_probes ::", prefix);
+    }
     let funcs: Block = parse_str(&funcs).unwrap();
 
     funcs
@@ -122,13 +125,35 @@ fn bpf_overrides() -> Block {
     }
 }
 
-fn inject_bpf_helpers(item: &mut ItemFn) {
-    let helpers = bpf_helpers();
+fn inject_bpf_helpers(item: &mut ItemFn, prefix: Option<&str>) {
+    let helpers = bpf_helpers(prefix);
     let overrides = bpf_overrides();
     let mut stmts = helpers.stmts.clone();
     stmts.extend(overrides.stmts);
     stmts.extend(item.block.stmts.clone());
     item.block.stmts = stmts;
+}
+
+#[proc_macro_attribute]
+pub fn helpers(_attrs: TokenStream, item: TokenStream) -> TokenStream {
+    let mut item = parse_macro_input!(item as ItemFn);
+    inject_bpf_helpers(&mut item, None);
+    let tokens = quote! {
+        #item
+    };
+
+    tokens.into()
+}
+
+#[proc_macro_attribute]
+pub fn internal_helpers(_attrs: TokenStream, item: TokenStream) -> TokenStream {
+    let mut item = parse_macro_input!(item as ItemFn);
+    inject_bpf_helpers(&mut item, Some("crate ::"));
+    let tokens = quote! {
+        #item
+    };
+
+    tokens.into()
 }
 
 fn probe_impl(ty: &str, attrs: TokenStream, item: TokenStream) -> TokenStream {
@@ -142,7 +167,7 @@ fn probe_impl(ty: &str, attrs: TokenStream, item: TokenStream) -> TokenStream {
 
     let section_name = format!("{}/{}", ty, name);
     let mut item = parse_macro_input!(item as ItemFn);
-    inject_bpf_helpers(&mut item);
+    inject_bpf_helpers(&mut item, None);
     let tokens = quote! {
         #[no_mangle]
         #[link_section = #section_name]

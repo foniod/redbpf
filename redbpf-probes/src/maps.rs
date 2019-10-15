@@ -1,46 +1,10 @@
 use core::marker::PhantomData;
-use core::mem::{self, transmute};
+use core::mem;
 use cty::*;
 
 use crate::bindings::*;
 
-#[repr(C)]
-pub struct Helpers {
-  pub bpf_trace_printk: unsafe extern "C" fn(
-    fmt: *const c_char,
-    fmt_size: c_int,
-    ...
-  ) -> c_int,
-  pub bpf_map_lookup_elem: unsafe extern "C" fn(
-    map: *mut c_void,
-    key: *mut c_void,
-  ) -> *mut c_void,
-  pub bpf_perf_event_output: unsafe extern "C" fn(
-    ctx: *mut c_void,
-    map: *mut c_void,
-    flags: c_ulonglong,
-    data: *mut c_void,
-    size: c_int,
-  ) -> c_int,
-  pub bpf_get_smp_processor_id: unsafe extern "C" fn() -> c_ulonglong,
-  pub bpf_get_current_pid_tgid: unsafe extern "C" fn() -> c_ulonglong,
-  pub bpf_get_current_comm: unsafe extern "C" fn(
-    buf: *mut c_void,
-    buf_size: c_int,
-  ) -> c_int,
-}
-
-#[inline(always)]
-pub const fn helpers() -> Helpers {
-  Helpers {
-    bpf_trace_printk: unsafe { transmute(bpf_func_id_BPF_FUNC_trace_printk as u64) },
-    bpf_map_lookup_elem: unsafe { transmute(bpf_func_id_BPF_FUNC_map_lookup_elem as u64) },
-    bpf_perf_event_output: unsafe { transmute(bpf_func_id_BPF_FUNC_perf_event_output as u64) },
-    bpf_get_smp_processor_id: unsafe { transmute(bpf_func_id_BPF_FUNC_get_smp_processor_id as u64) },
-    bpf_get_current_pid_tgid: unsafe { transmute(bpf_func_id_BPF_FUNC_get_current_pid_tgid as u64) },
-    bpf_get_current_comm: unsafe { transmute(bpf_func_id_BPF_FUNC_get_current_comm as u64) },
-  }
-}
+use redbpf_macros::internal_helpers as helpers;
 
 #[repr(transparent)]
 pub struct HashMap<K, V> {
@@ -66,12 +30,9 @@ impl<K, V: Copy> HashMap<K, V> {
     }
   }
 
+  #[inline]
+  #[helpers]
   pub fn get(&mut self, mut key: K) -> Option<&V> {
-    let Helpers {
-      bpf_map_lookup_elem,
-      ..
-    } = helpers();
-
     let value = unsafe {
         let value = bpf_map_lookup_elem(&mut self.def as *mut _ as *mut c_void, &mut key as *mut _ as *mut c_void);
         if value.is_null() {
@@ -108,12 +69,8 @@ impl<T> PerfMap<T> {
   }
 
   #[inline]
+  #[helpers]
   pub fn insert<C>(&mut self, ctx: *mut C, mut data: T) {
-    let Helpers {
-      bpf_perf_event_output,
-      bpf_get_smp_processor_id,
-      ..
-    } = helpers();
     let cpu = unsafe { bpf_get_smp_processor_id() };
     unsafe {
       bpf_perf_event_output(

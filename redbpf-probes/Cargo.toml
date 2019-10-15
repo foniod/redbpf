@@ -5,6 +5,7 @@ edition = '2018'
 
 [dependencies]
 cty = "0.2"
+redbpf-macros = { path = "../redbpf-macros" }
 
 [build-dependencies]
 bindgen = "0.51.1"
