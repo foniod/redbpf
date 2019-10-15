@@ -107,6 +107,7 @@ impl<T> PerfMap<T> {
     }
   }
 
+  #[inline]
   pub fn insert<C>(&mut self, ctx: *mut C, mut data: T) {
     let Helpers {
       bpf_perf_event_output,
