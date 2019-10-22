@@ -73,6 +73,17 @@ fn main() {
         .write_to_file(out_path.join("libbpf_bindings.rs"))
         .expect("Couldn't write bindings!");
     let bindings = bindgen::Builder::default()
+        .header("libbpf/src/libbpf.h")
+        .clang_arg("-Ilibbpf/include/uapi")
+        .clang_arg("-Ilibbpf/include")
+        .clang_arg("-Ibcc")
+        .whitelist_type("bpf_map_def")
+        .generate()
+        .expect("Unable to generate bindings");
+    bindings
+        .write_to_file(out_path.join("libbpf_map_def.rs"))
+        .expect("Couldn't write bindings!");
+    let bindings = bindgen::Builder::default()
         .header("bcc/perf_reader.h")
         .clang_arg("-Ilibbpf/include/uapi")
         .clang_arg("-Ilibbpf/include")

@@ -21,9 +21,7 @@ impl<K, V: Copy> HashMap<K, V> {
         key_size: mem::size_of::<K>() as u32,
         value_size: mem::size_of::<V>() as u32,
         max_entries: 10240u32,
-        map_flags: 0u32,
-        pinning: 0u32,
-        namespace: [0; 256],
+        map_flags: 0
       },
       _k: PhantomData,
       _v: PhantomData
@@ -60,9 +58,7 @@ impl<T> PerfMap<T> {
         key_size: mem::size_of::<u32>() as u32,
         value_size: mem::size_of::<u32>() as u32,
         max_entries: 10240u32,
-        map_flags: 0u32,
-        pinning: 0u32,
-        namespace: [0; 256],
+        map_flags: 0
       },
       _event: PhantomData
     }
@@ -76,9 +72,9 @@ impl<T> PerfMap<T> {
       bpf_perf_event_output(
         ctx as *mut _ as *mut c_void,
         &mut self.def as *mut _ as *mut c_void,
-        cpu,
+        cpu as u64,
         &mut data as *mut _ as *mut c_void,
-        mem::size_of::<T>() as i32,
+        mem::size_of::<T>() as u64,
       );
     };
   }

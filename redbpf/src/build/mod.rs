@@ -72,7 +72,7 @@ pub mod cache;
 pub mod headers;
 
 #[cfg(target_arch = "x86_64")]
-pub const BUILD_FLAGS: [&str; 17] = [
+pub const BUILD_FLAGS: [&str; 19] = [
     "-D__BPF_TRACING__",
     "-D__KERNEL__",
     "-D__ASM_SYSREG_H",
@@ -87,13 +87,15 @@ pub const BUILD_FLAGS: [&str; 17] = [
     "-Wno-initializer-overrides",
     "-Wno-unknown-pragmas",
     "-fno-stack-protector",
+    "-Wno-unused-label",
+    "-Wno-unused-variable",
     "-O2",
     "-emit-llvm",
     "-c",
 ];
 
 #[cfg(target_arch = "aarch64")]
-pub const BUILD_FLAGS: [&str; 18] = [
+pub const BUILD_FLAGS: [&str; 20] = [
     "-D__BPF_TRACING__",
     "-D__KERNEL__",
     "-target", "aarch64",
@@ -108,6 +110,8 @@ pub const BUILD_FLAGS: [&str; 18] = [
     "-Wno-initializer-overrides",
     "-Wno-unknown-pragmas",
     "-fno-stack-protector",
+    "-Wno-unused-label",
+    "-Wno-unused-variable",
     "-O2",
     "-emit-llvm",
     "-c",

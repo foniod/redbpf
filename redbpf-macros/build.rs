@@ -25,7 +25,7 @@ fn main() {
 
     let bindings = bindgen::builder()
         .clang_args(&flags)
-        .header("../include/bpf_helpers.h")
+        .header("../include/redbpf_helpers.h")
         .ctypes_prefix("::cty")
         .whitelist_var("bpf_.*")
         .generate()
@@ -52,10 +52,9 @@ impl VisitMut for RewriteBpfHelpers {
                     }
                     _ => unreachable!(),
                 };
-                let name = ident_str.splitn(2, "_").last().unwrap();
-                let func_id = format_ident!("bpf_func_id_BPF_FUNC_{}", name);
+                let call_idx = self.helpers.len() + 1;
                 let helper = quote! {
-                    let #ident: #fn_ty = unsafe { ::core::mem::transmute(::redbpf_probes::bindings::#func_id as u64) };
+                    let #ident: #fn_ty = unsafe { ::core::mem::transmute(#call_idx) };
                 }.to_string();
                 self.helpers.push(helper);
                 let ident = format!("__{}", ident_str);

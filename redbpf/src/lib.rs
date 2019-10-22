@@ -449,12 +449,12 @@ impl Map {
         let cname = CString::new(name.to_owned())?;
         let fd = unsafe {
             bpf_sys::bcc_create_map(
-                config.kind,
+                config.type_,
                 cname.as_ptr(),
                 config.key_size as i32,
                 config.value_size as i32,
                 config.max_entries as i32,
-                config.map_flags as i32,
+                config.map_flags as i32
             )
         };
         if fd < 0 {
@@ -463,7 +463,7 @@ impl Map {
 
         Ok(Map {
             name: name.to_string(),
-            kind: config.kind,
+            kind: config.type_,
             fd,
         })
     }

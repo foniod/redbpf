@@ -13,6 +13,7 @@ fn create_module(path: PathBuf, name: &str, bindings: &str) -> io::Result<()> {
 mod {name} {{
 #![allow(non_camel_case_types)]
 #![allow(non_upper_case_globals)]
+#![allow(non_snake_case)]
 #![allow(clippy::all)]
 {bindings}
 }}
@@ -39,40 +40,30 @@ fn main() {
 
     let bindings = bindgen::builder()
         .clang_args(&flags)
-        .header("../include/bpf_helpers.h")
+        .header("../include/redbpf_helpers.h")
         .use_core()
         .ctypes_prefix("::cty")
+        // bpf_helpers
         .whitelist_type("pt_regs")
-        .whitelist_type("bpf_map_def")
-        .whitelist_type("bpf_map_type")
-        .whitelist_type("bpf_func_id")
-        .generate()
-        .expect("Unable to generate bindings!");
-    create_module(
-        out_dir.join("gen_helpers.rs"),
-        "gen_helpers",
-        &bindings.to_string(),
-    )
-    .unwrap();
-    
-    let bindings = bindgen::builder()
-        .clang_args(&flags)
-        .header("../include/xdp.h")
-        .use_core()
-        .ctypes_prefix("::cty")
+        .whitelist_type("s32")
+        .whitelist_type("bpf_.*")
+        // XDP
         .whitelist_type("xdp_md")
         .whitelist_type("ethhdr")
         .whitelist_type("iphdr")
         .whitelist_type("tcphdr")
         .whitelist_type("udphdr")
         .whitelist_type("xdp_action")
+        .whitelist_type("__sk_.*")
+        .whitelist_type("sk_.*")
         .whitelist_var("ETH_.*")
         .whitelist_var("IPPROTO_.*")
+        .opaque_type("xregs_state")
         .generate()
         .expect("Unable to generate bindings!");
     create_module(
-        out_dir.join("gen_xdp.rs"),
-        "gen_xdp",
+        out_dir.join("gen_helpers.rs"),
+        "gen_helpers",
         &bindings.to_string(),
     )
     .unwrap();

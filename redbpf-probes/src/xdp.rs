@@ -1,7 +1,8 @@
 use core::mem;
+use core::slice;
 use cty::*;
 
-include!(concat!(env!("OUT_DIR"), "/gen_xdp.rs"));
+pub use crate::bindings::*;
 
 #[repr(u32)]
 pub enum XdpAction {

@@ -118,7 +118,7 @@ fn bpf_overrides() -> Block {
             let _bpf_get_current_comm = bpf_get_current_comm;
             let bpf_get_current_comm = || {
                 let mut comm: [c_char; 16usize] = [0i8; 16];
-                unsafe { _bpf_get_current_comm(&mut comm as *mut _ as *mut c_void, 16i32) };
+                unsafe { _bpf_get_current_comm(&mut comm as *mut _ as *mut c_void, 16u32) };
                 comm
             };
         }
