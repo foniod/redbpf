@@ -76,4 +76,18 @@ impl xdp_md {
 
         Some(transport)
     }
+
+    #[inline]
+    pub fn data(&self) -> Option<&mut [u8]> {
+        use Transport::*;
+        unsafe {
+            let base = match self.transport()? {
+                TCP(hdr) => hdr.add(1) as *mut u8,
+                UDP(hdr) => hdr.add(1) as *mut u8
+            };
+            let size = (self.data_end as *mut u8).offset_from(base) as usize;
+            let data = slice::from_raw_parts_mut(base, size);
+            Some(data)
+        }
+    }
 }
