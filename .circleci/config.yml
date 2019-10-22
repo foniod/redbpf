@@ -1,20 +1,79 @@
 image: &default_image quay.io/redsift/ingraind-build:latest
 
-version: 2
-jobs:
-  build:
-    docker:
-      - image: *default_image
+version: 2.1
+commands:
+  install_rust:
     steps:
+      - run:
+          name: Install rust
+          command: |
+            curl --proto '=https' --tlsv1.2 -sSf -o rustup.sh https://sh.rustup.rs
+            chmod 755 rustup.sh
+            ./rustup.sh -y
+            . /root/.cargo/env
+            cat /root/.cargo/env >> $BASH_ENV
+            rustup default nightly
+            rustup target add x86_64-unknown-linux-musl
+            rustup component add rustfmt
+  setup_ubuntu_env:
+    parameters:
+      tag:
+        type: string
+        default: "latest"
+      kernel_version:
+        type: string
+        default: "$(uname -r)"
+    steps:
+      - run:
+          name: Install some deps
+          command: |
+            apt-get update
+            apt-get install -y curl wget gnupg2 software-properties-common lsb-release git
+
       - checkout
       - run: git submodule sync
       - run: git submodule update --init
+
+      - run:
+          name: Configure llvm 9 repo
+          command: |
+            curl https://apt.llvm.org/llvm-snapshot.gpg.key | apt-key add -
+            add-apt-repository 'deb http://apt.llvm.org/bionic/   llvm-toolchain-bionic-9  main'
+
+      - run:
+          name: Install more deps
+          command: |
+            apt-get update
+            apt-get install -y clang llvm-9 libelf-dev linux-headers-<< parameters.kernel_version >> ca-certificates{,-java}
+
+      - install_rust
+
+      - run:
+          name: Set env vars
+          command: echo "export KERNEL_VERSION=<< parameters.kernel_version >>" >> $BASH_ENV
+
+jobs:
+  build_ubuntu:
+    parameters:
+      tag:
+        type: string
+        default: "latest"
+      kernel_version:
+        type: string
+        default: "$(uname -r)"
+    working_directory: /build
+    docker:
+      - image: ubuntu:<< parameters.tag >>
+    steps:
+      - setup_ubuntu_env:
+          tag: << parameters.tag >>
+          kernel_version: << parameters.kernel_version >>
       - run:
           name: Build
           command: |
             cargo build
             cargo test --bins --tests
-            cargo doc --no-deps -p redbpf -p bpf-sys
+            cargo doc --no-deps
 
   publish:
     docker:
@@ -31,7 +90,7 @@ jobs:
             cd bpf-sys
             cargo publish || true
             cd ..
-            cargo publish  
+            cargo publish
             cargo doc --no-deps --release -p redbpf -p bpf-sys
 
             git config --global user.email "team@redsift.com"
@@ -52,16 +111,10 @@ workflows:
   version: 2
   build_publish:
     jobs:
-      - build:
-          filters:
-            tags:
-              only: /^v.*/      
-      - publish:
-          context: org-global
-          requires:
-            - build
-          filters:
-            tags:
-              only: /^v.*/
-            branches:
-              ignore: /.*/    
+      - build_ubuntu:
+          name: "ubuntu 18.04"
+          tag: "18.04"
+      - build_ubuntu:
+          name: "ubuntu 19.04"
+          tag: "19.04"
+          kernel_version: "5.0.0-32-generic"
