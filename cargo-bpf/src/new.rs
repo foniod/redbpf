@@ -2,7 +2,7 @@ use std::io::Write;
 use std::fs::{self, File};
 use std::path::PathBuf;
 
-use crate::commands::CommandError;
+use crate::CommandError;
 
 pub fn new(path: &PathBuf, name: Option<&str>) -> Result<(), CommandError> {
     if path.exists() {

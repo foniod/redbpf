@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use toml_edit;
 
-use crate::commands::CommandError;
+use crate::CommandError;
 
 pub enum Error {
     MissingManifest(PathBuf),
@@ -114,7 +114,7 @@ pub fn build(cargo: &str, package: &PathBuf, out_dir: &PathBuf, programs: Vec<St
     Ok(())
 }
 
-pub(crate) fn cmd_build(programs: Vec<String>) -> Result<(), CommandError> {
+pub fn cmd_build(programs: Vec<String>) -> Result<(), CommandError> {
     let current_dir = std::env::current_dir().unwrap();
     // FIXME: parse --target-dir etc
     let out_dir = PathBuf::from("target/release/bpf-programs");

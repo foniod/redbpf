@@ -6,6 +6,9 @@ edition = "2018"
 keywords = ["cargo", "bpf", "plugin", "subcommand"]
 categories = ["development-tools::cargo-plugins"]
 
+[lib]
+name = "cargo_bpf"
+
 [dependencies]
 clap = "2.33"
 bindgen = "0.51.1"

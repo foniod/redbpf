@@ -4,7 +4,7 @@ use std::str;
 use std::process::Command;
 use bindgen;
 
-use crate::commands::CommandError;
+use crate::CommandError;
 
 use redbpf::{self, build::headers::kernel_headers};
 

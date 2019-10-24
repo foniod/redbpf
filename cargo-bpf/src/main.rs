@@ -1,7 +1,7 @@
-mod commands;
-
 use clap::{self, crate_authors, crate_version, App, AppSettings, Arg, SubCommand};
 use std::path::PathBuf;
+
+use cargo_bpf;
 
 fn main() {
     let matches =
@@ -59,12 +59,12 @@ fn main() {
     if let Some(m) = matches.subcommand_matches("new") {
         let path = m.value_of("PATH").map(PathBuf::from).unwrap();
 
-        if let Err(e) = commands::new(&path, m.value_of("NAME")) {
+        if let Err(e) = cargo_bpf::new(&path, m.value_of("NAME")) {
             clap::Error::with_description(&e.0, clap::ErrorKind::InvalidValue).exit()
         }
     }
     if let Some(m) = matches.subcommand_matches("add") {
-        if let Err(e) = commands::new_program(m.value_of("NAME").unwrap()) {
+        if let Err(e) = cargo_bpf::new_program(m.value_of("NAME").unwrap()) {
             clap::Error::with_description(&e.0, clap::ErrorKind::InvalidValue).exit()
         }
     }
@@ -74,7 +74,7 @@ fn main() {
             .values_of("BINDGEN_ARGS")
             .map(|i| i.collect())
             .unwrap_or_else(Vec::new);
-        if let Err(e) = commands::bindgen(&header, &extra_args[..]) {
+        if let Err(e) = cargo_bpf::bindgen(&header, &extra_args[..]) {
             clap::Error::with_description(&e.0, clap::ErrorKind::InvalidValue).exit()
         }
     }
@@ -83,7 +83,7 @@ fn main() {
             .values_of("NAME")
             .map(|i| i.map(|s| String::from(s)).collect())
             .unwrap_or_else(Vec::new);
-        if let Err(e) = commands::cmd_build(programs) {
+        if let Err(e) = cargo_bpf::cmd_build(programs) {
             clap::Error::with_description(&e.0, clap::ErrorKind::InvalidValue).exit()
         }
     }

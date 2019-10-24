@@ -3,7 +3,7 @@ use std::io::{Seek, SeekFrom, Write};
 use std::path::Path;
 use toml_edit;
 
-use crate::commands::CommandError;
+use crate::CommandError;
 
 pub fn new_program(name: &str) -> Result<(), CommandError> {
     use toml_edit::{value, Array, ArrayOfTables, Document, Item, Table};
