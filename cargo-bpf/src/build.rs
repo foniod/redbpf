@@ -2,6 +2,7 @@ use std::convert::From;
 use std::fmt::{self, Display};
 use std::fs;
 use std::io;
+use std::env;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use toml_edit;
@@ -57,7 +58,7 @@ pub fn build_program(cargo: &Path, package: &Path, out_dir: &Path, program: &str
     let llc_args = ["-march=bpf", "-filetype=obj", "-o"];
     let elf_target = out_dir.join(format!("{}.elf", program));
 
-    let current_dir = std::env::current_dir().unwrap();
+    let current_dir = env::current_dir().unwrap();
     let out_dir = current_dir.join(out_dir);
     fs::create_dir_all(out_dir.clone())?;
 
@@ -91,8 +92,8 @@ pub fn build_program(cargo: &Path, package: &Path, out_dir: &Path, program: &str
     }
 
     let bc_file = &bc_files[0];
-
-    if !Command::new("llc-9")
+    let llc = env::var("LLC").unwrap_or("llc-9".into());
+    if !Command::new(llc)
         .args(&llc_args)
         .arg(&elf_target)
         .arg(bc_file.to_str().unwrap())
