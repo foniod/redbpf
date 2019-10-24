@@ -14,4 +14,4 @@ impl std::convert::From<std::io::Error> for CommandError {
 pub use new::new;
 pub use new_program::new_program;
 pub use self::bindgen::cmd_bindgen as bindgen;
-pub use build::cmd_build;
+pub use build::{build, cmd_build};

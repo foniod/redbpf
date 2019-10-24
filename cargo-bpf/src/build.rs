@@ -1,4 +1,5 @@
 use std::convert::From;
+use std::fmt::{self, Display};
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
@@ -7,6 +8,7 @@ use toml_edit;
 
 use crate::CommandError;
 
+#[derive(Debug)]
 pub enum Error {
     MissingManifest(PathBuf),
     NoPrograms,
@@ -16,35 +18,51 @@ pub enum Error {
     IOError(io::Error)
 }
 
+impl std::error::Error for Error {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Error::IOError(e) => Some(e),
+            _ => None
+        }
+    }
+}
+
 impl From<io::Error> for Error {
     fn from(error: io::Error) -> Error {
         Error::IOError(error)
     }
 }
 
-impl From<Error> for CommandError {
-    fn from(error: Error) -> CommandError {
+impl Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         use Error::*;
-        let msg = match error {
-            MissingManifest(p) =>  format!("Could not find `Cargo.toml' in {:?}", p),
-            NoPrograms => String::from("the package doesn't contain any eBPF programs"),
-            Compile(p) => format!("failed to compile the `{}' program", p),
-            MissingBitcode(p) => format!("failed to generate bitcode for the `{}' program", p),
-            Link(p) => format!("failed to generate bitcode for the `{}' program", p),
-            IOError(e) => return e.into()
-        };
-
-        CommandError(msg)
+        match self {
+            MissingManifest(p) =>  write!(f, "Could not find `Cargo.toml' in {:?}", p),
+            NoPrograms => write!(f, "the package doesn't contain any eBPF programs"),
+            Compile(p) => write!(f, "failed to compile the `{}' program", p),
+            MissingBitcode(p) => write!(f, "failed to generate bitcode for the `{}' program", p),
+            Link(p) => write!(f, "failed to generate bitcode for the `{}' program", p),
+            IOError(e) => write!(f, "{}", e)
+        }
     }
 }
 
-pub fn build_program(cargo: &str, out_dir: &Path, program: &str) -> Result<(), Error> {
+impl From<Error> for CommandError {
+    fn from(error: Error) -> CommandError {
+        CommandError(error.to_string())
+    }
+}
+
+pub fn build_program(cargo: &Path, package: &Path, out_dir: &Path, program: &str) -> Result<(), Error> {
     let llc_args = ["-march=bpf", "-filetype=obj", "-o"];
     let elf_target = out_dir.join(format!("{}.elf", program));
 
+    let current_dir = std::env::current_dir().unwrap();
+    let out_dir = current_dir.join(out_dir);
     fs::create_dir_all(out_dir.clone())?;
 
     if !Command::new(cargo)
+        .current_dir(package)
         .args("rustc --release --features=probes".split(" "))
         .arg("--bin")
         .arg(program)
@@ -87,7 +105,7 @@ pub fn build_program(cargo: &str, out_dir: &Path, program: &str) -> Result<(), E
     Ok(())
 }
 
-pub fn build(cargo: &str, package: &PathBuf, out_dir: &PathBuf, programs: Vec<String>) -> Result<(), Error> {
+pub fn build(cargo: &Path, package: &Path, out_dir: &Path, programs: Vec<String>) -> Result<(), Error> {
     use toml_edit::{Document, Item};
 
     let path = package.join("Cargo.toml");
@@ -108,7 +126,7 @@ pub fn build(cargo: &str, package: &PathBuf, out_dir: &PathBuf, programs: Vec<St
     };
 
     for program in targets {
-        build_program(cargo, &out_dir.join(program.clone()), &program)?;
+        build_program(cargo, package, &out_dir.join(program.clone()), &program)?;
     }
 
     Ok(())
@@ -118,6 +136,6 @@ pub fn cmd_build(programs: Vec<String>) -> Result<(), CommandError> {
     let current_dir = std::env::current_dir().unwrap();
     // FIXME: parse --target-dir etc
     let out_dir = PathBuf::from("target/release/bpf-programs");
-    let ret = build("cargo", &current_dir, &out_dir, programs)?;
+    let ret = build(Path::new("cargo"), &current_dir, &out_dir, programs)?;
     Ok(ret)
 }
