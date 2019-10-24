@@ -24,8 +24,8 @@ edition = '2018'
 
 [dependencies]
 cty = "0.2"
-redbpf-macros = {{ path = "../../ingraind/redbpf-macros" }}
-redbpf-probes = {{ path = "../../ingraind/redbpf-probes" }}
+redbpf-macros = {{ git = "http://github.com/alessandrod/redbpf" }}
+redbpf-probes = {{ git = "http://github.com/alessandrod/redbpf" }}
 
 [build-dependencies]
 bindgen = "0.51.1"
