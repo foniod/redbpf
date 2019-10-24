@@ -1,7 +1,7 @@
 mod new;
 mod new_program;
 mod bindgen;
-mod build_programs;
+mod build;
 
 pub struct CommandError(pub String);
 
@@ -14,4 +14,4 @@ impl std::convert::From<std::io::Error> for CommandError {
 pub use new::new;
 pub use new_program::new_program;
 pub use self::bindgen::cmd_bindgen as bindgen;
-pub use build_programs::build_programs;
+pub(crate) use build::cmd_build;

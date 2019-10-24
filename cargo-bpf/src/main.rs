@@ -83,7 +83,7 @@ fn main() {
             .values_of("NAME")
             .map(|i| i.map(|s| String::from(s)).collect())
             .unwrap_or_else(Vec::new);
-        if let Err(e) = commands::build_programs(programs) {
+        if let Err(e) = commands::cmd_build(programs) {
             clap::Error::with_description(&e.0, clap::ErrorKind::InvalidValue).exit()
         }
     }
