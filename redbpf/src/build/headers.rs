@@ -14,12 +14,13 @@ pub const KERNEL_HEADERS: [&str; 6] = [
 ];
 
 #[cfg(target_arch = "aarch64")]
-pub const KERNEL_HEADERS: [&str; 6] = [
+pub const KERNEL_HEADERS: [&str; 7] = [
     "arch/arm64/include",
     "arch/arm64/include/generated",
     "include",
     "arch/include/generated/uapi",
     "arch/arm64/include/uapi",
+    "arch/arm64/include/generated/uapi",
     "include/uapi",
 ];
 
