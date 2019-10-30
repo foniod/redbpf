@@ -85,27 +85,27 @@ jobs:
       - run:
           name: Publish package
           command: |
+            rustup default nightly
             git config --global url."https://$GITHUB_HTTP_TOKEN:@github.com".insteadOf "https://github.com"
             cargo login $CRATES_KEY
-            cd bpf-sys
-            cargo publish || true
-            cd ..
-            cargo publish
-            cargo doc --no-deps --release -p redbpf -p bpf-sys
+            for package in bpf-sys redbpf{,-macros,-probes} cargo-bpf; do
+              pushd $package
+              cargo publish || true
+              popd
+            done
+
+            cargo doc --no-deps --release
 
             git config --global user.email "team@redsift.com"
             git config --global user.name "CircleCI bot"
             git clone https://$GITHUB_HTTP_TOKEN:@github.com/redsift/redsift.github.io publish
-
             rm -rf publish/rust/redbpf/doc
             mkdir -p publish/rust/redbpf/
             cp -r target/doc publish/rust/redbpf/
-
             cd publish
             git add *
             git commit -a -m '[CI] Update redbpf docs'
             git push
-
 
 workflows:
   version: 2
@@ -118,3 +118,13 @@ workflows:
           name: "ubuntu 19.04"
           tag: "19.04"
           kernel_version: "5.0.0-32-generic"
+      - publish:
+          context: org-global
+          requires:
+            - "ubuntu 18.04"
+            - "ubuntu 19.04"
+          filters:
+            tags:
+              only: /^v.*/
+            branches:
+              ignore: /.*/
