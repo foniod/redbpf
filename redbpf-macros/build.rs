@@ -25,7 +25,7 @@ fn main() {
 
     let bindings = bindgen::builder()
         .clang_args(&flags)
-        .header("../include/redbpf_helpers.h")
+        .header("./include/redbpf_helpers.h")
         .ctypes_prefix("::cty")
         .whitelist_var("bpf_.*")
         .generate()

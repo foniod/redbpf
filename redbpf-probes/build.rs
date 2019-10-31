@@ -40,7 +40,7 @@ fn main() {
 
     let bindings = bindgen::builder()
         .clang_args(&flags)
-        .header("../include/redbpf_helpers.h")
+        .header("./include/redbpf_helpers.h")
         .use_core()
         .ctypes_prefix("::cty")
         // bpf_helpers
