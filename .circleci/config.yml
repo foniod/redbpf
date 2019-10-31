@@ -114,10 +114,16 @@ workflows:
       - build_ubuntu:
           name: "ubuntu 18.04"
           tag: "18.04"
+          filters:
+            tags:
+              only: /.*/
       - build_ubuntu:
           name: "ubuntu 19.04"
           tag: "19.04"
           kernel_version: "5.0.0-32-generic"
+          filters:
+            tags:
+              only: /.*/
       - publish:
           context: org-global
           requires:
