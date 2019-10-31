@@ -10,7 +10,7 @@ license = "GPL-3.0"
 
 [dependencies]
 cty = "0.2"
-redbpf-macros = { path = "../redbpf-macros" }
+redbpf-macros = { version = "^0.9.0", path = "../redbpf-macros" }
 
 [build-dependencies]
 bindgen = "0.51"
