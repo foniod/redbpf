@@ -24,12 +24,12 @@ edition = '2018'
 
 [dependencies]
 cty = "0.2"
-redbpf-macros = {{ git = "http://github.com/alessandrod/redbpf" }}
-redbpf-probes = {{ git = "http://github.com/alessandrod/redbpf" }}
+redbpf-macros = "0.9"
+redbpf-probes = "0.9"
 
 [build-dependencies]
-bindgen = "0.51.1"
-redbpf = {{ version = "0.3.3", features = ["build"] }}
+bindgen = "0.51"
+redbpf = {{ version = "^0.9.0", features = ["build"] }}
 
 [features]
 default = []
