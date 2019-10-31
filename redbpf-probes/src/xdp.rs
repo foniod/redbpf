@@ -1,5 +1,6 @@
 use core::mem;
 use core::slice;
+use core::ops::{Index, Range};
 use cty::*;
 
 pub use crate::bindings::*;
@@ -38,25 +39,38 @@ impl Transport {
     }
 }
 
-impl xdp_md {
+pub struct XdpContext {
+    pub ctx: *const xdp_md
+}
+
+impl XdpContext {
+    #[inline]
+    pub fn eth(&self) -> Option<*const ethhdr> {
+        let ctx = unsafe { *self.ctx };
+        let eth = ctx.data as *const ethhdr;
+        let end = ctx.data_end as *const c_void;
+        unsafe {
+            if eth.add(1) as *const c_void > end {
+                return None;
+            }
+        }
+        Some(eth)
+    }
+
     #[inline]
     pub fn ip(&self) -> Option<*const iphdr> {
-        let eth = self.data as *const ethhdr;
-        let end = self.data_end as *const c_void;
-        let next = unsafe { eth.add(1) as *const c_void };
-        if next > end {
-            return None;
-        }
-        if unsafe { (*eth).h_proto } != u16::from_be(ETH_P_IP as u16) {
-            return None;
-        }
-        let ip = next as *const iphdr;
-        let next = unsafe { ip.add(1) as *const c_void };
-        if next > end {
-            return None;
-        }
+        let eth = self.eth()?;
+        unsafe {
+            if (*eth).h_proto != u16::from_be(ETH_P_IP as u16) {
+                return None;
+            }
 
-        Some(ip)
+            let ip = eth.add(1) as *const iphdr;
+            if ip.add(1) as *const c_void > (*self.ctx).data_end as *const c_void {
+                return None;
+            }
+            Some(ip)
+        }
     }
 
     #[inline]
@@ -69,25 +83,53 @@ impl xdp_md {
             _ => return None
         };
         unsafe {
-            if base.add(size) > self.data_end as *const u8 {
+            if base.add(size) > (*self.ctx).data_end as *const u8 {
                 return None;
             }
         }
 
         Some(transport)
     }
-
     #[inline]
-    pub fn data(&self) -> Option<&mut [u8]> {
+    pub fn data(&self) -> Option<Data> {
         use Transport::*;
         unsafe {
             let base = match self.transport()? {
                 TCP(hdr) => hdr.add(1) as *mut u8,
                 UDP(hdr) => hdr.add(1) as *mut u8
             };
-            let size = (self.data_end as *mut u8).offset_from(base) as usize;
-            let data = slice::from_raw_parts_mut(base, size);
-            Some(data)
+            Some(Data { ctx: self.ctx, base })
+        }
+    }
+}
+
+pub struct Data {
+    pub ctx: *const xdp_md,
+    pub base: *const u8
+}
+
+impl Data {
+    #[inline]
+    pub fn offset(&self) -> usize {
+        unsafe {
+            self.base.offset_from((*self.ctx).data as *const u8) as usize
+        }
+    }
+
+    #[inline]
+    pub fn len(&self) -> usize {
+        unsafe {
+            ((*self.ctx).data_end as *const u8).offset_from(self.base) as usize
+        }
+    }
+
+    #[inline]
+    pub fn slice(&self, len: usize) -> Option<&[u8]> {
+        unsafe {
+            if self.base.add(len) > (*self.ctx).data_end as *const u8 {
+                return None;
+            }
+            Some(slice::from_raw_parts(self.base, len))
         }
     }
 }

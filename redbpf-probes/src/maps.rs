@@ -67,12 +67,25 @@ impl<T> PerfMap<T> {
   #[inline]
   #[helpers]
   pub fn insert<C>(&mut self, ctx: *mut C, mut data: T) {
-    let cpu = unsafe { bpf_get_smp_processor_id() };
     unsafe {
       bpf_perf_event_output(
         ctx as *mut _ as *mut c_void,
         &mut self.def as *mut _ as *mut c_void,
-        cpu as u64,
+        BPF_F_CURRENT_CPU as u64,
+        &mut data as *mut _ as *mut c_void,
+        mem::size_of::<T>() as u64,
+      );
+    };
+  }
+
+  #[inline]
+  #[helpers]
+  pub fn insert_xdp<C>(&mut self, ctx: *mut C, mut data: T, size: usize) {
+    unsafe {
+      bpf_perf_event_output(
+        ctx as *mut _ as *mut c_void,
+        &mut self.def as *mut _ as *mut c_void,
+        (size as u64) << 32 | BPF_F_CURRENT_CPU as u64,
         &mut data as *mut _ as *mut c_void,
         mem::size_of::<T>() as u64,
       );

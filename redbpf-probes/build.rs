@@ -47,6 +47,7 @@ fn main() {
         .whitelist_type("pt_regs")
         .whitelist_type("s32")
         .whitelist_type("bpf_.*")
+        .whitelist_var("BPF_.*")
         // XDP
         .whitelist_type("xdp_md")
         .whitelist_type("ethhdr")
