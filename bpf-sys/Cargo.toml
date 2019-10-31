@@ -1,6 +1,6 @@
 [package]
 name = "bpf-sys"
-version = "0.3.3"
+version = "0.9.0"
 description = "Bindings for libbpf from BCC"
 repository = "https://github.com/redsift/redbpf"
 documentation = "https://redsift.github.io/rust/redbpf/doc/bpf_sys/"

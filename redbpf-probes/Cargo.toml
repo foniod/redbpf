@@ -1,6 +1,6 @@
 [package]
 name = "redbpf-probes"
-version = "0.1.0"
+version = "0.9.0"
 edition = '2018'
 
 [dependencies]
@@ -9,7 +9,7 @@ redbpf-macros = { path = "../redbpf-macros" }
 
 [build-dependencies]
 bindgen = "0.51.1"
-redbpf = { version = "0.3.3", features = ["build"], path = "../redbpf" }
+redbpf = { version = "^0.9.0", features = ["build"], path = "../redbpf" }
 
 [features]
 default = []
