@@ -92,6 +92,7 @@ jobs:
               pushd $package
               cargo publish || true
               popd
+              sleep 5
             done
 
             cargo doc --no-deps --release
