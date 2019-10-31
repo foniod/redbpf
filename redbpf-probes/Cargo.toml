@@ -1,7 +1,12 @@
 [package]
 name = "redbpf-probes"
+description = "eBPF probe-related types for redbpf"
+repository = "https://github.com/redsift/redbpf"
+authors = ["Alessandro Decina <alessandro.d@gmail.com>", "Peter Parkanyi <peter@redsift.io>"]
 version = "0.9.0"
 edition = '2018'
+keywords = ["bpf", "ebpf", "redbpf"]
+license = "GPL-3.0"
 
 [dependencies]
 cty = "0.2"

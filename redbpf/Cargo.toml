@@ -4,12 +4,11 @@ version = "0.9.0"
 description = "eBPF build and runtime library"
 repository = "https://github.com/redsift/redbpf"
 documentation = "https://redsift.github.io/rust/redbpf/doc/redbpf/"
-authors = ["Peter Parkanyi <peter@redsift.io>"]
+authors = ["Peter Parkanyi <peter@redsift.io>", "Alessandro Decina <alessandro.d@gmail.com>"]
 edition = "2018"
 license = "GPL-3.0"
-keywords = ["bpf", "ebpf", "build", "bindgen"]
+keywords = ["bpf", "ebpf", "build", "bindgen", "redbpf"]
 readme = "README.md"
-
 
 [badges]
 circle-ci = { repository = "redsift/redbpf", branch = "master" }
