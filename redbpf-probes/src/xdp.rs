@@ -1,6 +1,6 @@
 use core::mem;
-use core::slice;
 use core::ops::{Index, Range};
+use core::slice;
 use cty::*;
 
 pub use crate::bindings::*;
@@ -11,12 +11,12 @@ pub enum XdpAction {
     Drop = xdp_action_XDP_DROP,
     Pass = xdp_action_XDP_PASS,
     Tx = xdp_action_XDP_TX,
-    Redirect = xdp_action_XDP_REDIRECT
+    Redirect = xdp_action_XDP_REDIRECT,
 }
 
 pub enum Transport {
     TCP(*const tcphdr),
-    UDP(*const udphdr)
+    UDP(*const udphdr),
 }
 
 impl Transport {
@@ -24,7 +24,7 @@ impl Transport {
     pub fn source(&self) -> u16 {
         let source = match *self {
             Transport::TCP(hdr) => unsafe { (*hdr).source },
-            Transport::UDP(hdr) => unsafe { (*hdr).source }
+            Transport::UDP(hdr) => unsafe { (*hdr).source },
         };
         u16::from_be(source)
     }
@@ -33,14 +33,14 @@ impl Transport {
     pub fn dest(&self) -> u16 {
         let dest = match *self {
             Transport::TCP(hdr) => unsafe { (*hdr).dest },
-            Transport::UDP(hdr) => unsafe { (*hdr).dest }
+            Transport::UDP(hdr) => unsafe { (*hdr).dest },
         };
         u16::from_be(dest)
     }
 }
 
 pub struct XdpContext {
-    pub ctx: *mut xdp_md
+    pub ctx: *mut xdp_md,
 }
 
 impl XdpContext {
@@ -93,7 +93,7 @@ impl XdpContext {
         let (transport, size) = match unsafe { (*ip).protocol } as u32 {
             IPPROTO_TCP => (Transport::TCP(base.cast()), mem::size_of::<tcphdr>()),
             IPPROTO_UDP => (Transport::UDP(base.cast()), mem::size_of::<udphdr>()),
-            _ => return None
+            _ => return None,
         };
         unsafe {
             if base.add(size) > (*self.ctx).data_end as *const u8 {
@@ -109,31 +109,30 @@ impl XdpContext {
         unsafe {
             let base = match self.transport()? {
                 TCP(hdr) => hdr.add(1) as *mut u8,
-                UDP(hdr) => hdr.add(1) as *mut u8
+                UDP(hdr) => hdr.add(1) as *mut u8,
             };
-            Some(Data { ctx: self.ctx, base })
+            Some(Data {
+                ctx: self.ctx,
+                base,
+            })
         }
     }
 }
 
 pub struct Data {
     pub ctx: *const xdp_md,
-    pub base: *const u8
+    pub base: *const u8,
 }
 
 impl Data {
     #[inline]
     pub fn offset(&self) -> usize {
-        unsafe {
-            self.base.offset_from((*self.ctx).data as *const u8) as usize
-        }
+        unsafe { self.base.offset_from((*self.ctx).data as *const u8) as usize }
     }
 
     #[inline]
     pub fn len(&self) -> usize {
-        unsafe {
-            ((*self.ctx).data_end as *const u8).offset_from(self.base) as usize
-        }
+        unsafe { ((*self.ctx).data_end as *const u8).offset_from(self.base) as usize }
     }
 
     #[inline]

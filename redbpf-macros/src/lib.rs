@@ -3,12 +3,15 @@
 extern crate proc_macro;
 extern crate proc_macro2;
 use proc_macro::TokenStream;
-use proc_macro2::{TokenStream as TokenStream2, Ident, Span};
+use proc_macro2::{Ident, Span, TokenStream as TokenStream2};
 use quote::quote;
 use syn::parse::{Parse, ParseStream};
 use syn::punctuated::Punctuated;
 use syn::token::Comma;
-use syn::{parse_macro_input, parse_quote, parse_str, Block, Expr, ExprLit, ItemFn, Lit, Result, FnArg, PatType, Pat, PatIdent, Stmt};
+use syn::{
+    parse_macro_input, parse_quote, parse_str, Block, Expr, ExprLit, FnArg, ItemFn, Lit, Pat,
+    PatIdent, PatType, Result, Stmt,
+};
 
 fn inline_string_literal(e: &Expr) -> (TokenStream2, TokenStream2) {
     let mut bytes = match e {
@@ -189,8 +192,11 @@ pub fn xdp(attrs: TokenStream, item: TokenStream) -> TokenStream {
     let mut item = parse_macro_input!(item as ItemFn);
     let arg = item.sig.inputs.pop().unwrap();
     let ident = match arg.value() {
-        FnArg::Typed(PatType { pat: box Pat::Ident(PatIdent { ident, ..}), ..}) => ident,
-        _ => panic!("unexpected xdp probe signature")
+        FnArg::Typed(PatType {
+            pat: box Pat::Ident(PatIdent { ident, .. }),
+            ..
+        }) => ident,
+        _ => panic!("unexpected xdp probe signature"),
     };
     let raw_ctx = Ident::new(&format!("_raw_{}", ident), Span::call_site());
     let arg: FnArg = parse_quote! { #raw_ctx: *mut xdp_md };

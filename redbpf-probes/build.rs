@@ -19,8 +19,8 @@ mod {name} {{
 }}
 pub use {name}::*;
 ",
-        name=name,
-        bindings=bindings
+        name = name,
+        bindings = bindings
     )
 }
 

@@ -55,7 +55,8 @@ impl VisitMut for RewriteBpfHelpers {
                 let call_idx = self.helpers.len() + 1;
                 let helper = quote! {
                     let #ident: #fn_ty = unsafe { ::core::mem::transmute(#call_idx) };
-                }.to_string();
+                }
+                .to_string();
                 self.helpers.push(helper);
                 let ident = format!("__{}", ident_str);
                 item.ident = Ident::new(&ident, item.ident.span());
