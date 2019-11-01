@@ -50,6 +50,14 @@ impl XdpContext {
     }
 
     #[inline]
+    pub fn len(&self) -> usize {
+        unsafe {
+            let ctx = *self.ctx;
+            (ctx.data_end as *const u8).offset_from(ctx.data as *const u8) as usize
+        }
+    }
+
+    #[inline]
     pub fn eth(&self) -> Option<*const ethhdr> {
         let ctx = unsafe { *self.ctx };
         let eth = ctx.data as *const ethhdr;
