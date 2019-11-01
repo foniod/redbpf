@@ -50,10 +50,10 @@ impl XdpContext {
     }
 
     #[inline]
-    pub fn len(&self) -> usize {
+    pub fn len(&self) -> u32 {
         unsafe {
             let ctx = *self.ctx;
-            (ctx.data_end as *const u8).offset_from(ctx.data as *const u8) as usize
+            ctx.data_end - ctx.data
         }
     }
 

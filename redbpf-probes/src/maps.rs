@@ -1,3 +1,4 @@
+use core::default::Default;
 use core::marker::PhantomData;
 use core::mem;
 use cty::*;
@@ -47,6 +48,53 @@ impl<K, V: Copy> HashMap<K, V> {
     }
 }
 
+#[derive(Debug, Copy, Clone)]
+pub struct PerfMapFlags {
+    index: Option<u32>,
+    xdp_size: u32,
+}
+
+impl Default for PerfMapFlags {
+    #[inline]
+    fn default() -> Self {
+        PerfMapFlags {
+            index: None,
+            xdp_size: 0
+        }
+    }
+}
+
+impl PerfMapFlags {
+    #[inline]
+    pub fn new() -> Self {
+        Default::default()
+    }
+
+    #[inline]
+    pub fn with_xdp_size(size: u32) -> Self {
+        *PerfMapFlags::new().xdp_size(size)
+    }
+
+    #[inline]
+    pub fn index(&mut self, index: u32) -> &mut PerfMapFlags {
+        self.index = Some(index);
+        self
+    }
+
+    #[inline]
+    pub fn xdp_size(&mut self, size: u32) -> &mut PerfMapFlags {
+        self.xdp_size = size;
+        self
+    }
+}
+
+impl From<PerfMapFlags> for u64 {
+    #[inline]
+    fn from(flags: PerfMapFlags) -> u64 {
+        (flags.xdp_size as u64) << 32 | (flags.index.unwrap_or(BPF_F_CURRENT_CPU) as u64)
+    }
+}
+
 #[repr(transparent)]
 pub struct PerfMap<T> {
     def: bpf_map_def,
@@ -69,26 +117,12 @@ impl<T> PerfMap<T> {
 
     #[inline]
     #[helpers]
-    pub fn insert<C>(&mut self, ctx: *mut C, mut data: T) {
+    pub fn insert<C>(&mut self, ctx: *mut C, mut data: T, flags: PerfMapFlags) {
         unsafe {
             bpf_perf_event_output(
                 ctx as *mut _ as *mut c_void,
                 &mut self.def as *mut _ as *mut c_void,
-                BPF_F_CURRENT_CPU as u64,
-                &mut data as *mut _ as *mut c_void,
-                mem::size_of::<T>() as u64,
-            );
-        };
-    }
-
-    #[inline]
-    #[helpers]
-    pub fn insert_xdp<C>(&mut self, ctx: *mut C, mut data: T, size: usize) {
-        unsafe {
-            bpf_perf_event_output(
-                ctx as *mut _ as *mut c_void,
-                &mut self.def as *mut _ as *mut c_void,
-                (size as u64) << 32 | BPF_F_CURRENT_CPU as u64,
+                flags.into(),
                 &mut data as *mut _ as *mut c_void,
                 mem::size_of::<T>() as u64,
             );
