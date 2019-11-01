@@ -40,10 +40,15 @@ impl Transport {
 }
 
 pub struct XdpContext {
-    pub ctx: *const xdp_md
+    pub ctx: *mut xdp_md
 }
 
 impl XdpContext {
+    #[inline]
+    pub fn inner(&self) -> *mut xdp_md {
+        self.ctx
+    }
+
     #[inline]
     pub fn eth(&self) -> Option<*const ethhdr> {
         let ctx = unsafe { *self.ctx };

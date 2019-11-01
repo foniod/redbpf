@@ -1,12 +1,14 @@
+#![feature(box_patterns)]
+
 extern crate proc_macro;
 extern crate proc_macro2;
 use proc_macro::TokenStream;
-use proc_macro2::TokenStream as TokenStream2;
+use proc_macro2::{TokenStream as TokenStream2, Ident, Span};
 use quote::quote;
 use syn::parse::{Parse, ParseStream};
 use syn::punctuated::Punctuated;
 use syn::token::Comma;
-use syn::{parse_macro_input, parse_quote, parse_str, Block, Expr, ExprLit, ItemFn, Lit, Result};
+use syn::{parse_macro_input, parse_quote, parse_str, Block, Expr, ExprLit, ItemFn, Lit, Result, FnArg, PatType, Pat, PatIdent, Stmt};
 
 fn inline_string_literal(e: &Expr) -> (TokenStream2, TokenStream2) {
     let mut bytes = match e {
@@ -156,7 +158,7 @@ pub fn internal_helpers(_attrs: TokenStream, item: TokenStream) -> TokenStream {
     tokens.into()
 }
 
-fn probe_impl(ty: &str, attrs: TokenStream, item: TokenStream) -> TokenStream {
+fn probe_impl(ty: &str, attrs: TokenStream, mut item: ItemFn) -> TokenStream {
     let attrs = parse_macro_input!(attrs as Expr);
     let name = match attrs {
         Expr::Lit(ExprLit {
@@ -166,7 +168,6 @@ fn probe_impl(ty: &str, attrs: TokenStream, item: TokenStream) -> TokenStream {
     };
 
     let section_name = format!("{}/{}", ty, name);
-    let mut item = parse_macro_input!(item as ItemFn);
     inject_bpf_helpers(&mut item, None);
     let tokens = quote! {
         #[no_mangle]
@@ -179,10 +180,22 @@ fn probe_impl(ty: &str, attrs: TokenStream, item: TokenStream) -> TokenStream {
 
 #[proc_macro_attribute]
 pub fn kprobe(attrs: TokenStream, item: TokenStream) -> TokenStream {
+    let item = parse_macro_input!(item as ItemFn);
     probe_impl("kprobe", attrs, item).into()
 }
 
 #[proc_macro_attribute]
 pub fn xdp(attrs: TokenStream, item: TokenStream) -> TokenStream {
+    let mut item = parse_macro_input!(item as ItemFn);
+    let arg = item.sig.inputs.pop().unwrap();
+    let ident = match arg.value() {
+        FnArg::Typed(PatType { pat: box Pat::Ident(PatIdent { ident, ..}), ..}) => ident,
+        _ => panic!("unexpected xdp probe signature")
+    };
+    let raw_ctx = Ident::new(&format!("_raw_{}", ident), Span::call_site());
+    let arg: FnArg = parse_quote! { #raw_ctx: *mut xdp_md };
+    item.sig.inputs.push(arg);
+    let ctx: Stmt = parse_quote! { let #ident = XdpContext { ctx: #raw_ctx }; };
+    item.block.stmts.insert(0, ctx);
     probe_impl("xdp", attrs, item).into()
 }
