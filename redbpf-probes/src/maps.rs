@@ -117,7 +117,13 @@ impl<T> PerfMap<T> {
 
     #[inline]
     #[helpers]
-    pub fn insert<C>(&mut self, ctx: *mut C, mut data: T, flags: PerfMapFlags) {
+    pub fn insert<C>(&mut self, ctx: *mut C, data: T) {
+        self.insert_with_flags(ctx, data, PerfMapFlags::default())
+    }
+
+    #[inline]
+    #[helpers]
+    pub fn insert_with_flags<C>(&mut self, ctx: *mut C, mut data: T, flags: PerfMapFlags) {
         unsafe {
             bpf_perf_event_output(
                 ctx as *mut _ as *mut c_void,

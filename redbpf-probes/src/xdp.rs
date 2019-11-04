@@ -4,6 +4,8 @@ use core::slice;
 use cty::*;
 
 pub use crate::bindings::*;
+use crate::maps::{PerfMap as PerfMapBase, PerfMapFlags};
+use redbpf_macros::internal_helpers as helpers;
 
 #[repr(u32)]
 pub enum XdpAction {
@@ -143,5 +145,26 @@ impl Data {
             }
             Some(slice::from_raw_parts(self.base, len))
         }
+    }
+}
+
+#[repr(transparent)]
+pub struct PerfMap<T>(PerfMapBase<T>);
+
+impl<T> PerfMap<T> {
+    pub const fn new() -> Self {
+        Self(PerfMapBase::new())
+    }
+
+    #[inline]
+    #[helpers]
+    pub fn insert(&mut self, ctx: &XdpContext, data: T, packet_size: u32) {
+        self.0.insert_with_flags(ctx.inner(), data, PerfMapFlags::with_xdp_size(packet_size))
+    }
+
+    #[inline]
+    #[helpers]
+    pub fn insert_with_flags(&mut self, ctx: &XdpContext, data: T, flags: PerfMapFlags) {
+        self.0.insert_with_flags(ctx.inner(), data, flags)
     }
 }
