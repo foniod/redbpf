@@ -36,9 +36,9 @@ fn main() {
         .include("bcc")
         .include(".");
     if target.contains("musl") {
-        let path = PathBuf::from(headers::kernel_headers_path().expect("couldn't find kernel headers"));
-        for rel_dir in &KERNEL_HEADERS {
-            libbpf.include(path.join(rel_dir).to_str().unwrap());
+
+        for include in headers::prefix_kernel_headers(&KERNEL_HEADERS).expect("couldn't find kernel headers") {
+            libbpf.include(include);
         }
         let libelf_path = out_path.join("libelf");
         copy_libelf_headers(&libelf_path);
