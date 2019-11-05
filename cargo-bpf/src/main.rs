@@ -1,7 +1,135 @@
+/*!
+Cargo subcommand for working with Rust eBPF programs.
+
+# Overview 
+
+`cargo-bpf` is part of the [`redbpf`](https://github.com/redsift/redbpf)
+project. In addition to `cargo-bpf`, the `redbpf` project includes
+[`redbpf-probes`](https://docs.rs/redbpf_probes/\*\/redbpf_probes/) and
+[`redbpf-macros`](https://docs.rs/redbpf_macros/\*\/redbpf_macros/), which
+provide an idiomatic Rust API to write programs that can be compiled to eBPF
+bytecode and executed by the linux in-kernel eBPF virtual machine.
+
+# Installation
+
+To install `cargo bpf` simply run:
+
+```
+cargo install cargo-bpf
+```
+
+# Creating a new project
+
+After installng `cargo bpf`, you can crate a new project with `cargo bpf new`: 
+```ìgnore
+$ cargo bpf new hello-bpf
+$ ls -R hello-bpf/
+hello-bpf/:
+Cargo.toml  src
+
+hello-bpf/src:
+lib.rs
+
+$ cat hello-bpf/Cargo.toml
+[package]
+name = "hello-bpf"
+version = "0.1.0"
+edition = '2018'
+
+[dependencies]
+cty = "0.2"
+redbpf-macros = "1.0"
+redbpf-probes = "1.0"
+
+[features]
+default = []
+probes = []
+
+[lib]
+path = "src/lib.rs"
+
+$ cat hello-bpf/src/lib.rs
+#![no_std]
+```
+
+As you can see `cargo bpf new` created a new crate `hello-bpf` and
+automatically added `redbpf-probes` and `redbpf-macros` as dependencies. It
+also created `src/lib.rs` and declared the crate as `no_std`, as eBPF
+programs are run in a restricted virtual machine where `std` features are not
+available.
+
+# Adding a new eBPF program
+
+Adding a new program is easy:
+
+```
+$ cd hello-bpf 
+$ cargo bpf add block_http
+$ tail Cargo.toml
+...
+[[bin]]
+name = "block_http"
+path = "src/block_http/main.rs"
+required-features = ["probes"]
+```
+
+As you can see, running `cargo bpf add` added a new `[bin]` target to the
+crate. This new target will contain the eBPF program code. 
+
+# Building
+
+Say that you're building an XDP program to block all traffic directed to port 80, and have therefore modified
+`src/block_http/main.rs` to include the following code:
+
+```
+#![no_std]
+#![no_main]
+use redbpf_probes::bindings::*;
+use redbpf_probes::xdp::{XdpAction, XdpContext};
+use redbpf_macros::{probe, xdp};
+
+probe!(0xFFFFFFFE, "GPL");
+
+#[xdp]
+pub extern "C" fn block_port_80(ctx: XdpContext) -> XdpAction {
+    if let Some(transport) = ctx.transport() {
+        if transport.dest() == 80 {
+            return XdpAction::Drop;
+        }
+    }
+
+    XdpAction::Pass
+}
+```
+
+In order to build the program, you can run:
+
+```
+$ cargo bpf build block_http
+```
+
+`cargo bpf build` will produce eBPF code compatibile with the format expected
+by `redbpf::Module` and will place it in
+`target/release/bpf-programs/http_block.elf`.
+
+# Loading a program during development
+
+`cargo bpf` includes a simple `load` subcommand that can be used during
+development to test that your eBPF program is loading and producing the
+expected output.
+
+Loading eBPF programs requires admin priviledges, so you'll have to run
+`load` as root or with sudo:
+
+```
+$ sudo cargo bpf load target/release/bpf-programs/http_block.elf
+```
+
+*/
 use clap::{self, crate_authors, crate_version, App, AppSettings, Arg, SubCommand};
 use std::path::PathBuf;
 
-use cargo_bpf;
+use cargo_bpf_lib as cargo_bpf;
 
 fn main() {
     let matches =

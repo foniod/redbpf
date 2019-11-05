@@ -1,3 +1,43 @@
+/*!
+Procedural macros to help writing eBPF programs using the `redbpf-probes`
+crate.
+
+# Overview
+
+`redbpf-macros` is part of the `redbpf` project. Together with
+[`redbpf-probes`](https://docs.rs/redbpf_probes/\*\/redbpf_probes/), it
+provides an idiomatic Rust API to write programs that can be compiled to eBPF
+bytecode and executed by the linux in-kernel eBPF virtual machine.
+
+To streamline the process of working with eBPF programs even further,
+`redbpf` also provides
+[`cargo-bpf`](https://docs.rs/cargo_bpf/\*\/cargo_bpf/) - a cargo subcommand
+to simplify creating and building eBPF programs.
+
+# Example
+
+```
+#![no_std]
+#![no_main]
+use redbpf_macros::{probe, kprobe, xdp};
+use redbpf_probes::bindings::*;
+use redbpf_probes::xdp::{XdpAction, XdpContext};
+
+// configure kernel version compatibility and license
+probe!(0xFFFFFFFE, "GPL");
+
+#[xdp]
+pub extern "C" fn example_xdp_probe(ctx: XdpContext) -> XdpAction {
+    ...
+    XdpAction::Pass
+}
+
+#[kprobe("__x64_sys_clone")]
+pub extern "C" fn example_kprobe(ctx: *mut pt_regs) {
+    ...
+}
+```
+*/
 extern crate proc_macro;
 extern crate proc_macro2;
 use proc_macro::TokenStream;
@@ -35,6 +75,18 @@ impl Parse for Args {
     }
 }
 
+/// Generates program metadata.
+///
+/// Takes two arguments, the `LINUX_VERSION_CODE` the program is compatible with,
+/// and the license. The special version code `0xFFFFFFFE` can be used to signify
+/// any kernel version.
+///
+/// #Example
+///
+/// ```
+/// probe!(0xFFFFFFFE, "GPL");
+/// ```
+///
 #[proc_macro]
 pub fn probe(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as Args);
@@ -62,6 +114,14 @@ pub fn probe(input: TokenStream) -> TokenStream {
     tokens.into()
 }
 
+/// Attribute macro that must be used when creating [eBPF
+/// maps](https://docs.rs/redbpf_probes/*/redbpf_probes/maps/index.html).
+///
+/// # Example
+/// ```
+/// #[map("dns_queries")]
+/// static mut queries: PerfMap<Query> = PerfMap::new();
+/// ```
 #[proc_macro_attribute]
 pub fn map(attrs: TokenStream, item: TokenStream) -> TokenStream {
     let attrs = parse_macro_input!(attrs as Expr);
@@ -123,6 +183,7 @@ fn inject_bpf_helpers(item: &mut ItemFn, prefix: Option<&str>) {
     item.block.stmts = stmts;
 }
 
+#[doc(hidden)]
 #[proc_macro_attribute]
 pub fn helpers(_attrs: TokenStream, item: TokenStream) -> TokenStream {
     let mut item = parse_macro_input!(item as ItemFn);
@@ -134,6 +195,7 @@ pub fn helpers(_attrs: TokenStream, item: TokenStream) -> TokenStream {
     tokens.into()
 }
 
+#[doc(hidden)]
 #[proc_macro_attribute]
 pub fn internal_helpers(_attrs: TokenStream, item: TokenStream) -> TokenStream {
     let mut item = parse_macro_input!(item as ItemFn);
@@ -165,12 +227,34 @@ fn probe_impl(ty: &str, attrs: TokenStream, mut item: ItemFn) -> TokenStream {
     tokens.into()
 }
 
+/// Attribute macro that must be used to define [`kprobes`](https://www.kernel.org/doc/Documentation/kprobes.txt).
+///
+/// # Example
+/// ```
+/// #[kprobe("__x64_sys_clone")]
+/// pub extern "C" fn intercept_clone(ctx: *mut pt_regs) {
+///     ...
+/// }
+/// ```
 #[proc_macro_attribute]
 pub fn kprobe(attrs: TokenStream, item: TokenStream) -> TokenStream {
     let item = parse_macro_input!(item as ItemFn);
     probe_impl("kprobe", attrs, item).into()
 }
 
+/// Attribute macro that must be used to define [`XDP` probes](https://www.iovisor.org/technology/xdp).
+///
+/// See also the [`XDP` API provided by
+/// `redbpf-probes`](https://docs.rs/redbpf_probes/*/redbpf_probes/xdp/index.html).
+///
+/// # Example
+/// ```
+/// #[xdp]
+/// pub extern "C" fn example_xdp_probe(ctx: XdpContext) -> XdpAction {
+///     ...
+///     XdpAction::Pass
+/// }
+/// ```
 #[proc_macro_attribute]
 pub fn xdp(attrs: TokenStream, item: TokenStream) -> TokenStream {
     let mut item = parse_macro_input!(item as ItemFn);
