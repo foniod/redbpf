@@ -60,7 +60,8 @@ pub fn build_program(cargo: &Path, package: &Path, out_dir: &Path, program: &str
 
     let current_dir = env::current_dir().unwrap();
     let out_dir = current_dir.join(out_dir);
-    fs::create_dir_all(out_dir.clone())?;
+    fs::remove_dir_all(&out_dir)?;
+    fs::create_dir_all(&out_dir)?;
 
     if !Command::new(cargo)
         .current_dir(package)
