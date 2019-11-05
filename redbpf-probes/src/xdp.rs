@@ -129,12 +129,12 @@ pub struct Data {
 impl Data {
     #[inline]
     pub fn offset(&self) -> usize {
-        unsafe { self.base.offset_from((*self.ctx).data as *const u8) as usize }
+        unsafe { (self.base as u32 - (*self.ctx).data) as usize }
     }
 
     #[inline]
     pub fn len(&self) -> usize {
-        unsafe { ((*self.ctx).data_end as *const u8).offset_from(self.base) as usize }
+        unsafe { ((*self.ctx).data_end - self.base as u32) as usize }
     }
 
     #[inline]

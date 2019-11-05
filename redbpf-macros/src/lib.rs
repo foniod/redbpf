@@ -1,5 +1,3 @@
-#![feature(box_patterns)]
-
 extern crate proc_macro;
 extern crate proc_macro2;
 use proc_macro::TokenStream;
@@ -55,21 +53,7 @@ pub fn probe(input: TokenStream) -> TokenStream {
     };
 
     tokens.extend(quote! {
-        #[start]
-        #[no_mangle]
-        pub extern "C" fn _start() -> ! {
-            loop {}
-        }
-
-        #[lang = "eh_personality"]
-        #[no_mangle]
-        pub extern "C" fn rust_eh_personality() {}
-
-        #[lang = "eh_unwind_resume"]
-        #[no_mangle]
-        pub extern "C" fn rust_eh_unwind_resume() {}
-
-        #[lang = "panic_impl"]
+        #[panic_handler]
         #[no_mangle]
         pub extern "C" fn rust_begin_panic(_: &::core::panic::PanicInfo) -> ! {
             loop {}
@@ -191,12 +175,14 @@ pub fn kprobe(attrs: TokenStream, item: TokenStream) -> TokenStream {
 pub fn xdp(attrs: TokenStream, item: TokenStream) -> TokenStream {
     let mut item = parse_macro_input!(item as ItemFn);
     let arg = item.sig.inputs.pop().unwrap();
-    let ident = match arg.value() {
-        FnArg::Typed(PatType {
-            pat: box Pat::Ident(PatIdent { ident, .. }),
-            ..
-        }) => ident,
+    let pat = match arg.value() {
+        FnArg::Typed(PatType { pat, .. }) => pat,
         _ => panic!("unexpected xdp probe signature"),
+    };
+    let ident = if let Pat::Ident(PatIdent { ident, .. }) = &**pat {
+        ident
+    } else {
+        panic!("unexpected xdp probe signature")
     };
     let raw_ctx = Ident::new(&format!("_raw_{}", ident), Span::call_site());
     let arg: FnArg = parse_quote! { #raw_ctx: *mut xdp_md };

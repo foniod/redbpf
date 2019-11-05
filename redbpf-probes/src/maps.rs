@@ -14,7 +14,7 @@ pub struct HashMap<K, V> {
     _v: PhantomData<V>,
 }
 
-impl<K, V: Copy> HashMap<K, V> {
+impl<K, V> HashMap<K, V> {
     pub const fn new() -> Self {
         Self {
             def: bpf_map_def {
