@@ -1,6 +1,6 @@
 [package]
 name = "cargo-bpf"
-version = "0.9.0"
+version = "0.9.1"
 description = "Cargo plugin to manage eBPF probes using redbpf"
 repository = "https://github.com/redsift/redbpf"
 authors = ["Alessandro Decina <alessandro.d@gmail.com>", "Peter Parkanyi <peter@redsift.io>"]
