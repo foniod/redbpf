@@ -10,7 +10,7 @@ categories = ["development-tools::cargo-plugins"]
 license = "GPL-3.0"
 
 [lib]
-name = "cargo_bpf"
+name = "cargo_bpf_lib"
 
 [dependencies]
 clap = "2.33"
