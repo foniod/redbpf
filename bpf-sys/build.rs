@@ -34,17 +34,15 @@ fn main() {
         .include("libbpf/include/uapi")
         .include("libbpf/include")
         .include("bcc")
+        .include("libelf")
         .include(".");
     if target.contains("musl") {
 
         for include in headers::prefix_kernel_headers(&KERNEL_HEADERS).expect("couldn't find kernel headers") {
             libbpf.include(include);
         }
-        let libelf_path = out_path.join("libelf");
-        copy_libelf_headers(&libelf_path);
         libbpf
-            .define("COMPAT_NEED_REALLOCARRAY", "1")
-            .include(libelf_path);
+            .define("COMPAT_NEED_REALLOCARRAY", "1");
     }
     libbpf
         .flag("-include").flag("linux/stddef.h")
