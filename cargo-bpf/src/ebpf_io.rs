@@ -45,11 +45,7 @@ impl PerfMessageStream {
     pub fn new(name: String, map: PerfMap) -> Self {
         let io = GrainIo(map.fd);
         let poll = PollEvented2::new_with_handle(io, &Handle::default()).unwrap();
-        PerfMessageStream {
-            poll,
-            map,
-            name,
-        }
+        PerfMessageStream { poll, map, name }
     }
 
     fn read_messages(&mut self) -> Vec<Box<[u8]>> {
@@ -63,10 +59,9 @@ impl PerfMessageStream {
                 }
                 Event::Sample(sample) => {
                     let msg = unsafe {
-                        slice::from_raw_parts(
-                            sample.data.as_ptr(),
-                            sample.size as usize,
-                        ).to_vec().into_boxed_slice()
+                        slice::from_raw_parts(sample.data.as_ptr(), sample.size as usize)
+                            .to_vec()
+                            .into_boxed_slice()
                     };
                     ret.push(msg);
                 }

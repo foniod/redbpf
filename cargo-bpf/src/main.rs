@@ -1,7 +1,7 @@
 /*!
 Cargo subcommand for working with Rust eBPF programs.
 
-# Overview 
+# Overview
 
 `cargo-bpf` is part of the [`redbpf`](https://github.com/redsift/redbpf)
 project. In addition to `cargo-bpf`, the `redbpf` project includes
@@ -20,7 +20,7 @@ cargo install cargo-bpf
 
 # Creating a new project
 
-After installng `cargo bpf`, you can crate a new project with `cargo bpf new`: 
+After installng `cargo bpf`, you can crate a new project with `cargo bpf new`:
 ```ìgnore
 $ cargo bpf new hello-bpf
 $ ls -R hello-bpf/
@@ -63,7 +63,7 @@ available.
 Adding a new program is easy:
 
 ```
-$ cd hello-bpf 
+$ cd hello-bpf
 $ cargo bpf add block_http
 $ tail Cargo.toml
 ...
@@ -74,7 +74,7 @@ required-features = ["probes"]
 ```
 
 As you can see, running `cargo bpf add` added a new `[bin]` target to the
-crate. This new target will contain the eBPF program code. 
+crate. This new target will contain the eBPF program code.
 
 # Building
 
@@ -226,10 +226,7 @@ fn main() {
         }
     }
     if let Some(m) = matches.subcommand_matches("load") {
-        let program = m
-            .value_of("PROGRAM")
-            .map(PathBuf::from)
-            .unwrap();
+        let program = m.value_of("PROGRAM").map(PathBuf::from).unwrap();
         let interface = m.value_of("INTERFACE");
         if let Err(e) = cargo_bpf::load(&program, interface) {
             clap::Error::with_description(&e.0, clap::ErrorKind::InvalidValue).exit()

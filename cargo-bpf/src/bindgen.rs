@@ -1,8 +1,8 @@
+use bindgen;
 use std::io::{self, Write};
 use std::path::PathBuf;
-use std::str;
 use std::process::Command;
-use bindgen;
+use std::str;
 
 use crate::CommandError;
 

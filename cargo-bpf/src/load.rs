@@ -1,22 +1,23 @@
-use crate::CommandError;
 use crate::ebpf_io::PerfMessageStream;
+use crate::CommandError;
 
-use std::fs;
-use std::path::PathBuf;
-use redbpf::cpus;
-use redbpf::{Module, PerfMap};
-use redbpf::ProgramKind::*;
-use hexdump::hexdump;
 use futures::future::{self, Future, IntoFuture};
 use futures::stream::Stream;
+use hexdump::hexdump;
+use redbpf::cpus;
+use redbpf::ProgramKind::*;
+use redbpf::{Module, PerfMap};
+use std::fs;
+use std::path::PathBuf;
 use tokio;
 
 pub fn load(program: &PathBuf, interface: Option<&str>) -> Result<(), CommandError> {
     let data = fs::read(program)?;
     let mut module = Module::parse(&data).expect("failed to parse ELF data");
     for prog in module.programs.iter_mut() {
-        prog.load(module.version, module.license.clone()).expect("failed to load program");
-    } 
+        prog.load(module.version, module.license.clone())
+            .expect("failed to load program");
+    }
 
     if let Some(interface) = interface {
         for prog in module.programs.iter_mut().filter(|p| p.kind == XDP) {
@@ -39,18 +40,16 @@ pub fn load(program: &PathBuf, interface: Option<&str>) -> Result<(), CommandErr
     for m in module.maps.iter_mut().filter(|m| m.kind == 4) {
         for cpuid in online_cpus.iter() {
             let map = PerfMap::bind(m, -1, *cpuid, 16, -1, 0).unwrap();
-            let stream = PerfMessageStream::new(
-                m.name.clone(),
-                map,
-            );
-            let fut = stream.for_each(|events| {
-                for event in events {
-                    println!("-- Event --");
-                    hexdump(&event);
-                }
-                future::ok(())
-            })
-            .map_err(|e| ());
+            let stream = PerfMessageStream::new(m.name.clone(), map);
+            let fut = stream
+                .for_each(|events| {
+                    for event in events {
+                        println!("-- Event --");
+                        hexdump(&event);
+                    }
+                    future::ok(())
+                })
+                .map_err(|e| ());
             futs.push(fut);
         }
     }

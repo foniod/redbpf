@@ -1,5 +1,5 @@
-use std::io::Write;
 use std::fs::{self, File};
+use std::io::Write;
 use std::path::PathBuf;
 
 use crate::CommandError;
@@ -47,6 +47,7 @@ path = "src/lib.rs"
         r#"
 #![feature(const_fn, const_transmute)]
 #![no_std]
-"#)?;
+"#
+    )?;
     Ok(())
 }

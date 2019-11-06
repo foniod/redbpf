@@ -1,8 +1,8 @@
 use std::convert::From;
+use std::env;
 use std::fmt::{self, Display};
 use std::fs;
 use std::io;
-use std::env;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use toml_edit;
@@ -16,14 +16,14 @@ pub enum Error {
     Compile(String),
     MissingBitcode(String),
     Link(String),
-    IOError(io::Error)
+    IOError(io::Error),
 }
 
 impl std::error::Error for Error {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Error::IOError(e) => Some(e),
-            _ => None
+            _ => None,
         }
     }
 }
@@ -38,12 +38,12 @@ impl Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         use Error::*;
         match self {
-            MissingManifest(p) =>  write!(f, "Could not find `Cargo.toml' in {:?}", p),
+            MissingManifest(p) => write!(f, "Could not find `Cargo.toml' in {:?}", p),
             NoPrograms => write!(f, "the package doesn't contain any eBPF programs"),
             Compile(p) => write!(f, "failed to compile the `{}' program", p),
             MissingBitcode(p) => write!(f, "failed to generate bitcode for the `{}' program", p),
             Link(p) => write!(f, "failed to generate bitcode for the `{}' program", p),
-            IOError(e) => write!(f, "{}", e)
+            IOError(e) => write!(f, "{}", e),
         }
     }
 }
@@ -54,7 +54,12 @@ impl From<Error> for CommandError {
     }
 }
 
-pub fn build_program(cargo: &Path, package: &Path, out_dir: &Path, program: &str) -> Result<(), Error> {
+pub fn build_program(
+    cargo: &Path,
+    package: &Path,
+    out_dir: &Path,
+    program: &str,
+) -> Result<(), Error> {
     let llc_args = ["-march=bpf", "-filetype=obj", "-o"];
     let elf_target = out_dir.join(format!("{}.elf", program));
 
@@ -107,7 +112,12 @@ pub fn build_program(cargo: &Path, package: &Path, out_dir: &Path, program: &str
     Ok(())
 }
 
-pub fn build(cargo: &Path, package: &Path, out_dir: &Path, programs: Vec<String>) -> Result<(), Error> {
+pub fn build(
+    cargo: &Path,
+    package: &Path,
+    out_dir: &Path,
+    programs: Vec<String>,
+) -> Result<(), Error> {
     use toml_edit::{Document, Item};
 
     let path = package.join("Cargo.toml");
@@ -121,8 +131,11 @@ pub fn build(cargo: &Path, package: &Path, out_dir: &Path, programs: Vec<String>
         let data = fs::read_to_string(path).unwrap();
         let config = data.parse::<Document>().unwrap();
         let targets: Vec<String> = match &config["bin"] {
-            Item::ArrayOfTables(array) => array.iter().map(|t| t["name"].as_str().unwrap().into()).collect(),
-            _ => return Err(Error::NoPrograms)
+            Item::ArrayOfTables(array) => array
+                .iter()
+                .map(|t| t["name"].as_str().unwrap().into())
+                .collect(),
+            _ => return Err(Error::NoPrograms),
         };
         targets
     };
