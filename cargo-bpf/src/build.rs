@@ -13,6 +13,7 @@ use crate::CommandError;
 pub enum Error {
     MissingManifest(PathBuf),
     NoPrograms,
+    NoLLC,
     Compile(String),
     MissingBitcode(String),
     Link(String),
@@ -43,6 +44,7 @@ impl Display for Error {
             Compile(p) => write!(f, "failed to compile the `{}' program", p),
             MissingBitcode(p) => write!(f, "failed to generate bitcode for the `{}' program", p),
             Link(p) => write!(f, "failed to generate bitcode for the `{}' program", p),
+	    NoLLC => write!(f, "no usable llc executable found, expecting version 9"),
             IOError(e) => write!(f, "{}", e),
         }
     }
@@ -98,7 +100,7 @@ pub fn build_program(
     }
 
     let bc_file = &bc_files[0];
-    let llc = env::var("LLC").unwrap_or("llc-9".into());
+    let llc = get_llc_executable()?;
     if !Command::new(llc)
         .args(&llc_args)
         .arg(&elf_target)
@@ -110,6 +112,21 @@ pub fn build_program(
     }
 
     Ok(())
+}
+
+fn get_llc_executable() -> Result<String, Error> {
+    for llc in vec!["llc".into(), env::var("LLC").unwrap_or("llc-9".into())].drain(..) {
+        if let Ok(out) = Command::new(&llc).arg("--version").output() {
+            match String::from_utf8(out.stdout) {
+		Ok(out) => if out.contains("LLVM version 9.") {
+                    return Ok(llc);
+		},
+		Err(_) => continue
+	    }
+        }
+    }
+
+    return Err(Error::NoLLC);
 }
 
 pub fn build(
