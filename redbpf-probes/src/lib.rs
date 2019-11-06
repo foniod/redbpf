@@ -26,9 +26,9 @@ This is what `redbpf_probes` and `redbpf_macros` look like in action:
 #![no_main]
 use redbpf_probes::bindings::*;
 use redbpf_probes::xdp::{XdpAction, XdpContext};
-use redbpf_macros::{probe, xdp};
+use redbpf_macros::{program, xdp};
 
-probe!(0xFFFFFFFE, "GPL");
+program!(0xFFFFFFFE, "GPL");
 
 #[xdp]
 pub extern "C" fn block_port_80(ctx: XdpContext) -> XdpAction {

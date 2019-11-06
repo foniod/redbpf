@@ -93,12 +93,12 @@ use cty::*;
 
 use redbpf_probes::bindings::*;
 use redbpf_probes::maps::*;
-use redbpf_macros::{{map, probe, kprobe}};
+use redbpf_macros::{{map, program, kprobe}};
 
 // Use the types you're going to share with userspace, eg:
 // use {lib}::{name}::SomeEvent;
 
-probe!(0xFFFFFFFE, "GPL");
+program!(0xFFFFFFFE, "GPL");
 
 // The maps and probe functions go here, eg:
 //

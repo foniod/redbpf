@@ -19,12 +19,12 @@ to simplify creating and building eBPF programs.
 ```
 #![no_std]
 #![no_main]
-use redbpf_macros::{probe, kprobe, xdp};
+use redbpf_macros::{program, kprobe, xdp};
 use redbpf_probes::bindings::*;
 use redbpf_probes::xdp::{XdpAction, XdpContext};
 
 // configure kernel version compatibility and license
-probe!(0xFFFFFFFE, "GPL");
+program!(0xFFFFFFFE, "GPL");
 
 #[xdp]
 pub extern "C" fn example_xdp_probe(ctx: XdpContext) -> XdpAction {
@@ -84,11 +84,11 @@ impl Parse for Args {
 /// #Example
 ///
 /// ```
-/// probe!(0xFFFFFFFE, "GPL");
+/// program!(0xFFFFFFFE, "GPL");
 /// ```
 ///
 #[proc_macro]
-pub fn probe(input: TokenStream) -> TokenStream {
+pub fn program(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as Args);
     let mut args = input.0.iter();
     let version = args.next().expect("no version");
