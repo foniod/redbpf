@@ -122,7 +122,7 @@ Loading eBPF programs requires admin priviledges, so you'll have to run
 `load` as root or with sudo:
 
 ```
-$ sudo cargo bpf load target/release/bpf-programs/http_block.elf
+$ sudo cargo bpf load -i eth0 target/release/bpf-programs/http_block.elf
 ```
 
 */
