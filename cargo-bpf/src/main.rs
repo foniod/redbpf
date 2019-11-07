@@ -38,8 +38,8 @@ edition = '2018'
 
 [dependencies]
 cty = "0.2"
-redbpf-macros = "1.0"
-redbpf-probes = "1.0"
+redbpf-macros = "0.9"
+redbpf-probes = "0.9"
 
 [features]
 default = []
