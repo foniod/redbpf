@@ -3,9 +3,6 @@
 //! To make buildling ELF files out of eBPF code easier, and as part of the Rust
 //! build process, this module provides a number of helpers.
 //!
-//! Currently, the `headers` module only know how to find kernel sources on Arch
-//! Linux, or through the `KERNEL_SOURCE` environment variable.
-//!
 //! On top of building ELF files, you can also generate Rust bindings for data
 //! structures defined in C. Only structures that are defined as `struct
 //! _data_[^{}]*` are picked up by bindgen. This naming convention might change
@@ -20,32 +17,22 @@
 //! A full working example of the build process might look like this:
 //!
 //! ```rust
-//! use redbpf::build::{build, generate_bindings, cache::BuildCache, headers::headers};
+//! use redbpf::build::{build, generate_bindings, cache::BuildCache, headers::kernel_headers};
 //!
 //! fn main() -> Result<(), Error> {
 //!     let out_dir = PathBuf::from(env::var("OUT_DIR")?);
-//!
-//!     let headers = headers().unwrap();
-//!     let flags = {
-//!         let mut cflags: Vec<OsString> = redbpf::build::BUILD_FLAGS
-//!             .iter()
-//!             .map(OsString::from)
-//!             .collect();
-//!
-//!         cflags.append(&mut headers.clone());
-//!         cflags
-//!     };
-//!     let bindgen_flags: Vec<String> = flags
+//!     let kernel_headers = kernel_headers().expect("couldn't find kernel headers");
+//!     let mut bindgen_flags: Vec<String> = kernel_headers
 //!         .iter()
-//!         .cloned()
-//!         .map(|f| f.into_string().unwrap())
+//!         .map(|dir| format!("-I{}", dir))
 //!         .collect();
+//!     bindgen_flags.extend(redbpf::build::BUILD_FLAGS.iter().map(|f| f.to_string()));
 //!
 //!     let mut cache = BuildCache::new(&out_dir);
 //!
 //!     for file in source_files("./bpf", "c")? {
 //!         if cache.file_changed(&file) {
-//!             build(&flags[..], &out_dir, &file).expect("Failed building BPF plugin!");
+//!             build(&bindgen_flags[..], &out_dir, &file).expect("Failed building BPF plugin!");
 //!         }
 //!     }
 //!     for file in source_files("./bpf", "h")? {

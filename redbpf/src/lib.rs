@@ -6,10 +6,10 @@
 //!
 //! ```toml
 //! [build-dependencies]
-//! redbpf = { version = "0.1", features = ["build"] }
+//! redbpf = { version = "0.9", features = ["build"] }
 //!
 //! [dependencies]
-//! redbpf = "0.1"
+//! redbpf = "0.9"
 //! ````
 //!
 //! For more information about build-specific examples, look at the
