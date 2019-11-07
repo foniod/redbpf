@@ -11,6 +11,6 @@ Whenever possible, you should prefer higher level types provided by the
 `maps` and `xdp` modules.
 
 If your probe needs types not exposed by this module, you can [generate your
-custom bindings with `cargo bpf bindgen`](https://docs.rs/cargo_bpf/\*\/cargo_bpf).
+custom bindings with `cargo bpf bindgen`](https://redsift.github.io/rust/redbpf/doc/cargo_bpf/).
 */
 include!(concat!(env!("OUT_DIR"), "/gen_helpers.rs"));

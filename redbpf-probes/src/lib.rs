@@ -9,12 +9,12 @@ compiled to eBPF bytecode and executed by the linux in-kernel eBPF virtual
 machine.
 
 This crate is expected to be used with the companion
-[`redbpf-macros`](https://docs.rs/redbpf_macros\/\*\/redbpf_macros/) crate - a
+[`redbpf-macros`](https://redsift.github.io/rust/redbpf/doc/redbpf_macros/) crate - a
 collection of procedural macros used to reduce the amount of boilerplate
 needed to produce eBPF programs.
 
 To streamline the process of working with eBPF programs even further,
-`redbpf` also provides [`cargo-bpf`](https://docs.rs/cargo_bpf\/\*\/cargo_bpf/) -
+`redbpf` also provides [`cargo-bpf`](https://redsift.github.io/rust/redbpf/doc/cargo_bpf/) -
 a cargo subcommand to simplify creating and building eBPF programs.
 
 # Example

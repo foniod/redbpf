@@ -5,13 +5,13 @@ crate.
 # Overview
 
 `redbpf-macros` is part of the `redbpf` project. Together with
-[`redbpf-probes`](https://docs.rs/redbpf_probes/\*\/redbpf_probes/), it
+[`redbpf-probes`](https://redsift.github.io/rust/redbpf/doc/redbpf_probes/), it
 provides an idiomatic Rust API to write programs that can be compiled to eBPF
 bytecode and executed by the linux in-kernel eBPF virtual machine.
 
 To streamline the process of working with eBPF programs even further,
 `redbpf` also provides
-[`cargo-bpf`](https://docs.rs/cargo_bpf/\*\/cargo_bpf/) - a cargo subcommand
+[`cargo-bpf`](https://redsift.github.io/rust/redbpf/doc/cargo_bpf/) - a cargo subcommand
 to simplify creating and building eBPF programs.
 
 # Example
@@ -115,7 +115,7 @@ pub fn program(input: TokenStream) -> TokenStream {
 }
 
 /// Attribute macro that must be used when creating [eBPF
-/// maps](https://docs.rs/redbpf_probes/*/redbpf_probes/maps/index.html).
+/// maps](https://redsift.github.io/rust/redbpf/doc/redbpf_probes/maps/index.html).
 ///
 /// # Example
 /// ```
@@ -245,7 +245,7 @@ pub fn kprobe(attrs: TokenStream, item: TokenStream) -> TokenStream {
 /// Attribute macro that must be used to define [`XDP` probes](https://www.iovisor.org/technology/xdp).
 ///
 /// See also the [`XDP` API provided by
-/// `redbpf-probes`](https://docs.rs/redbpf_probes/*/redbpf_probes/xdp/index.html).
+/// `redbpf-probes`](https://redsift.github.io/rust/redbpf/doc/redbpf_probes/xdp/index.html).
 ///
 /// # Example
 /// ```
