@@ -3,7 +3,7 @@ use mio::unix::EventedFd;
 use mio::{Evented, PollOpt, Ready, Token};
 use redbpf::PerfMap;
 use std::io;
-use std::os::unix::io::{AsRawFd, RawFd};
+use std::os::unix::io::RawFd;
 use std::slice;
 use tokio::reactor::{Handle, PollEvented2};
 
