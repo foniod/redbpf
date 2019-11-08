@@ -85,7 +85,6 @@ use cty::*;
     write!(
         &mut main_rs,
         r#"
-#![feature(const_fn, const_transmute, lang_items, start)]
 #![no_std]
 #![no_main]
 
