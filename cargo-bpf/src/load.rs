@@ -11,6 +11,8 @@ use std::fs;
 use std::path::PathBuf;
 use tokio;
 use tokio_signal::ctrl_c;
+use std::ffi::CString;
+use bpf_sys;
 
 pub fn load(program: &PathBuf, interface: Option<&str>) -> Result<(), CommandError> {
     let data = fs::read(program)?;
@@ -57,6 +59,11 @@ pub fn load(program: &PathBuf, interface: Option<&str>) -> Result<(), CommandErr
 
         ctrl_c().flatten_stream().take(1).into_future().map(|_| ()).map_err(|_| ())
     }));
+
+    if let Some(interface) = interface {
+        let ciface = CString::new(interface).unwrap();
+        let res = unsafe { bpf_sys::bpf_attach_xdp(ciface.as_ptr(), -1, 0) };
+    }
 
     Ok(())
 }
