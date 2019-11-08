@@ -31,7 +31,6 @@ pub extern "C" fn block_port_80(ctx: XdpContext) -> XdpAction {
 ```
  */
 use core::mem;
-use core::ops::{Index, Range};
 use core::slice;
 use cty::*;
 
