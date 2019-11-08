@@ -18,8 +18,10 @@ clap = "2.33"
 bindgen = "0.51.1"
 toml_edit = "0.1.5"
 redbpf = { version = "^0.9.0", features = ["build"], path = "../redbpf" }
+bpf-sys = { path = "../bpf-sys", version = "^0.9.0" }
 futures = "0.1"
 mio = "0.6"
 tokio = "0.1"
 tokio-reactor = "0.1"
+tokio-signal = "0.2.7"
 hexdump = "0.1"
