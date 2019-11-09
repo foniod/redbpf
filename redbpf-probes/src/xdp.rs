@@ -148,20 +148,19 @@ impl XdpContext {
     /// Returns the packet's transport header if present.
     #[inline]
     pub fn transport(&self) -> Option<Transport> {
-        let ip = self.ip()?;
-        let base = unsafe { ip.add(1) as *const u8 };
-        let (transport, size) = match unsafe { (*ip).protocol } as u32 {
-            IPPROTO_TCP => (Transport::TCP(base.cast()), mem::size_of::<tcphdr>()),
-            IPPROTO_UDP => (Transport::UDP(base.cast()), mem::size_of::<udphdr>()),
-            _ => return None,
-        };
         unsafe {
+            let ip = self.ip()?;
+            let base = (ip as *const u8).add(((*ip).ihl() * 4) as usize);
+            let (transport, size) = match (*ip).protocol as u32 {
+                IPPROTO_TCP => (Transport::TCP(base.cast()), mem::size_of::<tcphdr>()),
+                IPPROTO_UDP => (Transport::UDP(base.cast()), mem::size_of::<udphdr>()),
+                _ => return None,
+            };
             if base.add(size) > (*self.ctx).data_end as *const u8 {
                 return None;
             }
+            Some(transport)
         }
-
-        Some(transport)
     }
 
     /// Returns the packet's data starting after the transport headers.
@@ -170,12 +169,25 @@ impl XdpContext {
         use Transport::*;
         unsafe {
             let base = match self.transport()? {
-                TCP(hdr) => hdr.add(1) as *mut u8,
-                UDP(hdr) => hdr.add(1) as *mut u8,
+                TCP(hdr) => {
+                    if hdr.add(1) as *const u8 > (*self.ctx).data_end as *const u8 {
+                        return None;
+                    }
+                    let mut base = hdr.add(1) as *const u8;
+                    let data_offset = (*hdr).doff();
+                    if data_offset > 5 {
+                        base = base.add(((data_offset - 5) * 4) as usize);
+                    }
+                    base
+                }
+                UDP(hdr) => hdr.add(1) as *const u8,
             };
+            if base > (*self.ctx).data_end as *const u8 {
+                return None;
+            }
             Some(Data {
                 ctx: self.ctx,
-                base,
+                base
             })
         }
     }
