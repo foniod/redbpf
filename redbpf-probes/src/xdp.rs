@@ -212,6 +212,18 @@ impl Data {
             Some(slice::from_raw_parts(self.base, len))
         }
     }
+
+
+    #[inline]
+    pub fn read<T>(&self) -> Option<T> {
+        unsafe {
+            let len = mem::size_of::<T>();
+            if self.base.add(len) as *const u8 > (*self.ctx).data_end as *const u8 {
+                return None;
+            }
+            Some((self.base as *const T).read_unaligned())
+        }
+    }
 }
 
 /// Perf events map.
