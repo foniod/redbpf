@@ -32,7 +32,7 @@ impl<K, V> HashMap<K, V> {
                 type_: bpf_map_type_BPF_MAP_TYPE_HASH,
                 key_size: mem::size_of::<K>() as u32,
                 value_size: mem::size_of::<V>() as u32,
-                max_entries: max_entries,
+                max_entries,
                 map_flags: 0,
             },
             _k: PhantomData,
@@ -44,7 +44,7 @@ impl<K, V> HashMap<K, V> {
     #[inline]
     #[helpers]
     pub fn get(&mut self, mut key: K) -> Option<&V> {
-        let value = unsafe {
+        unsafe {
             let value = bpf_map_lookup_elem(
                 &mut self.def as *mut _ as *mut c_void,
                 &mut key as *mut _ as *mut c_void,
@@ -54,9 +54,7 @@ impl<K, V> HashMap<K, V> {
             } else {
                 Some(&*(value as *const V))
             }
-        };
-
-        value
+        }
     }
 }
 
@@ -137,7 +135,7 @@ impl<T> PerfMap<T> {
                 type_: bpf_map_type_BPF_MAP_TYPE_PERF_EVENT_ARRAY,
                 key_size: mem::size_of::<u32>() as u32,
                 value_size: mem::size_of::<u32>() as u32,
-                max_entries: max_entries,
+                max_entries,
                 map_flags: 0,
             },
             _event: PhantomData,

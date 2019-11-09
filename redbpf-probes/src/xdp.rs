@@ -31,7 +31,6 @@ pub extern "C" fn block_port_80(ctx: XdpContext) -> XdpAction {
 ```
  */
 use core::mem;
-use core::ops::{Index, Range};
 use core::slice;
 use cty::*;
 
@@ -211,6 +210,18 @@ impl Data {
                 return None;
             }
             Some(slice::from_raw_parts(self.base, len))
+        }
+    }
+
+
+    #[inline]
+    pub fn read<T>(&self) -> Option<T> {
+        unsafe {
+            let len = mem::size_of::<T>();
+            if self.base.add(len) as *const u8 > (*self.ctx).data_end as *const u8 {
+                return None;
+            }
+            Some((self.base as *const T).read_unaligned())
         }
     }
 }

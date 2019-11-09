@@ -43,6 +43,7 @@ pub extern "C" fn block_port_80(ctx: XdpContext) -> XdpAction {
 ```
 
 */
+#![deny(clippy::all)]
 #![no_std]
 pub mod bindings;
 pub mod maps;
