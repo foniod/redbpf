@@ -10,7 +10,6 @@ use redbpf::{Module, PerfMap};
 use std::fs;
 use std::path::PathBuf;
 use tokio;
-use tokio_signal::ctrl_c;
 use std::ffi::CString;
 use bpf_sys;
 
@@ -57,7 +56,7 @@ pub fn load(program: &PathBuf, interface: Option<&str>) -> Result<(), CommandErr
             }
         }
 
-        ctrl_c().flatten_stream().take(1).into_future().map(|_| ()).map_err(|_| ())
+        future::ok(())
     }));
 
     if let Some(interface) = interface {
