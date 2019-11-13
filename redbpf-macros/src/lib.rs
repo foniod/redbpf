@@ -43,11 +43,12 @@ extern crate proc_macro2;
 use proc_macro::TokenStream;
 use proc_macro2::{Ident, Span, TokenStream as TokenStream2};
 use quote::quote;
+use std::str;
 use syn::parse::{Parse, ParseStream};
 use syn::punctuated::Punctuated;
 use syn::token::Comma;
 use syn::{
-    parse_macro_input, parse_quote, parse_str, Block, Expr, ExprLit, FnArg, ItemFn, Lit, Pat,
+    parse_macro_input, parse_quote, parse_str, Block, Expr, ExprLit, File, FnArg, ItemFn, Lit, Pat,
     PatIdent, PatType, Result, Stmt,
 };
 
@@ -104,6 +105,12 @@ pub fn program(input: TokenStream) -> TokenStream {
         pub static _version: u32 = #version;
     };
 
+    let mem = str::from_utf8(include_bytes!("mem.rs")).unwrap();
+    let mem: File = parse_str(&mem).unwrap();
+    tokens.extend(quote! {
+        #mem
+    });
+
     tokens.extend(quote! {
         #[panic_handler]
         #[no_mangle]
@@ -111,6 +118,7 @@ pub fn program(input: TokenStream) -> TokenStream {
             loop {}
         }
     });
+
     tokens.into()
 }
 
