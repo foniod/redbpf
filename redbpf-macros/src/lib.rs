@@ -216,12 +216,15 @@ pub fn internal_helpers(_attrs: TokenStream, item: TokenStream) -> TokenStream {
 }
 
 fn probe_impl(ty: &str, attrs: TokenStream, mut item: ItemFn) -> TokenStream {
-    let attrs = parse_macro_input!(attrs as Expr);
-    let name = match attrs {
-        Expr::Lit(ExprLit {
-            lit: Lit::Str(s), ..
-        }) => s.value().clone(),
-        _ => panic!("expected string literal"),
+    let name = if attrs.is_empty() {
+        item.sig.ident.to_string()
+    } else {
+        match parse_macro_input!(attrs as Expr) {
+            Expr::Lit(ExprLit {
+                lit: Lit::Str(s), ..
+            }) => s.value().clone(),
+            _ => panic!("expected string literal"),
+        }
     };
 
     let section_name = format!("{}/{}", ty, name);
