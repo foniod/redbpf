@@ -38,3 +38,11 @@ programs in Rust using the RedBPF APIs.
 The easiest way to get started is to install `cargo-bpf`, see the [cargo bpf documentation](https://redsift.github.io/rust/redbpf/doc/cargo_bpf/) for more info. 
 
 To see how and what RedBPF can be used for, check out the [ingraind project](https://github.com/redsift/ingraind/tree/v1.0).
+
+# Requirements
+
+In order to build some of the code here, you will need the following:
+
+ * Linux 4.19+, with a build tree. The build tree is picked up from standard locations, or the `KERNEL_SOURCE` environment variable.
+ * LLVM 9, or an LLVM version compatible with the Rust release you're using to build
+ * The latest stable Rust compiler. We only promise to build with the latest stable and nightly compilers.
