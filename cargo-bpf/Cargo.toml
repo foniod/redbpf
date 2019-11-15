@@ -8,7 +8,7 @@ authors = ["Alessandro Decina <alessandro.d@gmail.com>", "Peter Parkanyi <peter@
 edition = "2018"
 keywords = ["cargo", "redbpf", "bpf", "plugin", "subcommand"]
 categories = ["development-tools::cargo-plugins"]
-license = "GPL-3.0"
+license = "MIT OR Apache-2.0"
 
 [lib]
 name = "cargo_bpf_lib"

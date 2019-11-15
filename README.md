@@ -38,3 +38,29 @@ programs in Rust using the RedBPF APIs.
 The easiest way to get started is to install `cargo-bpf`, see the [cargo bpf documentation](https://redsift.github.io/rust/redbpf/doc/cargo_bpf/) for more info. 
 
 To see how and what RedBPF can be used for, check out the [ingraind project](https://github.com/redsift/ingraind/tree/v1.0).
+
+## License
+
+This repository contains code from other software in the following
+directories, licensed under their own particular licenses:
+
+ * `bpf-sys/libelf/*`: GPL2 + LGPL3 
+ * `bpf-sys/bcc/*`: Apache2, public domain
+ * `include/bpf_helpers.h` LGPL2 + BSD-2
+ * `include/bpf_helper_defs.h`: LGPL2 + BSD-2
+ * `bpf-sys/libbpf`: LGPL2 + BSD-2
+ 
+Where '+' means they are dual licensed.
+
+RedBPF and its components, unless otherwise stated, are licensed under either of
+
+ * Apache License, Version 2.0, ([LICENSE-APACHE](LICENSE-APACHE) or http://www.apache.org/licenses/LICENSE-2.0)
+ * MIT license ([LICENSE-MIT](LICENSE-MIT) or http://opensource.org/licenses/MIT)
+
+at your option.
+
+### Contribution
+
+Unless you explicitly state otherwise, any contribution intentionally submitted
+for inclusion in the work by you, as defined in the Apache-2.0 license, shall be dual licensed as above, without any
+additional terms or conditions.

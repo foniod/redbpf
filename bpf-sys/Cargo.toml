@@ -7,7 +7,7 @@ documentation = "https://redsift.github.io/rust/redbpf/doc/bpf_sys/"
 authors = ["Peter Parkanyi <peter@redsift.io>"]
 links = "bpf"
 edition = "2018"
-license = "GPL-3.0"
+license = "MIT OR Apache-2.0"
 keywords = ["bpf", "ebpf", "ffi"]
 
 [dependencies]
