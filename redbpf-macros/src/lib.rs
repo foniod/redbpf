@@ -216,12 +216,15 @@ pub fn internal_helpers(_attrs: TokenStream, item: TokenStream) -> TokenStream {
 }
 
 fn probe_impl(ty: &str, attrs: TokenStream, mut item: ItemFn) -> TokenStream {
-    let attrs = parse_macro_input!(attrs as Expr);
-    let name = match attrs {
-        Expr::Lit(ExprLit {
-            lit: Lit::Str(s), ..
-        }) => s.value().clone(),
-        _ => panic!("expected string literal"),
+    let name = if attrs.is_empty() {
+        item.sig.ident.to_string()
+    } else {
+        match parse_macro_input!(attrs as Expr) {
+            Expr::Lit(ExprLit {
+                lit: Lit::Str(s), ..
+            }) => s.value().clone(),
+            _ => panic!("expected string literal"),
+        }
     };
 
     let section_name = format!("{}/{}", ty, name);
@@ -240,7 +243,8 @@ fn probe_impl(ty: &str, attrs: TokenStream, mut item: ItemFn) -> TokenStream {
 /// # Example
 /// ```
 /// #[kprobe("__x64_sys_clone")]
-/// pub extern "C" fn intercept_clone(ctx: *mut pt_regs) {
+/// pub extern "C" fn clone_enter(ctx: *mut pt_regs) {
+///     // this is executed when clone() is invoked
 ///     ...
 /// }
 /// ```
@@ -248,6 +252,22 @@ fn probe_impl(ty: &str, attrs: TokenStream, mut item: ItemFn) -> TokenStream {
 pub fn kprobe(attrs: TokenStream, item: TokenStream) -> TokenStream {
     let item = parse_macro_input!(item as ItemFn);
     probe_impl("kprobe", attrs, item).into()
+}
+
+/// Attribute macro that must be used to define [`kretprobes`](https://www.kernel.org/doc/Documentation/kprobes.txt).
+///
+/// # Example
+/// ```
+/// #[kretprobe("__x64_sys_clone")]
+/// pub extern "C" fn clone_exit(ctx: *mut pt_regs) {
+///     // this is executed when clone() returns
+///     ...
+/// }
+/// ```
+#[proc_macro_attribute]
+pub fn kretprobe(attrs: TokenStream, item: TokenStream) -> TokenStream {
+    let item = parse_macro_input!(item as ItemFn);
+    probe_impl("kretprobe", attrs, item).into()
 }
 
 /// Attribute macro that must be used to define [`XDP` probes](https://www.iovisor.org/technology/xdp).
