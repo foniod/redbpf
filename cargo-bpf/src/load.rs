@@ -6,7 +6,7 @@ use futures::stream::Stream;
 use hexdump::hexdump;
 use redbpf::cpus;
 use redbpf::ProgramKind::*;
-use redbpf::{Module, PerfMap};
+use redbpf::{Module, PerfMap, XdpFlags};
 use std::fs;
 use std::path::PathBuf;
 use tokio;
@@ -29,7 +29,7 @@ pub fn load(program: &PathBuf, interface: Option<&str>) -> Result<(), CommandErr
         if let Some(interface) = iface {
             for prog in module.programs.iter_mut().filter(|p| p.kind == XDP) {
                 println!("Loaded: {}, {:?}", prog.name, prog.kind);
-                prog.attach_xdp(&interface).unwrap();
+                prog.attach_xdp(&interface, XdpFlags::default()).unwrap();
             }
         }
 
