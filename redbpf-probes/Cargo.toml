@@ -7,7 +7,7 @@ authors = ["Alessandro Decina <alessandro.d@gmail.com>", "Peter Parkanyi <peter@
 version = "0.9.6"
 edition = '2018'
 keywords = ["bpf", "ebpf", "redbpf"]
-license = "GPL-3.0"
+license = "MIT OR Apache-2.0"
 
 [dependencies]
 cty = "0.2"
