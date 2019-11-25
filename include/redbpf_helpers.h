@@ -6,6 +6,6 @@
 #endif
 #include <linux/version.h>
 #include <uapi/linux/ptrace.h>
-#include <linux/bpf.h>
+#include <uapi/linux/bpf.h>
 #include "bpf_helpers.h"
 #include "xdp.h"

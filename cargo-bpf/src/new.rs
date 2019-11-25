@@ -52,7 +52,6 @@ path = "src/lib.rs"
     write!(
         &mut file,
         r#"
-#![feature(const_fn, const_transmute)]
 #![no_std]
 "#
     )?;

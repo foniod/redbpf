@@ -68,7 +68,7 @@ fn main() {
         .compile("libbpf.a");
 
     let bindings = bindgen::Builder::default()
-        .header("bcc/libbpf.h")
+        .header("libbpf_xdp.h")
         .clang_arg("-Ilibbpf/include/uapi")
         .clang_arg("-Ilibbpf/include")
         .clang_arg("-Ibcc")
