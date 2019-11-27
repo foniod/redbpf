@@ -74,6 +74,17 @@ impl<K, V> HashMap<K, V> {
 	    );
 	}
     }
+
+    #[inline]
+    #[helpers]
+    pub fn delete(&mut self, mut key: K) {
+	unsafe {
+	    bpf_map_delete_elem(
+                &mut self.def as *mut _ as *mut c_void,
+                &mut key as *mut _ as *mut c_void,
+	    );
+	}
+    }
 }
 
 /// Flags that can be passed to `PerfMap::insert_with_flags`.
