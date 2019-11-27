@@ -61,6 +61,19 @@ impl<K, V> HashMap<K, V> {
             }
         }
     }
+
+    #[inline]
+    #[helpers]
+    pub fn set(&mut self, mut key: K, mut value: V) {
+	unsafe {
+	    bpf_map_update_elem(
+                &mut self.def as *mut _ as *mut c_void,
+                &mut key as *mut _ as *mut c_void,
+                &mut value as *mut _ as *mut c_void,
+		BPF_ANY.into()
+	    );
+	}
+    }
 }
 
 /// Flags that can be passed to `PerfMap::insert_with_flags`.
