@@ -62,6 +62,7 @@ impl<K, V> HashMap<K, V> {
         }
     }
 
+    /// Set the `value` in the map for `key`
     #[inline]
     #[helpers]
     pub fn set(&mut self, mut key: K, mut value: V) {
@@ -75,6 +76,7 @@ impl<K, V> HashMap<K, V> {
 	}
     }
 
+    /// Delete the entry indexed by `key`
     #[inline]
     #[helpers]
     pub fn delete(&mut self, mut key: K) {
