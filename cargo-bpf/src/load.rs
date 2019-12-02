@@ -52,12 +52,13 @@ pub fn load(program: &PathBuf, interface: Option<&str>) -> Result<(), CommandErr
         let online_cpus = cpus::get_online().unwrap();
         for m in module.maps.iter_mut().filter(|m| m.kind == 4) {
             for cpuid in online_cpus.iter() {
+		let name = m.name.clone();
                 let map = PerfMap::bind(m, -1, *cpuid, 16, -1, 0).unwrap();
                 let stream = PerfMessageStream::new(m.name.clone(), map);
                     let fut = stream
-                    .for_each(|events| {
+                    .for_each(move |events| {
                         for event in events {
-                            println!("-- Event --");
+                            println!("-- Event: {} --", &name);
                             hexdump(&event);
                         }
                         future::ok(())
@@ -74,7 +75,7 @@ pub fn load(program: &PathBuf, interface: Option<&str>) -> Result<(), CommandErr
 
     if let Some(interface) = interface {
         let ciface = CString::new(interface).unwrap();
-        let res = unsafe { bpf_sys::bpf_attach_xdp(ciface.as_ptr(), -1, 0) };
+        let _res = unsafe { bpf_sys::bpf_attach_xdp(ciface.as_ptr(), -1, 0) };
     }
 
     Ok(())
