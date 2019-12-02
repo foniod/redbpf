@@ -7,5 +7,7 @@
 #include <linux/version.h>
 #include <uapi/linux/ptrace.h>
 #include <uapi/linux/bpf.h>
+#include <net/sock.h>
+#include <net/inet_sock.h>
 #include "bpf_helpers.h"
 #include "xdp.h"

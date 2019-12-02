@@ -36,8 +36,11 @@ pub extern "C" fn enter_execve(ctx: *mut c_void) -> i32 {
 }
 ```
  */
+
 use crate::bindings::*;
+use core::mem::{size_of, MaybeUninit};
 use cty::*;
+use redbpf_macros::helpers;
 
 pub struct Registers {
     pub ctx: *mut pt_regs,
@@ -50,6 +53,14 @@ impl From<*mut c_void> for Registers {
             ctx: (ptr as *mut pt_regs),
         }
     }
+}
+
+#[helpers]
+pub unsafe fn read_pointer<T>(src: *const c_void) -> T {
+    let mut v: MaybeUninit<T> = MaybeUninit::uninit();
+    bpf_probe_read(v.as_mut_ptr() as *mut c_void, size_of::<T>() as u32, src);
+
+    v.assume_init()
 }
 
 /// Convenience functions wrapping the architecture native `struct pt_regs`

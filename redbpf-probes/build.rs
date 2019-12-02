@@ -70,6 +70,7 @@ fn main() {
         .whitelist_type("xdp_action")
         .whitelist_type("__sk_.*")
         .whitelist_type("sk_.*")
+        .whitelist_type("inet_sock")
         .whitelist_var("ETH_.*")
         .whitelist_var("IPPROTO_.*")
         .opaque_type("xregs_state")
