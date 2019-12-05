@@ -69,6 +69,7 @@ macro_rules! ctx_field {
     }
 }
 
+#[inline]
 #[helpers]
 pub fn read_pointer<T>(src: *const c_void) -> T {
     unsafe {
