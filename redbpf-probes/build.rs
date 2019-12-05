@@ -73,6 +73,8 @@ fn main() {
         .whitelist_type("inet_sock")
         .whitelist_var("ETH_.*")
         .whitelist_var("IPPROTO_.*")
+        .whitelist_var("SOCK_.*")
+        .whitelist_var("SK_FL_.*")
         .whitelist_var("AF_.*")
         .opaque_type("xregs_state")
         .generate()
