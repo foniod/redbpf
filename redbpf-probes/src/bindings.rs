@@ -20,4 +20,4 @@ Whenever possible, you should prefer higher level types provided by the
 If your probe needs types not exposed by this module, you can [generate your
 custom bindings with `cargo bpf bindgen`](https://redsift.github.io/rust/redbpf/doc/cargo_bpf/).
 */
-include!(concat!(env!("OUT_DIR"), "/gen_helpers.rs"));
+include!(concat!(env!("OUT_DIR"), "/gen_bindings.rs"));

@@ -5,10 +5,16 @@
 // http://opensource.org/licenses/MIT>, at your option. This file may not be
 // copied, modified, or distributed except according to those terms.
 
+use quote::quote;
 use std::env;
 use std::fs::File;
 use std::io::{self, Write};
 use std::path::PathBuf;
+use syn::visit::Visit;
+use syn::{
+    self, parse_str, punctuated::Punctuated, token::Comma, AngleBracketedGenericArguments,
+    ForeignItemStatic, GenericArgument, Ident, PathArguments::*, Type,
+};
 
 use redbpf::build::headers::kernel_headers;
 
@@ -70,9 +76,85 @@ fn main() {
         .generate()
         .expect("Unable to generate bindings!");
     create_module(
-        out_dir.join("gen_helpers.rs"),
-        "gen_helpers",
+        out_dir.join("gen_bindings.rs"),
+        "gen_bindings",
         &bindings.to_string(),
     )
     .unwrap();
+
+    let bindings = bindgen::builder()
+        .clang_args(&flags)
+        .header("./include/redbpf_helpers.h")
+        .ctypes_prefix("::cty")
+        .whitelist_var("bpf_.*")
+        .generate()
+        .expect("Unable to generate bindings!");
+    let helpers = gen_helpers(&bindings.to_string());
+    create_module(out_dir.join("gen_helpers.rs"), "gen_helpers", &helpers).unwrap();
+}
+
+struct RewriteBpfHelpers {
+    helpers: Vec<String>,
+}
+
+impl Visit<'_> for RewriteBpfHelpers {
+    fn visit_foreign_item_static(&mut self, item: &ForeignItemStatic) {
+        if let Type::Path(path) = &*item.ty {
+            let ident = &item.ident;
+            let ident_str = ident.to_string();
+            let last = path.path.segments.last().unwrap();
+            let ty_ident = last.ident.to_string();
+            if ident_str.starts_with("bpf_") && ty_ident == "Option" {
+                let fn_ty = match &last.arguments {
+                    AngleBracketed(AngleBracketedGenericArguments { args, .. }) => {
+                        args.first().unwrap()
+                    }
+                    _ => panic!(),
+                };
+                let mut ty_s = quote! {
+                    #[inline(always)]
+                    pub #fn_ty
+                }
+                .to_string();
+                ty_s = ty_s.replace("fn (", &format!("fn {} (", ident_str));
+                let call_idx = self.helpers.len() + 1;
+                let args: Punctuated<Ident, Comma> = match fn_ty {
+                    GenericArgument::Type(Type::BareFn(f)) => f
+                        .inputs
+                        .iter()
+                        .map(|arg| arg.name.clone().unwrap().0)
+                        .collect(),
+                    _ => unreachable!(),
+                };
+                let body = quote! {
+                    {
+                        let f: #fn_ty = ::core::mem::transmute(#call_idx);
+                        f(#args)
+                    }
+                }
+                .to_string();
+                ty_s.push_str(&body);
+                let mut helper = ty_s;
+                if helper.contains("printk") {
+                    helper = format!("/* {} */", helper);
+                }
+                self.helpers.push(helper);
+            }
+        }
+    }
+}
+
+fn gen_helpers(helpers: &str) -> String {
+    let mut tree: syn::File = parse_str(&helpers).unwrap();
+    let mut tx = RewriteBpfHelpers {
+        helpers: Vec::new(),
+    };
+    tx.visit_file(&mut tree);
+    let mut out = String::new();
+    out.push_str("use crate::bindings::*;\n");
+    for helper in &tx.helpers {
+        out.push_str(helper);
+    }
+
+    out
 }

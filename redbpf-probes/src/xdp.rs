@@ -43,7 +43,6 @@ use cty::*;
 
 use crate::bindings::*;
 use crate::maps::{PerfMap as PerfMapBase, PerfMapFlags};
-use redbpf_macros::internal_helpers as helpers;
 
 /// The return type of XDP probes.
 #[repr(u32)]
@@ -194,7 +193,7 @@ impl XdpContext {
             }
             Some(Data {
                 ctx: self.ctx,
-                base
+                base,
             })
         }
     }
@@ -228,10 +227,10 @@ impl Data {
             if self.base.add(len) > (*self.ctx).data_end as *const u8 {
                 return None;
             }
-            Some(slice::from_raw_parts(self.base, len))
+            let s = slice::from_raw_parts(self.base, len);
+            Some(s)
         }
     }
-
 
     #[inline]
     pub fn read<T>(&self) -> Option<T> {
@@ -266,7 +265,6 @@ impl<T> PerfMap<T> {
     /// `packet_size` specifies the number of bytes from the current packet that
     /// the kernel should append to the event data.
     #[inline]
-    #[helpers]
     pub fn insert(&mut self, ctx: &XdpContext, data: T, packet_size: u32) {
         self.0
             .insert_with_flags(ctx.inner(), data, PerfMapFlags::with_xdp_size(packet_size))
@@ -275,7 +273,6 @@ impl<T> PerfMap<T> {
     /// Insert a new event in the perf events array keyed by the index and with
     /// the additional xdp payload data specified in the given `PerfMapFlags`.
     #[inline]
-    #[helpers]
     pub fn insert_with_flags(&mut self, ctx: &XdpContext, data: T, flags: PerfMapFlags) {
         self.0.insert_with_flags(ctx.inner(), data, flags)
     }

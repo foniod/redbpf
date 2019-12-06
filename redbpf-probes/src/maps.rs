@@ -18,8 +18,7 @@ use core::mem;
 use cty::*;
 
 use crate::bindings::*;
-
-use redbpf_macros::internal_helpers as helpers;
+use crate::helpers::*;
 
 /// Hash table map.
 ///
@@ -49,7 +48,6 @@ impl<K, V> HashMap<K, V> {
 
     /// Returns a reference to the value corresponding to the key.
     #[inline]
-    #[helpers]
     pub fn get(&mut self, mut key: K) -> Option<&V> {
         unsafe {
             let value = bpf_map_lookup_elem(
@@ -155,7 +153,6 @@ impl<T> PerfMap<T> {
     /// If you want to use a key other than the current CPU, see
     /// `insert_with_flags`.
     #[inline]
-    #[helpers]
     pub fn insert<C>(&mut self, ctx: *mut C, data: T) {
         self.insert_with_flags(ctx, data, PerfMapFlags::default())
     }
@@ -163,7 +160,6 @@ impl<T> PerfMap<T> {
     /// Insert a new event in the perf events array keyed by the index and with
     /// the additional xdp payload data specified in the given `PerfMapFlags`.
     #[inline]
-    #[helpers]
     pub fn insert_with_flags<C>(&mut self, ctx: *mut C, mut data: T, flags: PerfMapFlags) {
         unsafe {
             bpf_perf_event_output(
