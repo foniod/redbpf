@@ -38,9 +38,9 @@ pub extern "C" fn enter_execve(ctx: *mut c_void) -> i32 {
  */
 
 use crate::bindings::*;
+use crate::helpers::*;
 use core::mem::{size_of, MaybeUninit};
 use cty::*;
-use redbpf_macros::helpers;
 
 pub struct Registers {
     pub ctx: *mut pt_regs,
@@ -70,7 +70,6 @@ macro_rules! ctx_field {
 }
 
 #[inline]
-#[helpers]
 pub fn read_pointer<T>(src: *const c_void) -> T {
     unsafe {
         let mut v: MaybeUninit<T> = MaybeUninit::uninit();

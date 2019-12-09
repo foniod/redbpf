@@ -64,7 +64,6 @@ impl<K, V> HashMap<K, V> {
 
     /// Set the `value` in the map for `key`
     #[inline]
-    #[helpers]
     pub fn set(&mut self, mut key: K, mut value: V) {
 	unsafe {
 	    bpf_map_update_elem(
@@ -78,7 +77,6 @@ impl<K, V> HashMap<K, V> {
 
     /// Delete the entry indexed by `key`
     #[inline]
-    #[helpers]
     pub fn delete(&mut self, mut key: K) {
 	unsafe {
 	    bpf_map_delete_elem(
