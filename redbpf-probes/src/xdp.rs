@@ -244,11 +244,41 @@ impl Data {
     }
 }
 
+#[repr(C)]
+pub struct MapData<T> {
+    pub data: T,
+    offset: u32,
+    size: u32,
+    payload: [u8; 0],
+}
+
+impl<T> MapData<T> {
+    pub fn new(&self, data: T) -> Self {
+        MapData::<T>::with_payload(data, 0, 0)
+    }
+
+    pub fn with_payload(data: T, offset: u32, size: u32) -> Self {
+        Self {
+            data,
+            payload: [],
+            offset,
+            size
+        }
+    }
+
+    pub fn payload(&self) -> &[u8] {
+        unsafe {
+            let base = self.payload.as_ptr().add(self.offset as usize);
+            slice::from_raw_parts(base, self.size as usize)
+        }
+    }
+}
+
 /// Perf events map.
 ///
 /// Similar to `PerfMap`, with additional XDP-only API.
 #[repr(transparent)]
-pub struct PerfMap<T>(PerfMapBase<T>);
+pub struct PerfMap<T>(PerfMapBase<MapData<T>>);
 
 impl<T> PerfMap<T> {
     /// Creates a perf map with the specified maximum number of elements.
@@ -265,15 +295,17 @@ impl<T> PerfMap<T> {
     /// `packet_size` specifies the number of bytes from the current packet that
     /// the kernel should append to the event data.
     #[inline]
-    pub fn insert(&mut self, ctx: &XdpContext, data: T, packet_size: u32) {
+    pub fn insert(&mut self, ctx: &XdpContext, data: MapData<T>) {
+        let size = data.size;
         self.0
-            .insert_with_flags(ctx.inner(), data, PerfMapFlags::with_xdp_size(packet_size))
+            .insert_with_flags(ctx.inner(), data, PerfMapFlags::with_xdp_size(size))
     }
 
     /// Insert a new event in the perf events array keyed by the index and with
     /// the additional xdp payload data specified in the given `PerfMapFlags`.
     #[inline]
-    pub fn insert_with_flags(&mut self, ctx: &XdpContext, data: T, flags: PerfMapFlags) {
+    pub fn insert_with_flags(&mut self, ctx: &XdpContext, data: MapData<T>, mut flags: PerfMapFlags) {
+        flags.xdp_size = data.size;
         self.0.insert_with_flags(ctx.inner(), data, flags)
     }
 }

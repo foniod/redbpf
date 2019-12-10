@@ -91,7 +91,7 @@ impl<K, V> HashMap<K, V> {
 #[derive(Debug, Copy, Clone)]
 pub struct PerfMapFlags {
     index: Option<u32>,
-    xdp_size: u32,
+    pub(crate) xdp_size: u32,
 }
 
 impl Default for PerfMapFlags {
