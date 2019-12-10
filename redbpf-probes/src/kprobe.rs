@@ -55,30 +55,6 @@ impl From<*mut c_void> for Registers {
     }
 }
 
-/// Allows you to access a field in the context to read it into the
-/// stack
-///
-/// # Example
-///
-///     let socket = res.parm1() as *const sock;
-///     let daddr = read_pointer::<in6_addr>(ctx_field!(socket.__sk_common.skc_v6_daddr));
-#[macro_export]
-macro_rules! ctx_field {
-    ( $x:tt $(.$f:tt)* ) => {
-	unsafe { &(*$x)$(.$f)* as *const _ as *const c_void }
-    }
-}
-
-#[inline]
-pub fn read_pointer<T>(src: *const c_void) -> T {
-    unsafe {
-        let mut v: MaybeUninit<T> = MaybeUninit::uninit();
-        bpf_probe_read(v.as_mut_ptr() as *mut c_void, size_of::<T>() as u32, src);
-
-        v.assume_init()
-    }
-}
-
 /// Convenience functions wrapping the architecture native `struct pt_regs`
 ///
 /// These methods are ports of the [`PT_REGS_*`](https://elixir.bootlin.com/linux/v5.0/source/tools/testing/selftests/bpf/bpf_helpers.h#L270) macros in the Linux kernel.
