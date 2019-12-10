@@ -65,25 +65,25 @@ impl<K, V> HashMap<K, V> {
     /// Set the `value` in the map for `key`
     #[inline]
     pub fn set(&mut self, mut key: K, mut value: V) {
-	unsafe {
-	    bpf_map_update_elem(
+        unsafe {
+            bpf_map_update_elem(
                 &mut self.def as *mut _ as *mut c_void,
                 &mut key as *mut _ as *mut c_void,
                 &mut value as *mut _ as *mut c_void,
-		BPF_ANY.into()
-	    );
-	}
+                BPF_ANY.into(),
+            );
+        }
     }
 
     /// Delete the entry indexed by `key`
     #[inline]
     pub fn delete(&mut self, mut key: K) {
-	unsafe {
-	    bpf_map_delete_elem(
+        unsafe {
+            bpf_map_delete_elem(
                 &mut self.def as *mut _ as *mut c_void,
                 &mut key as *mut _ as *mut c_void,
-	    );
-	}
+            );
+        }
     }
 }
 
