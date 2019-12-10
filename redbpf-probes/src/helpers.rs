@@ -27,6 +27,11 @@ pub fn bpf_get_current_comm() -> [c_char; 16] {
 }
 
 #[inline]
+pub fn bpf_ktime_get_ns() -> u64 {
+    unsafe { bpf_ktime_get_ns() }
+}
+
+#[inline]
 pub fn bpf_probe_read<T>(src: *const T) -> T {
     unsafe {
         let mut v: MaybeUninit<T> = MaybeUninit::uninit();
