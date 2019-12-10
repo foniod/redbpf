@@ -43,7 +43,6 @@ use cty::*;
 
 use crate::bindings::*;
 use crate::maps::{PerfMap as PerfMapBase, PerfMapFlags};
-use redbpf_macros::internal_helpers as helpers;
 
 /// The return type of XDP probes.
 #[repr(u32)]
@@ -194,7 +193,7 @@ impl XdpContext {
             }
             Some(Data {
                 ctx: self.ctx,
-                base
+                base,
             })
         }
     }
@@ -228,10 +227,10 @@ impl Data {
             if self.base.add(len) > (*self.ctx).data_end as *const u8 {
                 return None;
             }
-            Some(slice::from_raw_parts(self.base, len))
+            let s = slice::from_raw_parts(self.base, len);
+            Some(s)
         }
     }
-
 
     #[inline]
     pub fn read<T>(&self) -> Option<T> {
@@ -245,11 +244,50 @@ impl Data {
     }
 }
 
+/// Convenience data type to exchange payload data.
+#[repr(C)]
+pub struct MapData<T> {
+    /// The custom data type to be exchanged with user space.
+    pub data: T,
+    offset: u32,
+    size: u32,
+    payload: [u8; 0],
+}
+
+impl<T> MapData<T> {
+    /// Create a new `MapData` value that includes only `data` and no packet
+    /// payload.
+    pub fn new(&self, data: T) -> Self {
+        MapData::<T>::with_payload(data, 0, 0)
+    }
+
+    /// Create a new `MapData` value that includes `data` and `size` payload
+    /// bytes, where the interesting part of the payload starts at `offset`.
+    ///
+    /// The payload can then be retrieved calling `MapData::payload()`.
+    pub fn with_payload(data: T, offset: u32, size: u32) -> Self {
+        Self {
+            data,
+            payload: [],
+            offset,
+            size
+        }
+    }
+
+    /// Return the payload if any, skipping the initial `offset` bytes.
+    pub fn payload(&self) -> &[u8] {
+        unsafe {
+            let base = self.payload.as_ptr().add(self.offset as usize);
+            slice::from_raw_parts(base, self.size as usize)
+        }
+    }
+}
+
 /// Perf events map.
 ///
 /// Similar to `PerfMap`, with additional XDP-only API.
 #[repr(transparent)]
-pub struct PerfMap<T>(PerfMapBase<T>);
+pub struct PerfMap<T>(PerfMapBase<MapData<T>>);
 
 impl<T> PerfMap<T> {
     /// Creates a perf map with the specified maximum number of elements.
@@ -266,17 +304,17 @@ impl<T> PerfMap<T> {
     /// `packet_size` specifies the number of bytes from the current packet that
     /// the kernel should append to the event data.
     #[inline]
-    #[helpers]
-    pub fn insert(&mut self, ctx: &XdpContext, data: T, packet_size: u32) {
+    pub fn insert(&mut self, ctx: &XdpContext, data: MapData<T>) {
+        let size = data.size;
         self.0
-            .insert_with_flags(ctx.inner(), data, PerfMapFlags::with_xdp_size(packet_size))
+            .insert_with_flags(ctx.inner(), data, PerfMapFlags::with_xdp_size(size))
     }
 
     /// Insert a new event in the perf events array keyed by the index and with
     /// the additional xdp payload data specified in the given `PerfMapFlags`.
     #[inline]
-    #[helpers]
-    pub fn insert_with_flags(&mut self, ctx: &XdpContext, data: T, flags: PerfMapFlags) {
+    pub fn insert_with_flags(&mut self, ctx: &XdpContext, data: MapData<T>, mut flags: PerfMapFlags) {
+        flags.xdp_size = data.size;
         self.0.insert_with_flags(ctx.inner(), data, flags)
     }
 }

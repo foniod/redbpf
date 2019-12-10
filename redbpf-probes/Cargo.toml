@@ -16,6 +16,8 @@ redbpf-macros = { version = "^0.9.0", path = "../redbpf-macros" }
 [build-dependencies]
 bindgen = "0.51"
 redbpf = { version = "^0.9.0", features = ["build"], path = "../redbpf" }
+syn = {version = "1.0", features = ["full", "visit", "extra-traits"] }
+quote = "1.0"
 
 [features]
 default = []

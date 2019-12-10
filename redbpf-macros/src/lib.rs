@@ -158,71 +158,7 @@ pub fn map(attrs: TokenStream, item: TokenStream) -> TokenStream {
     tokens.into()
 }
 
-fn bpf_helpers(prefix: Option<&str>) -> Block {
-    let mut funcs = String::from(include!(concat!(env!("OUT_DIR"), "/gen_helper_funcs.rs")));
-    if let Some(prefix) = prefix {
-        funcs = funcs.replace(":: redbpf_probes ::", prefix);
-    }
-    let funcs: Block = parse_str(&funcs).unwrap();
-
-    funcs
-}
-
-fn bpf_overrides() -> Block {
-    parse_quote! {
-        {
-            let _bpf_get_current_pid_tgid = bpf_get_current_pid_tgid;
-            let bpf_get_current_pid_tgid = || {
-                unsafe { _bpf_get_current_pid_tgid() }
-            };
-            let _bpf_get_current_uid_gid = bpf_get_current_uid_gid;
-            let bpf_get_current_uid_gid = || {
-                unsafe { _bpf_get_current_uid_gid() }
-            };
-            let _bpf_get_current_comm = bpf_get_current_comm;
-            let bpf_get_current_comm = || {
-                let mut comm: [c_char; 16usize] = [0; 16];
-                unsafe { _bpf_get_current_comm(&mut comm as *mut _ as *mut c_void, 16u32) };
-                comm
-            };
-        }
-    }
-}
-
-fn inject_bpf_helpers(item: &mut ItemFn, prefix: Option<&str>) {
-    let helpers = bpf_helpers(prefix);
-    let overrides = bpf_overrides();
-    let mut stmts = helpers.stmts.clone();
-    stmts.extend(overrides.stmts);
-    stmts.extend(item.block.stmts.clone());
-    item.block.stmts = stmts;
-}
-
-#[doc(hidden)]
-#[proc_macro_attribute]
-pub fn helpers(_attrs: TokenStream, item: TokenStream) -> TokenStream {
-    let mut item = parse_macro_input!(item as ItemFn);
-    inject_bpf_helpers(&mut item, None);
-    let tokens = quote! {
-        #item
-    };
-
-    tokens.into()
-}
-
-#[doc(hidden)]
-#[proc_macro_attribute]
-pub fn internal_helpers(_attrs: TokenStream, item: TokenStream) -> TokenStream {
-    let mut item = parse_macro_input!(item as ItemFn);
-    inject_bpf_helpers(&mut item, Some("crate ::"));
-    let tokens = quote! {
-        #item
-    };
-
-    tokens.into()
-}
-
-fn probe_impl(ty: &str, attrs: TokenStream, mut item: ItemFn) -> TokenStream {
+fn probe_impl(ty: &str, attrs: TokenStream, item: ItemFn) -> TokenStream {
     let name = if attrs.is_empty() {
         item.sig.ident.to_string()
     } else {
@@ -235,7 +171,6 @@ fn probe_impl(ty: &str, attrs: TokenStream, mut item: ItemFn) -> TokenStream {
     };
 
     let section_name = format!("{}/{}", ty, name);
-    inject_bpf_helpers(&mut item, None);
     let tokens = quote! {
         #[no_mangle]
         #[link_section = #section_name]
