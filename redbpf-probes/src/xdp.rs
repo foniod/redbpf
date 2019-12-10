@@ -244,8 +244,10 @@ impl Data {
     }
 }
 
+/// Convenience data type to exchange payload data.
 #[repr(C)]
 pub struct MapData<T> {
+    /// The custom data type to be exchanged with user space.
     pub data: T,
     offset: u32,
     size: u32,
@@ -253,10 +255,16 @@ pub struct MapData<T> {
 }
 
 impl<T> MapData<T> {
+    /// Create a new `MapData` value that includes only `data` and no packet
+    /// payload.
     pub fn new(&self, data: T) -> Self {
         MapData::<T>::with_payload(data, 0, 0)
     }
 
+    /// Create a new `MapData` value that includes `data` and `size` payload
+    /// bytes, where the interesting part of the payload starts at `offset`.
+    ///
+    /// The payload can then be retrieved calling `MapData::payload()`.
     pub fn with_payload(data: T, offset: u32, size: u32) -> Self {
         Self {
             data,
@@ -266,6 +274,7 @@ impl<T> MapData<T> {
         }
     }
 
+    /// Return the payload if any, skipping the initial `offset` bytes.
     pub fn payload(&self) -> &[u8] {
         unsafe {
             let base = self.payload.as_ptr().add(self.offset as usize);
