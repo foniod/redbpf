@@ -28,6 +28,11 @@ serde_derive = { version = "^1.0", optional = true}
 serde_json = { version = "^1.0", optional = true}
 ring = { version = "0.16", optional = true }
 
+futures = { version = "0.3", optional = true }
+mio = { version = "0.6", optional = true }
+tokio = { version = "0.2.4", features = ["rt-core", "io-driver", "macros", "signal"], optional = true }
+
 [features]
 default = []
 build = ["serde", "serde_derive", "serde_json", "ring"]
+load = ["futures", "mio", "tokio"]

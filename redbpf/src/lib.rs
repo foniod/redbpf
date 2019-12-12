@@ -56,6 +56,8 @@ extern crate serde_derive;
 #[cfg(feature = "build")]
 pub mod build;
 pub mod cpus;
+#[cfg(feature = "load")]
+pub mod load;
 mod error;
 mod perf;
 pub mod sys;
