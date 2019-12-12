@@ -17,9 +17,7 @@ name = "cargo_bpf_lib"
 clap = "2.33"
 bindgen = "0.51.1"
 toml_edit = "0.1.5"
-redbpf = { version = "^0.9.0", features = ["build"], path = "../redbpf" }
-bpf-sys = { path = "../bpf-sys", version = "^0.9.0" }
+redbpf = { version = "^0.9.0", features = ["build", "load"], path = "../redbpf" }
 futures = "0.3"
-mio = "0.6"
 tokio = { version = "0.2.4", features = ["rt-core", "io-driver", "macros", "signal"] }
 hexdump = "0.1"

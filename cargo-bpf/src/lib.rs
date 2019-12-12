@@ -7,7 +7,6 @@
 
 mod bindgen;
 mod build;
-mod ebpf_io;
 mod load;
 mod new;
 mod new_program;
