@@ -33,17 +33,20 @@ enum LoaderError {
     KprobeError(String, LoadError),
 }
 
+/// High level API to load bpf programs.
 struct Loader {
     xdp: XdpConfig
 }
 
 impl Loader {
+    /// Creates a new loader.
     pub fn new() -> Self {
         Loader {
             xdp: XdpConfig::default()
         }
     }
 
+    /// Sets the network interface and flags for XDP programs.
     pub fn xdp(&mut self, interface: Option<String>, flags: XdpFlags) -> &mut Self {
         self.xdp = XdpConfig {
             interface,
@@ -52,6 +55,10 @@ impl Loader {
         self
     }
 
+    /// Loads the programs included in `data`.
+    ///
+    /// This will parse `data` with `Module::parse()` and load all the programs
+    /// present in the module.
     pub async fn load(&self, data: &[u8]) -> Result<Loaded, LoaderError> {
         let mut module = Module::parse(&data).map_err(|e| LoaderError::ParseError(e))?;
         for prog in module.programs.iter_mut() {
@@ -98,15 +105,32 @@ impl Loader {
         })
     }
 
+    /// Loads the BPF programs included in `file`.
+    ///
+    /// See `load()`.
     pub async fn load_file(&self, file: &PathBuf) -> Result<Loaded, LoaderError> {
         self.load(&fs::read(file).map_err(|e| LoaderError::FileError(e))?)
             .await
     }
 }
 
+/// The `Loaded` object returned by `load()`.
 struct Loaded {
     xdp: XdpConfig,
-    events: mpsc::UnboundedReceiver<(String, <PerfMessageStream as Stream>::Item)>,
+    /// The stream of events emitted by the BPF programs.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// while let Some((map_name, events)) = loader.events.next().await {
+    ///     for event in events {
+    ///         println!("-- Event: {} --", map_name);
+    ///             hexdump(&event);
+    ///         }
+    ///     }
+    /// }
+    /// ```
+    pub events: mpsc::UnboundedReceiver<(String, <PerfMessageStream as Stream>::Item)>,
 }
 
 impl Drop for Loaded {
