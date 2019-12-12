@@ -5,18 +5,21 @@
 // http://opensource.org/licenses/MIT>, at your option. This file may not be
 // copied, modified, or distributed except according to those terms.
 
-use futures::{Async, Poll, Stream};
+use futures::prelude::*;
 use mio::unix::EventedFd;
 use mio::{Evented, PollOpt, Ready, Token};
-use redbpf::PerfMap;
 use std::io;
 use std::os::unix::io::RawFd;
+use std::pin::Pin;
 use std::slice;
-use tokio::reactor::{Handle, PollEvented2};
+use std::task::{Context, Poll};
+use tokio::io::PollEvented;
 
-pub struct GrainIo(RawFd);
+use crate::{Event, PerfMap};
 
-impl Evented for GrainIo {
+pub struct MapIo(RawFd);
+
+impl Evented for MapIo {
     fn register(
         &self,
         poll: &mio::Poll,
@@ -43,21 +46,19 @@ impl Evented for GrainIo {
 }
 
 pub struct PerfMessageStream {
-    poll: PollEvented2<GrainIo>,
+    poll: PollEvented<MapIo>,
     map: PerfMap,
     name: String,
 }
 
 impl PerfMessageStream {
     pub fn new(name: String, map: PerfMap) -> Self {
-        let io = GrainIo(map.fd);
-        let poll = PollEvented2::new_with_handle(io, &Handle::default()).unwrap();
+        let io = MapIo(map.fd);
+        let poll = PollEvented::new(io).unwrap();
         PerfMessageStream { poll, map, name }
     }
 
     fn read_messages(&mut self) -> Vec<Box<[u8]>> {
-        use redbpf::Event;
-
         let mut ret = Vec::new();
         while let Some(ev) = self.map.read() {
             match ev {
@@ -81,16 +82,15 @@ impl PerfMessageStream {
 
 impl Stream for PerfMessageStream {
     type Item = Vec<Box<[u8]>>;
-    type Error = io::Error;
 
-    fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<Self::Item>> {
         let ready = Ready::readable();
-        if self.poll.poll_read_ready(ready)? == Async::NotReady {
-            return Ok(Async::NotReady);
+        if let Poll::Pending = self.poll.poll_read_ready(cx, ready) {
+            return Poll::Pending;
         }
 
         let messages = self.read_messages();
-        self.poll.clear_read_ready(ready).unwrap();
-        Ok(Async::Ready(Some(messages)))
+        self.poll.clear_read_ready(cx, ready).unwrap();
+        Poll::Ready(Some(messages))
     }
 }

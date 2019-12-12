@@ -56,6 +56,8 @@ extern crate serde_derive;
 #[cfg(feature = "build")]
 pub mod build;
 pub mod cpus;
+#[cfg(feature = "load")]
+pub mod load;
 mod error;
 mod perf;
 pub mod sys;
@@ -191,7 +193,7 @@ pub struct Rel {
     sym: usize,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 #[repr(u32)]
 pub enum XdpFlags {
     Unset = 0,
