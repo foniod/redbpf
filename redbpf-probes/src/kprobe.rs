@@ -38,8 +38,6 @@ pub extern "C" fn enter_execve(ctx: *mut c_void) -> i32 {
  */
 
 use crate::bindings::*;
-use crate::helpers::*;
-use core::mem::{size_of, MaybeUninit};
 use cty::*;
 
 pub struct Registers {

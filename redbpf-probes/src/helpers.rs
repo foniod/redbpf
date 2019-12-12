@@ -28,7 +28,7 @@ pub fn bpf_get_current_comm() -> [c_char; 16] {
 
 #[inline]
 pub fn bpf_ktime_get_ns() -> u64 {
-    unsafe { bpf_ktime_get_ns() }
+    unsafe { gen::bpf_ktime_get_ns() }
 }
 
 #[inline]
