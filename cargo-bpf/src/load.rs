@@ -9,67 +9,140 @@ use crate::ebpf_io::PerfMessageStream;
 use crate::CommandError;
 
 use bpf_sys;
-use futures::prelude::*;
-use futures::stream::{self, StreamExt};
 use futures::channel::mpsc;
+use futures::prelude::*;
+use futures::stream::StreamExt;
 use hexdump::hexdump;
 use redbpf::cpus;
 use redbpf::ProgramKind::*;
-use redbpf::{Module, PerfMap, XdpFlags};
+use redbpf::{LoadError, Module, PerfMap, XdpFlags};
 use std::ffi::CString;
 use std::fs;
+use std::io;
 use std::path::PathBuf;
 use tokio;
 use tokio::runtime::Runtime;
 use tokio::signal;
 
-pub fn load(program: &PathBuf, interface: Option<&str>) -> Result<(), CommandError> {
-    let data = fs::read(program)?;
-    let iface = interface.map(String::from);
-    let mut runtime = Runtime::new().unwrap();
-    runtime
-        .block_on(async {
-            let mut module = Module::parse(&data).expect("failed to parse ELF data");
-            for prog in module.programs.iter_mut() {
-                prog.load(module.version, module.license.clone())
-                    .expect("failed to load program");
-            }
+#[derive(Debug)]
+enum LoaderError {
+    FileError(io::Error),
+    ParseError(LoadError),
+    LoadError(String, LoadError),
+    XdpError(String, LoadError),
+    KprobeError(String, LoadError),
+}
 
-            if let Some(interface) = iface {
-                for prog in module.programs.iter_mut().filter(|p| p.kind == XDP) {
-                    println!("Loaded: {}, {:?}", prog.name, prog.kind);
-                    prog.attach_xdp(&interface, XdpFlags::default()).unwrap();
-                }
-            }
+struct Loader {
+    xdp: XdpConfig
+}
 
-            for prog in module
-                .programs
-                .iter_mut()
-                .filter(|p| p.kind == Kprobe || p.kind == Kretprobe)
-            {
-                prog.attach_probe()
-                    .expect(&format!("Failed to attach kprobe {}", prog.name));
+impl Loader {
+    pub fn new() -> Self {
+        Loader {
+            xdp: XdpConfig::default()
+        }
+    }
+
+    pub fn xdp(&mut self, interface: Option<String>, flags: XdpFlags) -> &mut Self {
+        self.xdp = XdpConfig {
+            interface,
+            flags
+        };
+        self
+    }
+
+    pub async fn load(&self, data: &[u8]) -> Result<Loaded, LoaderError> {
+        let mut module = Module::parse(&data).map_err(|e| LoaderError::ParseError(e))?;
+        for prog in module.programs.iter_mut() {
+            prog.load(module.version, module.license.clone())
+                .map_err(|e| LoaderError::LoadError(prog.name.clone(), e))?;
+        }
+
+        if let Some(interface) = &self.xdp.interface {
+            for prog in module.programs.iter_mut().filter(|p| p.kind == XDP) {
                 println!("Loaded: {}, {:?}", prog.name, prog.kind);
+                prog.attach_xdp(&interface, self.xdp.flags)
+                    .map_err(|e| LoaderError::XdpError(prog.name.clone(), e))?;
             }
-            let online_cpus = cpus::get_online().unwrap();
-            let (sender, mut receiver) = mpsc::unbounded();
-            for m in module.maps.iter_mut().filter(|m| m.kind == 4) {
-                for cpuid in online_cpus.iter() {
-                    let name = m.name.clone();
-                    let map = PerfMap::bind(m, -1, *cpuid, 16, -1, 0).unwrap();
-                    let stream = PerfMessageStream::new(name.clone(), map);
-                    let mut s = sender.clone();
-                    let fut = stream.for_each(move |events| {
-                        s.start_send(Some((name.clone(), events))).unwrap();
-                        future::ready(())
-                    });
-                    tokio::spawn(fut);
-                }
-            }
-            let mut s = sender.clone();
-            tokio::spawn(signal::ctrl_c().map(move |_| s.start_send(None)));
+        }
 
-            while let Some(Some((name, events))) = receiver.next().await {
+        for prog in module
+            .programs
+            .iter_mut()
+            .filter(|p| p.kind == Kprobe || p.kind == Kretprobe)
+        {
+            prog.attach_probe()
+                .map_err(|e| LoaderError::KprobeError(prog.name.clone(), e))?;
+            println!("Loaded: {}, {:?}", prog.name, prog.kind);
+        }
+        let online_cpus = cpus::get_online().unwrap();
+        let (sender, receiver) = mpsc::unbounded();
+        for m in module.maps.iter_mut().filter(|m| m.kind == 4) {
+            for cpuid in online_cpus.iter() {
+                let name = m.name.clone();
+                let map = PerfMap::bind(m, -1, *cpuid, 16, -1, 0).unwrap();
+                let stream = PerfMessageStream::new(name.clone(), map);
+                let mut s = sender.clone();
+                let fut = stream.for_each(move |events| {
+                    s.start_send((name.clone(), events)).unwrap();
+                    future::ready(())
+                });
+                tokio::spawn(fut);
+            }
+        }
+
+        Ok(Loaded {
+            xdp: self.xdp.clone(),
+            events: receiver
+        })
+    }
+
+    pub async fn load_file(&self, file: &PathBuf) -> Result<Loaded, LoaderError> {
+        self.load(&fs::read(file).map_err(|e| LoaderError::FileError(e))?)
+            .await
+    }
+}
+
+struct Loaded {
+    xdp: XdpConfig,
+    events: mpsc::UnboundedReceiver<(String, <PerfMessageStream as Stream>::Item)>,
+}
+
+impl Drop for Loaded {
+    fn drop(&mut self) {
+        if let Some(interface) = &self.xdp.interface {
+            let ciface = CString::new(interface.as_bytes()).unwrap();
+            let _ = unsafe { bpf_sys::bpf_attach_xdp(ciface.as_ptr(), -1, 0) };
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+struct XdpConfig {
+    interface: Option<String>,
+    flags: XdpFlags
+}
+
+impl Default for XdpConfig {
+    fn default() -> XdpConfig {
+        XdpConfig {
+            interface: None,
+            flags: XdpFlags::default()
+        }
+    }
+}
+
+pub fn load(program: &PathBuf, interface: Option<&str>) -> Result<(), CommandError> {
+    let mut runtime = Runtime::new().unwrap();
+    let _ = runtime.block_on(async {
+        let mut loader = Loader::new()
+            .xdp(interface.map(String::from), XdpFlags::default())
+            .load_file(&program)
+            .await
+            .expect("error loading file");
+        tokio::spawn(async move {
+            while let Some((name, events)) = loader.events.next().await {
                 for event in events {
                     println!("-- Event: {} --", name);
                     hexdump(&event);
@@ -77,12 +150,10 @@ pub fn load(program: &PathBuf, interface: Option<&str>) -> Result<(), CommandErr
             }
         });
 
-    println!("exiting");
+        signal::ctrl_c().await
+    });
 
-    if let Some(interface) = interface {
-        let ciface = CString::new(interface).unwrap();
-        let _res = unsafe { bpf_sys::bpf_attach_xdp(ciface.as_ptr(), -1, 0) };
-    }
+    println!("exiting");
 
     Ok(())
 }
