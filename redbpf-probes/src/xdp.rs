@@ -278,7 +278,7 @@ impl<T> MapData<T> {
     pub fn payload(&self) -> &[u8] {
         unsafe {
             let base = self.payload.as_ptr().add(self.offset as usize);
-            slice::from_raw_parts(base, self.size as usize)
+            slice::from_raw_parts(base, (self.size - self.offset) as usize)
         }
     }
 }
