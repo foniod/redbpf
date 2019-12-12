@@ -191,7 +191,7 @@ pub struct Rel {
     sym: usize,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 #[repr(u32)]
 pub enum XdpFlags {
     Unset = 0,
