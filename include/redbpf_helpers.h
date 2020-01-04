@@ -4,6 +4,10 @@
 #undef asm_volatile_goto
 #define asm_volatile_goto(x...) asm volatile("invalid use of asm_volatile_goto")
 #endif
+#ifdef asm_inline
+#undef asm_inline
+#define asm_inline asm
+#endif
 #include <linux/version.h>
 #include <uapi/linux/ptrace.h>
 #include <uapi/linux/bpf.h>
