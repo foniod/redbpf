@@ -271,8 +271,9 @@ fn bindgen_test_layout___kernel_fd_set() {
         8usize,
         concat!("Alignment of ", stringify!(__kernel_fd_set))
     );
+    let instance = unsafe { core::mem::zeroed::<__kernel_fd_set>() };
     assert_eq!(
-        unsafe { &(*(::std::ptr::null::<__kernel_fd_set>())).fds_bits as *const _ as usize },
+        &instance.fds_bits as *const _ as usize - &instance as *const _ as usize,
         0usize,
         concat!(
             "Offset of field: ",
@@ -321,8 +322,9 @@ fn bindgen_test_layout___kernel_fsid_t() {
         4usize,
         concat!("Alignment of ", stringify!(__kernel_fsid_t))
     );
+    let instance = unsafe { core::mem::zeroed::<__kernel_fsid_t>() };
     assert_eq!(
-        unsafe { &(*(::std::ptr::null::<__kernel_fsid_t>())).val as *const _ as usize },
+        &instance.val as *const _ as usize - &instance as *const _ as usize,
         0usize,
         concat!(
             "Offset of field: ",
@@ -558,11 +560,9 @@ fn bindgen_test_layout_perf_event_attr__bindgen_ty_1() {
         8usize,
         concat!("Alignment of ", stringify!(perf_event_attr__bindgen_ty_1))
     );
+    let instance = unsafe { core::mem::zeroed::<perf_event_attr__bindgen_ty_1>() };
     assert_eq!(
-        unsafe {
-            &(*(::std::ptr::null::<perf_event_attr__bindgen_ty_1>())).sample_period as *const _
-                as usize
-        },
+        unsafe { &instance.sample_period as *const _ as usize - &instance as *const _ as usize },
         0usize,
         concat!(
             "Offset of field: ",
@@ -572,10 +572,7 @@ fn bindgen_test_layout_perf_event_attr__bindgen_ty_1() {
         )
     );
     assert_eq!(
-        unsafe {
-            &(*(::std::ptr::null::<perf_event_attr__bindgen_ty_1>())).sample_freq as *const _
-                as usize
-        },
+        unsafe { &instance.sample_freq as *const _ as usize - &instance as *const _ as usize },
         0usize,
         concat!(
             "Offset of field: ",
@@ -604,11 +601,9 @@ fn bindgen_test_layout_perf_event_attr__bindgen_ty_2() {
         4usize,
         concat!("Alignment of ", stringify!(perf_event_attr__bindgen_ty_2))
     );
+    let instance = unsafe { core::mem::zeroed::<perf_event_attr__bindgen_ty_2>() };
     assert_eq!(
-        unsafe {
-            &(*(::std::ptr::null::<perf_event_attr__bindgen_ty_2>())).wakeup_events as *const _
-                as usize
-        },
+        unsafe { &instance.wakeup_events as *const _ as usize - &instance as *const _ as usize },
         0usize,
         concat!(
             "Offset of field: ",
@@ -618,10 +613,7 @@ fn bindgen_test_layout_perf_event_attr__bindgen_ty_2() {
         )
     );
     assert_eq!(
-        unsafe {
-            &(*(::std::ptr::null::<perf_event_attr__bindgen_ty_2>())).wakeup_watermark as *const _
-                as usize
-        },
+        unsafe { &instance.wakeup_watermark as *const _ as usize - &instance as *const _ as usize },
         0usize,
         concat!(
             "Offset of field: ",
@@ -650,10 +642,9 @@ fn bindgen_test_layout_perf_event_attr__bindgen_ty_3() {
         8usize,
         concat!("Alignment of ", stringify!(perf_event_attr__bindgen_ty_3))
     );
+    let instance = unsafe { core::mem::zeroed::<perf_event_attr__bindgen_ty_3>() };
     assert_eq!(
-        unsafe {
-            &(*(::std::ptr::null::<perf_event_attr__bindgen_ty_3>())).bp_addr as *const _ as usize
-        },
+        unsafe { &instance.bp_addr as *const _ as usize - &instance as *const _ as usize },
         0usize,
         concat!(
             "Offset of field: ",
@@ -663,9 +654,7 @@ fn bindgen_test_layout_perf_event_attr__bindgen_ty_3() {
         )
     );
     assert_eq!(
-        unsafe {
-            &(*(::std::ptr::null::<perf_event_attr__bindgen_ty_3>())).config1 as *const _ as usize
-        },
+        unsafe { &instance.config1 as *const _ as usize - &instance as *const _ as usize },
         0usize,
         concat!(
             "Offset of field: ",
@@ -694,10 +683,9 @@ fn bindgen_test_layout_perf_event_attr__bindgen_ty_4() {
         8usize,
         concat!("Alignment of ", stringify!(perf_event_attr__bindgen_ty_4))
     );
+    let instance = unsafe { core::mem::zeroed::<perf_event_attr__bindgen_ty_4>() };
     assert_eq!(
-        unsafe {
-            &(*(::std::ptr::null::<perf_event_attr__bindgen_ty_4>())).bp_len as *const _ as usize
-        },
+        unsafe { &instance.bp_len as *const _ as usize - &instance as *const _ as usize },
         0usize,
         concat!(
             "Offset of field: ",
@@ -707,9 +695,7 @@ fn bindgen_test_layout_perf_event_attr__bindgen_ty_4() {
         )
     );
     assert_eq!(
-        unsafe {
-            &(*(::std::ptr::null::<perf_event_attr__bindgen_ty_4>())).config2 as *const _ as usize
-        },
+        unsafe { &instance.config2 as *const _ as usize - &instance as *const _ as usize },
         0usize,
         concat!(
             "Offset of field: ",
@@ -731,8 +717,9 @@ fn bindgen_test_layout_perf_event_attr() {
         8usize,
         concat!("Alignment of ", stringify!(perf_event_attr))
     );
+    let instance = unsafe { core::mem::zeroed::<perf_event_attr>() };
     assert_eq!(
-        unsafe { &(*(::std::ptr::null::<perf_event_attr>())).type_ as *const _ as usize },
+        &instance.type_ as *const _ as usize - &instance as *const _ as usize,
         0usize,
         concat!(
             "Offset of field: ",
@@ -742,7 +729,7 @@ fn bindgen_test_layout_perf_event_attr() {
         )
     );
     assert_eq!(
-        unsafe { &(*(::std::ptr::null::<perf_event_attr>())).size as *const _ as usize },
+        &instance.size as *const _ as usize - &instance as *const _ as usize,
         4usize,
         concat!(
             "Offset of field: ",
@@ -752,7 +739,7 @@ fn bindgen_test_layout_perf_event_attr() {
         )
     );
     assert_eq!(
-        unsafe { &(*(::std::ptr::null::<perf_event_attr>())).config as *const _ as usize },
+        &instance.config as *const _ as usize - &instance as *const _ as usize,
         8usize,
         concat!(
             "Offset of field: ",
@@ -762,7 +749,7 @@ fn bindgen_test_layout_perf_event_attr() {
         )
     );
     assert_eq!(
-        unsafe { &(*(::std::ptr::null::<perf_event_attr>())).sample_type as *const _ as usize },
+        &instance.sample_type as *const _ as usize - &instance as *const _ as usize,
         24usize,
         concat!(
             "Offset of field: ",
@@ -772,7 +759,7 @@ fn bindgen_test_layout_perf_event_attr() {
         )
     );
     assert_eq!(
-        unsafe { &(*(::std::ptr::null::<perf_event_attr>())).read_format as *const _ as usize },
+        &instance.read_format as *const _ as usize - &instance as *const _ as usize,
         32usize,
         concat!(
             "Offset of field: ",
@@ -782,7 +769,7 @@ fn bindgen_test_layout_perf_event_attr() {
         )
     );
     assert_eq!(
-        unsafe { &(*(::std::ptr::null::<perf_event_attr>())).bp_type as *const _ as usize },
+        &instance.bp_type as *const _ as usize - &instance as *const _ as usize,
         52usize,
         concat!(
             "Offset of field: ",
@@ -792,9 +779,7 @@ fn bindgen_test_layout_perf_event_attr() {
         )
     );
     assert_eq!(
-        unsafe {
-            &(*(::std::ptr::null::<perf_event_attr>())).branch_sample_type as *const _ as usize
-        },
+        &instance.branch_sample_type as *const _ as usize - &instance as *const _ as usize,
         72usize,
         concat!(
             "Offset of field: ",
@@ -804,9 +789,7 @@ fn bindgen_test_layout_perf_event_attr() {
         )
     );
     assert_eq!(
-        unsafe {
-            &(*(::std::ptr::null::<perf_event_attr>())).sample_regs_user as *const _ as usize
-        },
+        &instance.sample_regs_user as *const _ as usize - &instance as *const _ as usize,
         80usize,
         concat!(
             "Offset of field: ",
@@ -816,9 +799,7 @@ fn bindgen_test_layout_perf_event_attr() {
         )
     );
     assert_eq!(
-        unsafe {
-            &(*(::std::ptr::null::<perf_event_attr>())).sample_stack_user as *const _ as usize
-        },
+        &instance.sample_stack_user as *const _ as usize - &instance as *const _ as usize,
         88usize,
         concat!(
             "Offset of field: ",
@@ -828,7 +809,7 @@ fn bindgen_test_layout_perf_event_attr() {
         )
     );
     assert_eq!(
-        unsafe { &(*(::std::ptr::null::<perf_event_attr>())).clockid as *const _ as usize },
+        &instance.clockid as *const _ as usize - &instance as *const _ as usize,
         92usize,
         concat!(
             "Offset of field: ",
@@ -838,9 +819,7 @@ fn bindgen_test_layout_perf_event_attr() {
         )
     );
     assert_eq!(
-        unsafe {
-            &(*(::std::ptr::null::<perf_event_attr>())).sample_regs_intr as *const _ as usize
-        },
+        &instance.sample_regs_intr as *const _ as usize - &instance as *const _ as usize,
         96usize,
         concat!(
             "Offset of field: ",
@@ -850,7 +829,7 @@ fn bindgen_test_layout_perf_event_attr() {
         )
     );
     assert_eq!(
-        unsafe { &(*(::std::ptr::null::<perf_event_attr>())).aux_watermark as *const _ as usize },
+        &instance.aux_watermark as *const _ as usize - &instance as *const _ as usize,
         104usize,
         concat!(
             "Offset of field: ",
@@ -860,9 +839,7 @@ fn bindgen_test_layout_perf_event_attr() {
         )
     );
     assert_eq!(
-        unsafe {
-            &(*(::std::ptr::null::<perf_event_attr>())).sample_max_stack as *const _ as usize
-        },
+        &instance.sample_max_stack as *const _ as usize - &instance as *const _ as usize,
         108usize,
         concat!(
             "Offset of field: ",
@@ -872,7 +849,7 @@ fn bindgen_test_layout_perf_event_attr() {
         )
     );
     assert_eq!(
-        unsafe { &(*(::std::ptr::null::<perf_event_attr>())).__reserved_2 as *const _ as usize },
+        &instance.__reserved_2 as *const _ as usize - &instance as *const _ as usize,
         110usize,
         concat!(
             "Offset of field: ",
@@ -1376,8 +1353,9 @@ fn bindgen_test_layout_perf_event_query_bpf() {
         4usize,
         concat!("Alignment of ", stringify!(perf_event_query_bpf))
     );
+    let instance = unsafe { core::mem::zeroed::<perf_event_query_bpf>() };
     assert_eq!(
-        unsafe { &(*(::std::ptr::null::<perf_event_query_bpf>())).ids_len as *const _ as usize },
+        &instance.ids_len as *const _ as usize - &instance as *const _ as usize,
         0usize,
         concat!(
             "Offset of field: ",
@@ -1387,7 +1365,7 @@ fn bindgen_test_layout_perf_event_query_bpf() {
         )
     );
     assert_eq!(
-        unsafe { &(*(::std::ptr::null::<perf_event_query_bpf>())).prog_cnt as *const _ as usize },
+        &instance.prog_cnt as *const _ as usize - &instance as *const _ as usize,
         4usize,
         concat!(
             "Offset of field: ",
@@ -1397,7 +1375,7 @@ fn bindgen_test_layout_perf_event_query_bpf() {
         )
     );
     assert_eq!(
-        unsafe { &(*(::std::ptr::null::<perf_event_query_bpf>())).ids as *const _ as usize },
+        &instance.ids as *const _ as usize - &instance as *const _ as usize,
         8usize,
         concat!(
             "Offset of field: ",
@@ -1589,11 +1567,9 @@ fn bindgen_test_layout_perf_event_mmap_page__bindgen_ty_1() {
             stringify!(perf_event_mmap_page__bindgen_ty_1)
         )
     );
+    let instance = unsafe { core::mem::zeroed::<perf_event_mmap_page__bindgen_ty_1>() };
     assert_eq!(
-        unsafe {
-            &(*(::std::ptr::null::<perf_event_mmap_page__bindgen_ty_1>())).capabilities as *const _
-                as usize
-        },
+        unsafe { &instance.capabilities as *const _ as usize - &instance as *const _ as usize },
         0usize,
         concat!(
             "Offset of field: ",
@@ -1615,8 +1591,9 @@ fn bindgen_test_layout_perf_event_mmap_page() {
         8usize,
         concat!("Alignment of ", stringify!(perf_event_mmap_page))
     );
+    let instance = unsafe { core::mem::zeroed::<perf_event_mmap_page>() };
     assert_eq!(
-        unsafe { &(*(::std::ptr::null::<perf_event_mmap_page>())).version as *const _ as usize },
+        &instance.version as *const _ as usize - &instance as *const _ as usize,
         0usize,
         concat!(
             "Offset of field: ",
@@ -1626,9 +1603,7 @@ fn bindgen_test_layout_perf_event_mmap_page() {
         )
     );
     assert_eq!(
-        unsafe {
-            &(*(::std::ptr::null::<perf_event_mmap_page>())).compat_version as *const _ as usize
-        },
+        &instance.compat_version as *const _ as usize - &instance as *const _ as usize,
         4usize,
         concat!(
             "Offset of field: ",
@@ -1638,7 +1613,7 @@ fn bindgen_test_layout_perf_event_mmap_page() {
         )
     );
     assert_eq!(
-        unsafe { &(*(::std::ptr::null::<perf_event_mmap_page>())).lock as *const _ as usize },
+        &instance.lock as *const _ as usize - &instance as *const _ as usize,
         8usize,
         concat!(
             "Offset of field: ",
@@ -1648,7 +1623,7 @@ fn bindgen_test_layout_perf_event_mmap_page() {
         )
     );
     assert_eq!(
-        unsafe { &(*(::std::ptr::null::<perf_event_mmap_page>())).index as *const _ as usize },
+        &instance.index as *const _ as usize - &instance as *const _ as usize,
         12usize,
         concat!(
             "Offset of field: ",
@@ -1658,7 +1633,7 @@ fn bindgen_test_layout_perf_event_mmap_page() {
         )
     );
     assert_eq!(
-        unsafe { &(*(::std::ptr::null::<perf_event_mmap_page>())).offset as *const _ as usize },
+        &instance.offset as *const _ as usize - &instance as *const _ as usize,
         16usize,
         concat!(
             "Offset of field: ",
@@ -1668,9 +1643,7 @@ fn bindgen_test_layout_perf_event_mmap_page() {
         )
     );
     assert_eq!(
-        unsafe {
-            &(*(::std::ptr::null::<perf_event_mmap_page>())).time_enabled as *const _ as usize
-        },
+        &instance.time_enabled as *const _ as usize - &instance as *const _ as usize,
         24usize,
         concat!(
             "Offset of field: ",
@@ -1680,9 +1653,7 @@ fn bindgen_test_layout_perf_event_mmap_page() {
         )
     );
     assert_eq!(
-        unsafe {
-            &(*(::std::ptr::null::<perf_event_mmap_page>())).time_running as *const _ as usize
-        },
+        &instance.time_running as *const _ as usize - &instance as *const _ as usize,
         32usize,
         concat!(
             "Offset of field: ",
@@ -1692,7 +1663,7 @@ fn bindgen_test_layout_perf_event_mmap_page() {
         )
     );
     assert_eq!(
-        unsafe { &(*(::std::ptr::null::<perf_event_mmap_page>())).pmc_width as *const _ as usize },
+        &instance.pmc_width as *const _ as usize - &instance as *const _ as usize,
         48usize,
         concat!(
             "Offset of field: ",
@@ -1702,7 +1673,7 @@ fn bindgen_test_layout_perf_event_mmap_page() {
         )
     );
     assert_eq!(
-        unsafe { &(*(::std::ptr::null::<perf_event_mmap_page>())).time_shift as *const _ as usize },
+        &instance.time_shift as *const _ as usize - &instance as *const _ as usize,
         50usize,
         concat!(
             "Offset of field: ",
@@ -1712,7 +1683,7 @@ fn bindgen_test_layout_perf_event_mmap_page() {
         )
     );
     assert_eq!(
-        unsafe { &(*(::std::ptr::null::<perf_event_mmap_page>())).time_mult as *const _ as usize },
+        &instance.time_mult as *const _ as usize - &instance as *const _ as usize,
         52usize,
         concat!(
             "Offset of field: ",
@@ -1722,9 +1693,7 @@ fn bindgen_test_layout_perf_event_mmap_page() {
         )
     );
     assert_eq!(
-        unsafe {
-            &(*(::std::ptr::null::<perf_event_mmap_page>())).time_offset as *const _ as usize
-        },
+        &instance.time_offset as *const _ as usize - &instance as *const _ as usize,
         56usize,
         concat!(
             "Offset of field: ",
@@ -1734,7 +1703,7 @@ fn bindgen_test_layout_perf_event_mmap_page() {
         )
     );
     assert_eq!(
-        unsafe { &(*(::std::ptr::null::<perf_event_mmap_page>())).time_zero as *const _ as usize },
+        &instance.time_zero as *const _ as usize - &instance as *const _ as usize,
         64usize,
         concat!(
             "Offset of field: ",
@@ -1744,7 +1713,7 @@ fn bindgen_test_layout_perf_event_mmap_page() {
         )
     );
     assert_eq!(
-        unsafe { &(*(::std::ptr::null::<perf_event_mmap_page>())).size as *const _ as usize },
+        &instance.size as *const _ as usize - &instance as *const _ as usize,
         72usize,
         concat!(
             "Offset of field: ",
@@ -1754,7 +1723,7 @@ fn bindgen_test_layout_perf_event_mmap_page() {
         )
     );
     assert_eq!(
-        unsafe { &(*(::std::ptr::null::<perf_event_mmap_page>())).__reserved as *const _ as usize },
+        &instance.__reserved as *const _ as usize - &instance as *const _ as usize,
         76usize,
         concat!(
             "Offset of field: ",
@@ -1764,7 +1733,7 @@ fn bindgen_test_layout_perf_event_mmap_page() {
         )
     );
     assert_eq!(
-        unsafe { &(*(::std::ptr::null::<perf_event_mmap_page>())).data_head as *const _ as usize },
+        &instance.data_head as *const _ as usize - &instance as *const _ as usize,
         1024usize,
         concat!(
             "Offset of field: ",
@@ -1774,7 +1743,7 @@ fn bindgen_test_layout_perf_event_mmap_page() {
         )
     );
     assert_eq!(
-        unsafe { &(*(::std::ptr::null::<perf_event_mmap_page>())).data_tail as *const _ as usize },
+        &instance.data_tail as *const _ as usize - &instance as *const _ as usize,
         1032usize,
         concat!(
             "Offset of field: ",
@@ -1784,9 +1753,7 @@ fn bindgen_test_layout_perf_event_mmap_page() {
         )
     );
     assert_eq!(
-        unsafe {
-            &(*(::std::ptr::null::<perf_event_mmap_page>())).data_offset as *const _ as usize
-        },
+        &instance.data_offset as *const _ as usize - &instance as *const _ as usize,
         1040usize,
         concat!(
             "Offset of field: ",
@@ -1796,7 +1763,7 @@ fn bindgen_test_layout_perf_event_mmap_page() {
         )
     );
     assert_eq!(
-        unsafe { &(*(::std::ptr::null::<perf_event_mmap_page>())).data_size as *const _ as usize },
+        &instance.data_size as *const _ as usize - &instance as *const _ as usize,
         1048usize,
         concat!(
             "Offset of field: ",
@@ -1806,7 +1773,7 @@ fn bindgen_test_layout_perf_event_mmap_page() {
         )
     );
     assert_eq!(
-        unsafe { &(*(::std::ptr::null::<perf_event_mmap_page>())).aux_head as *const _ as usize },
+        &instance.aux_head as *const _ as usize - &instance as *const _ as usize,
         1056usize,
         concat!(
             "Offset of field: ",
@@ -1816,7 +1783,7 @@ fn bindgen_test_layout_perf_event_mmap_page() {
         )
     );
     assert_eq!(
-        unsafe { &(*(::std::ptr::null::<perf_event_mmap_page>())).aux_tail as *const _ as usize },
+        &instance.aux_tail as *const _ as usize - &instance as *const _ as usize,
         1064usize,
         concat!(
             "Offset of field: ",
@@ -1826,7 +1793,7 @@ fn bindgen_test_layout_perf_event_mmap_page() {
         )
     );
     assert_eq!(
-        unsafe { &(*(::std::ptr::null::<perf_event_mmap_page>())).aux_offset as *const _ as usize },
+        &instance.aux_offset as *const _ as usize - &instance as *const _ as usize,
         1072usize,
         concat!(
             "Offset of field: ",
@@ -1836,7 +1803,7 @@ fn bindgen_test_layout_perf_event_mmap_page() {
         )
     );
     assert_eq!(
-        unsafe { &(*(::std::ptr::null::<perf_event_mmap_page>())).aux_size as *const _ as usize },
+        &instance.aux_size as *const _ as usize - &instance as *const _ as usize,
         1080usize,
         concat!(
             "Offset of field: ",
@@ -1865,8 +1832,9 @@ fn bindgen_test_layout_perf_event_header() {
         4usize,
         concat!("Alignment of ", stringify!(perf_event_header))
     );
+    let instance = unsafe { core::mem::zeroed::<perf_event_header>() };
     assert_eq!(
-        unsafe { &(*(::std::ptr::null::<perf_event_header>())).type_ as *const _ as usize },
+        &instance.type_ as *const _ as usize - &instance as *const _ as usize,
         0usize,
         concat!(
             "Offset of field: ",
@@ -1876,7 +1844,7 @@ fn bindgen_test_layout_perf_event_header() {
         )
     );
     assert_eq!(
-        unsafe { &(*(::std::ptr::null::<perf_event_header>())).misc as *const _ as usize },
+        &instance.misc as *const _ as usize - &instance as *const _ as usize,
         4usize,
         concat!(
             "Offset of field: ",
@@ -1886,7 +1854,7 @@ fn bindgen_test_layout_perf_event_header() {
         )
     );
     assert_eq!(
-        unsafe { &(*(::std::ptr::null::<perf_event_header>())).size as *const _ as usize },
+        &instance.size as *const _ as usize - &instance as *const _ as usize,
         6usize,
         concat!(
             "Offset of field: ",
@@ -1914,8 +1882,9 @@ fn bindgen_test_layout_perf_ns_link_info() {
         8usize,
         concat!("Alignment of ", stringify!(perf_ns_link_info))
     );
+    let instance = unsafe { core::mem::zeroed::<perf_ns_link_info>() };
     assert_eq!(
-        unsafe { &(*(::std::ptr::null::<perf_ns_link_info>())).dev as *const _ as usize },
+        &instance.dev as *const _ as usize - &instance as *const _ as usize,
         0usize,
         concat!(
             "Offset of field: ",
@@ -1925,7 +1894,7 @@ fn bindgen_test_layout_perf_ns_link_info() {
         )
     );
     assert_eq!(
-        unsafe { &(*(::std::ptr::null::<perf_ns_link_info>())).ino as *const _ as usize },
+        &instance.ino as *const _ as usize - &instance as *const _ as usize,
         8usize,
         concat!(
             "Offset of field: ",
@@ -2163,8 +2132,9 @@ fn bindgen_test_layout_perf_mem_data_src() {
         8usize,
         concat!("Alignment of ", stringify!(perf_mem_data_src))
     );
+    let instance = unsafe { core::mem::zeroed::<perf_mem_data_src>() };
     assert_eq!(
-        unsafe { &(*(::std::ptr::null::<perf_mem_data_src>())).val as *const _ as usize },
+        unsafe { &instance.val as *const _ as usize - &instance as *const _ as usize },
         0usize,
         concat!(
             "Offset of field: ",
@@ -2193,8 +2163,9 @@ fn bindgen_test_layout_perf_branch_entry() {
         8usize,
         concat!("Alignment of ", stringify!(perf_branch_entry))
     );
+    let instance = unsafe { core::mem::zeroed::<perf_branch_entry>() };
     assert_eq!(
-        unsafe { &(*(::std::ptr::null::<perf_branch_entry>())).from as *const _ as usize },
+        &instance.from as *const _ as usize - &instance as *const _ as usize,
         0usize,
         concat!(
             "Offset of field: ",
@@ -2204,7 +2175,7 @@ fn bindgen_test_layout_perf_branch_entry() {
         )
     );
     assert_eq!(
-        unsafe { &(*(::std::ptr::null::<perf_branch_entry>())).to as *const _ as usize },
+        &instance.to as *const _ as usize - &instance as *const _ as usize,
         8usize,
         concat!(
             "Offset of field: ",
