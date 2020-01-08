@@ -49,7 +49,9 @@ pub fn get_fqdn() -> Result<String, ()> {
 }
 
 #[inline]
-pub fn to_str(bytes: &[c_char]) -> &str {
+fn to_str(bytes: &[c_char]) -> &str {
+    // SAFETY: only called on `uname` structs filled by the OS, which we trust.
+    // FIXME: Do not trust it to be valid UTF-8.
     unsafe { from_utf8_unchecked(CStr::from_ptr(bytes.as_ptr()).to_bytes()) }
 }
 
