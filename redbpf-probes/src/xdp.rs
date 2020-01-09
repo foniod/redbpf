@@ -223,23 +223,20 @@ impl Data {
     /// Returns a `slice` of `len` bytes from the data.
     #[inline]
     pub fn slice(&self, len: usize) -> Option<&[u8]> {
-        unsafe {
-            if self.base.add(len) > (*self.ctx).data_end as *const u8 {
-                return None;
-            }
-            let s = slice::from_raw_parts(self.base, len);
-            Some(s)
-        }
+        let full_slice = unsafe {
+            // SAFETY: base pointer should be valid for our own length.
+            slice::from_raw_parts(self.base, self.len())
+        };
+
+        full_slice.get(..len)
     }
 
     #[inline]
     pub fn read<T>(&self) -> Option<T> {
+        let bytes = self.slice(mem::size_of::<T>())?;
+
         unsafe {
-            let len = mem::size_of::<T>();
-            if self.base.add(len) as *const u8 > (*self.ctx).data_end as *const u8 {
-                return None;
-            }
-            Some((self.base as *const T).read_unaligned())
+            Some((bytes.as_ptr() as *const T).read_unaligned())
         }
     }
 }
