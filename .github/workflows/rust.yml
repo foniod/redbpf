@@ -9,8 +9,17 @@ jobs:
 
     steps:
     - uses: actions/checkout@v1
+    - name: Check out submodules
+      run: git submodule sync && git submodule update --init
+      
+    - name: Add LLVM 9 packages
+      run: |
+          curl https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
+          sudo add-apt-repository 'deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic-9  main'
+
     - name: Install necessary packages
-      run: sudo apt-get install -y clang llvm-9 libelf-dev ca-certificates{,-java} linux-headers
+      run: sudo apt-get install -y clang llvm-9 libelf-dev ca-certificates{,-java} linux-headers-$(uname -r)
+      
     - name: Build
       run: cargo build --verbose
     - name: Run tests
