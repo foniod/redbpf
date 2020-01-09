@@ -10,7 +10,7 @@ jobs:
     steps:
     - uses: actions/checkout@v1
     - name: Install necessary packages
-      run: apt-get install -y clang llvm-9 libelf-dev ca-certificates{,-java} linux-headers
+      run: sudo apt-get install -y clang llvm-9 libelf-dev ca-certificates{,-java} linux-headers
     - name: Build
       run: cargo build --verbose
     - name: Run tests
