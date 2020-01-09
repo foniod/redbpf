@@ -1,0 +1,19 @@
+name: Rust
+
+on: [push]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-18.04
+
+    steps:
+    - uses: actions/checkout@v1
+    - name: Install necessary packages
+      run: apt-get install -y clang llvm-9 libelf-dev ca-certificates{,-java} linux-headers
+    - name: Build
+      run: cargo build --verbose
+    - name: Run tests
+      run: cargo test --verbose
+    - name: Build docs
+      run: cargo doc --no-deps
