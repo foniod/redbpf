@@ -20,7 +20,7 @@ jobs:
     - name: Install necessary packages
       run: |
           sudo apt-get install -y clang llvm-9 libelf-dev ca-certificates{,-java} linux-headers-$(uname -r)
-          eccho "export KERNEL_VERSION=$(uname -r)" >> ${HOME}/.bashrc
+          echo "export KERNEL_VERSION=$(uname -r)" >> ${HOME}/.bashrc
       
     - name: Build
       run: cargo build --verbose
