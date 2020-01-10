@@ -4,18 +4,18 @@ description = "eBPF probe-related types for redbpf"
 repository = "https://github.com/redsift/redbpf"
 documentation = "https://redsift.github.io/rust/redbpf/doc/redbpf_probes/"
 authors = ["Alessandro Decina <alessandro.d@gmail.com>", "Peter Parkanyi <peter@redsift.io>"]
-version = "0.9.7"
+version = "0.9.8"
 edition = '2018'
 keywords = ["bpf", "ebpf", "redbpf"]
 license = "MIT OR Apache-2.0"
 
 [dependencies]
 cty = "0.2"
-redbpf-macros = { version = "^0.9.7", path = "../redbpf-macros" }
+redbpf-macros = { version = "^0.9.8", path = "../redbpf-macros" }
 
 [build-dependencies]
 bindgen = "0.51"
-redbpf = { version = "^0.9.7", features = ["build"], path = "../redbpf" }
+redbpf = { version = "^0.9.8", features = ["build"], path = "../redbpf" }
 syn = {version = "1.0", features = ["full", "visit", "extra-traits"] }
 quote = "1.0"
 
