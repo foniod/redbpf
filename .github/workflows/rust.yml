@@ -4,10 +4,11 @@ on: [push]
 
 jobs:
   ubuntu:
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
+    container: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-lts, ubuntu-latest]
+        os: [ubuntu:latest, ubuntu:rolling]
 
     steps:
     - uses: actions/checkout@v1
