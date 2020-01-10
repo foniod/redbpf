@@ -8,7 +8,7 @@ jobs:
     container: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu:latest, ubuntu:rolling]
+        os: ['ubuntu:latest', 'ubuntu:rolling']
 
     steps:
     - uses: actions/checkout@v1
