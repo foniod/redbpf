@@ -22,7 +22,7 @@ jobs:
 
     - name: Install necessary packages
       run: |
-        apt-get install -y clang llvm-9 libelf-dev ca-certificates{,-java} linux-headers-$(uname -r)
+        apt-get install -y clang llvm-9 libelf-dev linux-headers-$(uname -r)
         echo "export KERNEL_VERSION=$(uname -r)" >> ${HOME}/.bashrc
         curl --proto '=https' --tlsv1.2 -sSf -o rustup.sh https://sh.rustup.rs
 
