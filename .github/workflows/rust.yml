@@ -12,8 +12,7 @@ jobs:
 
     steps:
     - uses: actions/checkout@v1
-    - name: Check out submodules
-      run: git submodule sync && git submodule update --init
+    - uses: textbook/git-checkout-submodule-action@2.0.0
       
     - name: Add LLVM 9 packages
       run: |
