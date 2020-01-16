@@ -3,6 +3,7 @@ use std::default::Default;
 
 use bpf_sys::{XDP_FLAGS_UPDATE_IF_NOEXIST, XDP_FLAGS_SKB_MODE,
               XDP_FLAGS_DRV_MODE, XDP_FLAGS_HW_MODE, XDP_FLAGS_MODES, XDP_FLAGS_MASK};
+use crate::Sample;
 
 #[derive(Debug, Clone, Copy)]
 #[repr(u32)]
@@ -33,6 +34,10 @@ pub struct MapData<T> {
 }
 
 impl<T> MapData<T> {
+    pub unsafe fn from_sample<U>(sample: &Sample) -> &MapData<U> {
+        &*(sample.data.as_ptr() as *const MapData<U>)
+    }
+
     /// Return the data shared by the kernel space program.
     pub fn data(&self) -> &T {
         &self.data
