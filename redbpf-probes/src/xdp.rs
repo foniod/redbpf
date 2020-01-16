@@ -264,7 +264,10 @@ impl<T> MapData<T> {
     /// bytes, where the interesting part of the payload starts at `offset`.
     ///
     /// The payload can then be retrieved calling `MapData::payload()`.
+    ///
+    /// The function will panic if `offset > size`.
     pub fn with_payload(data: T, offset: u32, size: u32) -> Self {
+        assert!(offset <= size);
         Self {
             data,
             payload: [],
