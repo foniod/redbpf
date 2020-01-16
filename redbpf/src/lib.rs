@@ -58,19 +58,17 @@ pub mod build;
 pub mod cpus;
 #[cfg(feature = "load")]
 pub mod load;
+pub mod xdp;
 mod error;
 mod perf;
 pub mod sys;
 pub use bpf_sys::uname;
 
 use bpf_sys::{bpf_insn, bpf_map_def};
-use bpf_sys::{XDP_FLAGS_UPDATE_IF_NOEXIST, XDP_FLAGS_SKB_MODE,
-              XDP_FLAGS_DRV_MODE, XDP_FLAGS_HW_MODE, XDP_FLAGS_MODES, XDP_FLAGS_MASK};
 use goblin::elf::{section_header as hdr, Elf, SectionHeader, Sym,
                   reloc::RelocSection};
 
 use std::collections::HashMap;
-use std::default::Default;
 use std::ffi::CString;
 use std::io;
 use std::mem;
@@ -191,18 +189,6 @@ pub struct Rel {
     target: usize,
     offset: u64,
     sym: usize,
-}
-
-#[derive(Debug, Clone, Copy)]
-#[repr(u32)]
-pub enum XdpFlags {
-    Unset = 0,
-    UpdateIfNoExist = XDP_FLAGS_UPDATE_IF_NOEXIST,
-    SkbMode = XDP_FLAGS_SKB_MODE,
-    DrvMode = XDP_FLAGS_DRV_MODE,
-    HwMode = XDP_FLAGS_HW_MODE,
-    Modes = XDP_FLAGS_MODES,
-    Mask = XDP_FLAGS_MASK
 }
 
 impl ProgramKind {
@@ -338,7 +324,7 @@ impl Program {
         }
     }
 
-    pub fn attach_xdp(&mut self, iface: &str, flags: XdpFlags) -> Result<()> {
+    pub fn attach_xdp(&mut self, iface: &str, flags: xdp::Flags) -> Result<()> {
         let ciface = CString::new(iface).unwrap();
         let res = unsafe { bpf_sys::bpf_attach_xdp(ciface.as_ptr(), self.fd.unwrap(), flags as u32) };
 
@@ -541,10 +527,4 @@ fn data<'d>(bytes: &'d [u8], shdr: &SectionHeader) -> &'d [u8] {
     let end = (shdr.sh_offset + shdr.sh_size) as usize;
 
     &bytes[offset..end]
-}
-
-impl Default for XdpFlags {
-    fn default() -> XdpFlags {
-        XdpFlags::Unset
-    }
 }
