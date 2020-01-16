@@ -243,12 +243,11 @@ impl Data {
         }
     }
 }
-
+/* NB: this needs to be kept in sync with redbpf::xdp::MapData */
 /// Convenience data type to exchange payload data.
 #[repr(C)]
 pub struct MapData<T> {
-    /// The custom data type to be exchanged with user space.
-    pub data: T,
+    data: T,
     offset: u32,
     size: u32,
     payload: [u8; 0],
@@ -271,14 +270,6 @@ impl<T> MapData<T> {
             payload: [],
             offset,
             size
-        }
-    }
-
-    /// Return the payload if any, skipping the initial `offset` bytes.
-    pub fn payload(&self) -> &[u8] {
-        unsafe {
-            let base = self.payload.as_ptr().add(self.offset as usize);
-            slice::from_raw_parts(base, (self.size - self.offset) as usize)
         }
     }
 }
