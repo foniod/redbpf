@@ -15,7 +15,7 @@ use std::path::PathBuf;
 
 use crate::cpus;
 use crate::ProgramKind::*;
-use crate::{LoadError, Module, PerfMap, XdpFlags};
+use crate::{LoadError, Module, PerfMap, xdp};
 use crate::load::map_io::PerfMessageStream;
 
 #[derive(Debug)]
@@ -41,7 +41,7 @@ impl Loader {
     }
 
     /// Sets the network interface and flags for XDP programs.
-    pub fn xdp(&mut self, interface: Option<String>, flags: XdpFlags) -> &mut Self {
+    pub fn xdp(&mut self, interface: Option<String>, flags: xdp::Flags) -> &mut Self {
         self.xdp = XdpConfig {
             interface,
             flags
@@ -139,14 +139,14 @@ impl Drop for Loaded {
 #[derive(Debug, Clone)]
 pub struct XdpConfig {
     interface: Option<String>,
-    flags: XdpFlags
+    flags: xdp::Flags
 }
 
 impl Default for XdpConfig {
     fn default() -> XdpConfig {
         XdpConfig {
             interface: None,
-            flags: XdpFlags::default()
+            flags: xdp::Flags::default()
         }
     }
 }
