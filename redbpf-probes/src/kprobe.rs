@@ -71,7 +71,7 @@ impl Registers {
 
         #[cfg(target_arch = "aarch64")]
         unsafe {
-            (*self.ctx).regs[0]
+            (*self.ctx).__bindgen_anon_1.user_regs.regs[0]
         }
     }
 
@@ -85,7 +85,7 @@ impl Registers {
 
         #[cfg(target_arch = "aarch64")]
         unsafe {
-            (*self.ctx).regs[1]
+            (*self.ctx).__bindgen_anon_1.user_regs.regs[1]
         }
     }
 
@@ -99,7 +99,7 @@ impl Registers {
 
         #[cfg(target_arch = "aarch64")]
         unsafe {
-            (*self.ctx).regs[2]
+            (*self.ctx).__bindgen_anon_1.user_regs.regs[2]
         }
     }
 
@@ -113,7 +113,7 @@ impl Registers {
 
         #[cfg(target_arch = "aarch64")]
         unsafe {
-            (*self.ctx).regs[3]
+            (*self.ctx).__bindgen_anon_1.user_regs.regs[3]
         }
     }
 
@@ -127,7 +127,7 @@ impl Registers {
 
         #[cfg(target_arch = "aarch64")]
         unsafe {
-            (*self.ctx).regs[4]
+            (*self.ctx).__bindgen_anon_1.user_regs.regs[4]
         }
     }
 
@@ -141,7 +141,7 @@ impl Registers {
 
         #[cfg(target_arch = "aarch64")]
         unsafe {
-            (*self.ctx).regs[30]
+            (*self.ctx).__bindgen_anon_1.user_regs.regs[30]
         }
     }
 
@@ -155,7 +155,7 @@ impl Registers {
 
         #[cfg(target_arch = "aarch64")]
         unsafe {
-            (*self.ctx).regs[29]
+            (*self.ctx).__bindgen_anon_1.user_regs.regs[29]
         }
     }
 
@@ -169,14 +169,22 @@ impl Registers {
 
         #[cfg(target_arch = "aarch64")]
         unsafe {
-            (*self.ctx).regs[0]
+            (*self.ctx).__bindgen_anon_1.user_regs.regs[0]
         }
     }
 
     /// Stack pointer
     #[inline]
     pub fn sp(&self) -> u64 {
-        unsafe { (*self.ctx).sp }
+        #[cfg(target_arch = "x86_64")]
+        unsafe {
+            (*self.ctx).sp
+        }
+
+        #[cfg(target_arch = "aarch64")]
+        unsafe {
+            (*self.ctx).__bindgen_anon_1.user_regs.sp
+        }
     }
 
     /// Instruction pointer
@@ -189,7 +197,7 @@ impl Registers {
 
         #[cfg(target_arch = "aarch64")]
         unsafe {
-            (*self.ctx).pc
+            (*self.ctx).__bindgen_anon_1.user_regs.pc
         }
     }
 }
