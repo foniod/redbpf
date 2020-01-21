@@ -129,6 +129,18 @@ pub fn program(input: TokenStream) -> TokenStream {
     tokens.into()
 }
 
+#[proc_macro]
+pub fn impl_xdp_array(_: TokenStream) -> TokenStream {
+    let mut tokens = TokenStream2::new();
+    for i in 1..=512usize {
+        tokens.extend(quote! {
+            impl XdpArray for [u8; #i] {}
+        });
+    }
+
+    tokens.into()
+}
+
 /// Attribute macro that must be used when creating [eBPF
 /// maps](https://redsift.github.io/rust/redbpf/doc/redbpf_probes/maps/index.html).
 ///

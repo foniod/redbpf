@@ -44,7 +44,12 @@ use cty::*;
 use crate::bindings::*;
 use crate::maps::{PerfMap as PerfMapBase, PerfMapFlags};
 
-/// The return type of XDP probes.
+use redbpf_macros::impl_xdp_array;
+
+pub trait XdpArray {}
+impl_xdp_array!();
+
+/// The return type of XDP probes}
 #[repr(u32)]
 pub enum XdpAction {
     /// Signals that the program had an unexpected anomaly. Should only be used
@@ -233,7 +238,7 @@ impl Data {
     }
 
     #[inline]
-    pub fn read<T>(&self) -> Option<T> {
+    pub fn read<T: XdpArray>(&self) -> Option<T> {
         unsafe {
             let len = mem::size_of::<T>();
             if self.base.add(len) as *const u8 > (*self.ctx).data_end as *const u8 {
