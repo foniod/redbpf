@@ -105,6 +105,7 @@ impl Transport {
 ///
 /// XDP programs are passed a `XdpContext` instance as their argument. Through
 /// the context, programs can inspect and modify the packet.
+#[derive(Clone)]
 pub struct XdpContext {
     pub ctx: *mut xdp_md,
 }
@@ -114,6 +115,38 @@ impl XdpContext {
     #[inline]
     pub fn inner(&self) -> *mut xdp_md {
         self.ctx
+    }
+
+    #[inline]
+    unsafe fn ptr_at<U>(&self, addr: usize) -> Option<*const U> {
+        if !self.check_bounds(addr, addr + mem::size_of::<U>()) {
+            return None;
+        }
+
+        Some(addr as *const U)
+    }
+
+    #[inline]
+    unsafe fn ptr_after<T, U>(&self, prev: *const T) -> Option<*const U> {
+        self.ptr_at(prev as usize + mem::size_of::<T>())
+    }
+
+    #[inline]
+    fn check_bounds(&self, start: usize, end: usize) -> bool {
+        let ctx = unsafe { *self.ctx };
+        if start >= end {
+            return false;
+        }
+
+        if start < ctx.data as usize {
+            return false;
+        }
+
+        if end > ctx.data_end as usize {
+            return false;
+        }
+
+        return true;
     }
 
     /// Returns the packet length.
@@ -128,15 +161,7 @@ impl XdpContext {
     /// Returns the packet's `Ethernet` header if present.
     #[inline]
     pub fn eth(&self) -> Option<*const ethhdr> {
-        let ctx = unsafe { *self.ctx };
-        let eth = ctx.data as *const ethhdr;
-        let end = ctx.data_end as *const c_void;
-        unsafe {
-            if eth.add(1) as *const c_void > end {
-                return None;
-            }
-        }
-        Some(eth)
+        unsafe { self.ptr_at((*self.ctx).data as usize) }
     }
 
     /// Returns the packet's `IP` header if present.
@@ -148,11 +173,7 @@ impl XdpContext {
                 return None;
             }
 
-            let ip = eth.add(1) as *const iphdr;
-            if ip.add(1) as *const c_void > (*self.ctx).data_end as *const c_void {
-                return None;
-            }
-            Some(ip)
+            self.ptr_after(eth)
         }
     }
 
@@ -161,15 +182,13 @@ impl XdpContext {
     pub fn transport(&self) -> Option<Transport> {
         unsafe {
             let ip = self.ip()?;
-            let base = (ip as *const u8).add(((*ip).ihl() * 4) as usize);
-            let (transport, size) = match (*ip).protocol as u32 {
-                IPPROTO_TCP => (Transport::TCP(base.cast()), mem::size_of::<tcphdr>()),
-                IPPROTO_UDP => (Transport::UDP(base.cast()), mem::size_of::<udphdr>()),
+            let addr = ip as usize + ((*ip).ihl() * 4) as usize;
+            let transport = match (*ip).protocol as u32 {
+                IPPROTO_TCP => (Transport::TCP(self.ptr_at(addr)?)),
+                IPPROTO_UDP => (Transport::UDP(self.ptr_at(addr)?)),
                 _ => return None,
             };
-            if base.add(size) > (*self.ctx).data_end as *const u8 {
-                return None;
-            }
+
             Some(transport)
         }
     }
@@ -179,26 +198,21 @@ impl XdpContext {
     pub fn data(&self) -> Option<Data> {
         use Transport::*;
         unsafe {
-            let base = match self.transport()? {
+            let base: *const c_void = match self.transport()? {
                 TCP(hdr) => {
-                    if hdr.add(1) as *const u8 > (*self.ctx).data_end as *const u8 {
-                        return None;
-                    }
-                    let mut base = hdr.add(1) as *const u8;
+                    let mut addr = hdr as usize + mem::size_of::<tcphdr>();
                     let data_offset = (*hdr).doff();
                     if data_offset > 5 {
-                        base = base.add(((data_offset - 5) * 4) as usize);
+                        addr += ((data_offset - 5) * 4) as usize;
                     }
-                    base
+                    self.ptr_at(addr)
                 }
-                UDP(hdr) => hdr.add(1) as *const u8,
-            };
-            if base > (*self.ctx).data_end as *const u8 {
-                return None;
-            }
+                UDP(hdr) => self.ptr_after(hdr),
+            }?;
+
             Some(Data {
-                ctx: self.ctx,
-                base,
+                ctx: self.clone(),
+                base: base as usize,
             })
         }
     }
@@ -206,15 +220,16 @@ impl XdpContext {
 
 /// Data type returned by calling `XdpContext::data()`
 pub struct Data {
-    ctx: *const xdp_md,
-    base: *const u8,
+    ctx: XdpContext,
+    base: usize
 }
 
 impl Data {
     /// Returns the offset from the first byte of the packet.
     #[inline]
     pub fn offset(&self) -> usize {
-        unsafe { (self.base as u32 - (*self.ctx).data) as usize }
+        let ctx = unsafe { *self.ctx.inner() };
+        unsafe { (self.base - ctx.data as usize) }
     }
 
     /// Returns the length of the data.
@@ -222,17 +237,18 @@ impl Data {
     /// This is equivalent to the length of the packet minus the length of the headers.
     #[inline]
     pub fn len(&self) -> usize {
-        unsafe { ((*self.ctx).data_end - self.base as u32) as usize }
+        let ctx = unsafe { *self.ctx.inner() };
+        unsafe { (ctx.data_end as usize - self.base) }
     }
 
     /// Returns a `slice` of `len` bytes from the data.
     #[inline]
     pub fn slice(&self, len: usize) -> Option<&[u8]> {
         unsafe {
-            if self.base.add(len) > (*self.ctx).data_end as *const u8 {
+            if !self.ctx.check_bounds(self.base, self.base + len) {
                 return None;
             }
-            let s = slice::from_raw_parts(self.base, len);
+            let s = slice::from_raw_parts(self.base as *const u8, len);
             Some(s)
         }
     }
@@ -241,7 +257,7 @@ impl Data {
     pub fn read<T: XdpArray>(&self) -> Option<T> {
         unsafe {
             let len = mem::size_of::<T>();
-            if self.base.add(len) as *const u8 > (*self.ctx).data_end as *const u8 {
+            if !self.ctx.check_bounds(self.base, self.base + len) {
                 return None;
             }
             Some((self.base as *const T).read_unaligned())
@@ -274,7 +290,7 @@ impl<T> MapData<T> {
             data,
             payload: [],
             offset,
-            size
+            size,
         }
     }
 }
@@ -309,7 +325,12 @@ impl<T> PerfMap<T> {
     /// Insert a new event in the perf events array keyed by the index and with
     /// the additional xdp payload data specified in the given `PerfMapFlags`.
     #[inline]
-    pub fn insert_with_flags(&mut self, ctx: &XdpContext, data: MapData<T>, mut flags: PerfMapFlags) {
+    pub fn insert_with_flags(
+        &mut self,
+        ctx: &XdpContext,
+        data: MapData<T>,
+        mut flags: PerfMapFlags,
+    ) {
         flags.xdp_size = data.size;
         self.0.insert_with_flags(ctx.inner(), data, flags)
     }
