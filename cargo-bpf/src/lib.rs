@@ -7,6 +7,7 @@
 
 mod bindgen;
 mod build;
+mod llvm;
 mod load;
 mod new;
 mod new_program;

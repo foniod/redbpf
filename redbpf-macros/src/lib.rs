@@ -110,20 +110,24 @@ pub fn program(input: TokenStream) -> TokenStream {
         #[no_mangle]
         #[link_section = "version"]
         pub static _version: u32 = #version;
+
+        #[panic_handler]
+        #[no_mangle]
+        pub extern "C" fn rust_begin_panic(info: &::core::panic::PanicInfo) -> ! {
+            use ::redbpf_probes::helpers::{bpf_trace_printk, TraceMessage, ufmt};
+
+            let mut msg = TraceMessage::new();
+            ufmt::uwrite!(&mut msg, "panic in {}\n\0", file!());
+            msg.printk();
+
+            unsafe { core::hint::unreachable_unchecked() }
+        }
     };
 
     let mem = str::from_utf8(include_bytes!("mem.rs")).unwrap();
     let mem: File = parse_str(&mem).unwrap();
     tokens.extend(quote! {
         #mem
-    });
-
-    tokens.extend(quote! {
-        #[panic_handler]
-        #[no_mangle]
-        pub extern "C" fn rust_begin_panic(_: &::core::panic::PanicInfo) -> ! {
-            loop {}
-        }
     });
 
     tokens.into()

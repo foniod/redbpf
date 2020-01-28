@@ -12,6 +12,7 @@ license = "MIT OR Apache-2.0"
 [dependencies]
 cty = "0.2"
 redbpf-macros = { version = "^0.9.9", path = "../redbpf-macros" }
+ufmt = { version = "0.1.0", default-features = false }
 
 [build-dependencies]
 bindgen = "0.51"

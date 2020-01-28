@@ -21,3 +21,5 @@ redbpf = { version = "^0.9.9", features = ["build", "load"], path = "../redbpf" 
 futures = "0.3"
 tokio = { version = "0.2.4", features = ["rt-core", "io-driver", "macros", "signal"] }
 hexdump = "0.1"
+libc = "0.2.66"
+llvm-sys = "90"
