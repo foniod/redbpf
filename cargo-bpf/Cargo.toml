@@ -23,3 +23,6 @@ tokio = { version = "0.2.4", features = ["rt-core", "io-driver", "macros", "sign
 hexdump = "0.1"
 libc = "0.2.66"
 llvm-sys = "90"
+syn = {version = "1.0", features = ["full", "visit", "extra-traits"] }
+quote = "1.0"
+proc-macro2 = "1.0"

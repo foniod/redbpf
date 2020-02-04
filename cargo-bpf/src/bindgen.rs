@@ -13,6 +13,7 @@ use std::process::Command;
 use std::str;
 
 use crate::CommandError;
+pub use crate::accessors::generate_read_accessors;
 
 use redbpf::{self, build::headers::kernel_headers};
 
