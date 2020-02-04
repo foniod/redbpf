@@ -6,16 +6,19 @@
 // copied, modified, or distributed except according to those terms.
 
 use bindgen;
+pub use bindgen::Builder;
 use std::io::{self, Write};
-use std::path::PathBuf;
+use std::path::Path;
 use std::process::Command;
 use std::str;
+use tempfile;
 
+pub use crate::accessors::generate_read_accessors;
 use crate::CommandError;
 
 use redbpf::{self, build::headers::kernel_headers};
 
-pub fn cmd_bindgen(header: &PathBuf, extra_args: &[&str]) -> Result<(), CommandError> {
+pub fn builder() -> Builder {
     let kernel_headers = kernel_headers().expect("couldn't find kernel headers");
     let mut flags: Vec<String> = kernel_headers
         .iter()
@@ -27,12 +30,14 @@ pub fn cmd_bindgen(header: &PathBuf, extra_args: &[&str]) -> Result<(), CommandE
     flags.push("-Wno-address-of-packed-member".to_string());
     flags.push("-Wno-gnu-variable-sized-type-not-at-end".to_string());
 
-    let mut bindgen_flags = bindgen::builder()
+    bindgen::builder()
         .clang_args(&flags)
-        .header(header.to_str().unwrap())
         .use_core()
         .ctypes_prefix("::cty")
-        .command_line_flags();
+}
+
+pub fn generate(builder: &Builder, extra_args: &[&str]) -> Result<String, String> {
+    let mut bindgen_flags = builder.command_line_flags();
     let p = bindgen_flags
         .iter()
         .position(|arg| arg == "--")
@@ -40,10 +45,37 @@ pub fn cmd_bindgen(header: &PathBuf, extra_args: &[&str]) -> Result<(), CommandE
     for (i, flag) in extra_args.iter().enumerate() {
         bindgen_flags.insert(p + i, String::from(*flag));
     }
-    let output = Command::new("bindgen").args(bindgen_flags).output()?;
-    io::stderr().write_all(&output.stderr)?;
-    let bindings = output.stdout;
-    let bindings = str::from_utf8(&bindings).unwrap();
+    let output = Command::new("bindgen")
+        .args(bindgen_flags)
+        .output()
+        .expect("error running bindgen");
+    if !output.status.success() {
+        return Err(String::from_utf8(output.stderr).unwrap());
+    }
+    io::stderr().write_all(&output.stderr).unwrap();
+    let bindings = String::from_utf8(output.stdout).unwrap();
+    Ok(bindings)
+}
+
+pub fn cmd_bindgen(header: &Path, extra_args: &[&str]) -> Result<(), CommandError> {
+    let (_temp, header) = if !header.exists() {
+        // try to find find the file in the kernel include path
+        let path = header.to_str().unwrap();
+        let mut file = tempfile::Builder::new().suffix(".h").tempfile().unwrap();
+        write!(&mut file, r#"
+#define KBUILD_MODNAME "cargo_bpf_bindings"
+#include <linux/kconfig.h>
+#include <{}>
+        "#, path)
+        .unwrap();
+        let header = file.path().to_owned();
+        (Some(file), header)
+    } else {
+        (None, header.to_owned())
+    };
+
+    let builder = builder().header(header.to_str().unwrap());
+    let bindings = generate(&builder, extra_args).map_err(|e| CommandError(e))?;
     let mut out = io::stdout();
     writeln!(
         &mut out,

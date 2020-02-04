@@ -16,6 +16,7 @@ use syn::{
     ForeignItemStatic, GenericArgument, Ident, PathArguments::*, Type,
 };
 
+use cargo_bpf_lib::bindgen as bpf_bindgen;
 use redbpf::build::headers::kernel_headers;
 
 fn create_module(path: PathBuf, name: &str, bindings: &str) -> io::Result<()> {
@@ -27,6 +28,7 @@ mod {name} {{
 #![allow(non_camel_case_types)]
 #![allow(non_upper_case_globals)]
 #![allow(non_snake_case)]
+#![allow(unused_unsafe)]
 #![allow(clippy::all)]
 {bindings}
 }}
@@ -39,57 +41,43 @@ pub use {name}::*;
 
 fn main() {
     let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
+    let types = ["pt_regs", "s32", "bpf_.*"];
+    let vars = ["BPF_.*"];
+    let xdp_types = [
+        "xdp_md",
+        "ethhdr",
+        "iphdr",
+        "tcphdr",
+        "udphdr",
+        "xdp_action",
+        "__sk_.*",
+        "sk_.*",
+        "inet_sock",
+    ];
+    let xdp_vars = ["ETH_.*", "IPPROTO_.*", "SOCK_.*", "SK_FL_.*", "AF_.*"];
 
-    let kernel_headers = kernel_headers().expect("couldn't find kernel headers");
-    let mut flags: Vec<String> = kernel_headers
-        .iter()
-        .map(|dir| format!("-I{}", dir))
-        .collect();
-    flags.extend(redbpf::build::BUILD_FLAGS.iter().map(|f| f.to_string()));
-    flags.push("-Wno-unused-function".to_string());
-    flags.push("-Wno-unused-variable".to_string());
-    flags.push("-Wno-address-of-packed-member".to_string());
-    flags.push("-Wno-gnu-variable-sized-type-not-at-end".to_string());
+    let mut builder = bpf_bindgen::builder().header("./include/redbpf_helpers.h");
 
-    let bindings = bindgen::builder()
-        .clang_args(&flags)
-        .header("./include/redbpf_helpers.h")
-        .use_core()
-        .ctypes_prefix("::cty")
-        // bpf_helpers
-        .whitelist_type("pt_regs")
-        .whitelist_type("s32")
-        .whitelist_type("bpf_.*")
-        .whitelist_var("BPF_.*")
-        // XDP
-        .whitelist_type("xdp_md")
-        .whitelist_type("ethhdr")
-        .whitelist_type("iphdr")
-        .whitelist_type("tcphdr")
-        .whitelist_type("udphdr")
-        .whitelist_type("xdp_action")
-        .whitelist_type("__sk_.*")
-        .whitelist_type("sk_.*")
-        .whitelist_type("inet_sock")
-        .whitelist_var("ETH_.*")
-        .whitelist_var("IPPROTO_.*")
-        .whitelist_var("SOCK_.*")
-        .whitelist_var("SK_FL_.*")
-        .whitelist_var("AF_.*")
-        .opaque_type("xregs_state")
+    for ty in types.iter().chain(xdp_types.iter()) {
+        builder = builder.whitelist_type(ty);
+    }
+
+    for var in vars.iter().chain(xdp_vars.iter()) {
+        builder = builder.whitelist_var(var);
+    }
+
+    builder = builder.opaque_type("xregs_state");
+    let mut bindings = builder
         .generate()
-        .expect("Unable to generate bindings!");
-    create_module(
-        out_dir.join("gen_bindings.rs"),
-        "gen_bindings",
-        &bindings.to_string(),
-    )
-    .unwrap();
+        .expect("failed to generate bindings")
+        .to_string();
+    let accessors = bpf_bindgen::generate_read_accessors(&bindings, &["sock"]);
+    bindings.push_str("use crate::helpers::bpf_probe_read;");
+    bindings.push_str(&accessors);
+    create_module(out_dir.join("gen_bindings.rs"), "gen_bindings", &bindings).unwrap();
 
-    let bindings = bindgen::builder()
-        .clang_args(&flags)
+    let bindings = bpf_bindgen::builder()
         .header("./include/redbpf_helpers.h")
-        .ctypes_prefix("::cty")
         .whitelist_var("bpf_.*")
         .generate()
         .expect("Unable to generate bindings!");
