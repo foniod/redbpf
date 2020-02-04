@@ -8,12 +8,13 @@
 use bindgen;
 pub use bindgen::Builder;
 use std::io::{self, Write};
-use std::path::PathBuf;
+use std::path::Path;
 use std::process::Command;
 use std::str;
+use tempfile;
 
-use crate::CommandError;
 pub use crate::accessors::generate_read_accessors;
+use crate::CommandError;
 
 use redbpf::{self, build::headers::kernel_headers};
 
@@ -35,7 +36,7 @@ pub fn builder() -> Builder {
         .ctypes_prefix("::cty")
 }
 
-pub fn generate(builder: &Builder, extra_args: &[&str]) -> String {
+pub fn generate(builder: &Builder, extra_args: &[&str]) -> Result<String, String> {
     let mut bindgen_flags = builder.command_line_flags();
     let p = bindgen_flags
         .iter()
@@ -48,14 +49,33 @@ pub fn generate(builder: &Builder, extra_args: &[&str]) -> String {
         .args(bindgen_flags)
         .output()
         .expect("error running bindgen");
+    if !output.status.success() {
+        return Err(String::from_utf8(output.stderr).unwrap());
+    }
     io::stderr().write_all(&output.stderr).unwrap();
-    let bindings = str::from_utf8(&output.stdout).unwrap();
-    bindings.to_string()
+    let bindings = String::from_utf8(output.stdout).unwrap();
+    Ok(bindings)
 }
 
-pub fn cmd_bindgen(header: &PathBuf, extra_args: &[&str]) -> Result<(), CommandError> {
+pub fn cmd_bindgen(header: &Path, extra_args: &[&str]) -> Result<(), CommandError> {
+    let (_temp, header) = if !header.exists() {
+        // try to find find the file in the kernel include path
+        let path = header.to_str().unwrap();
+        let mut file = tempfile::Builder::new().suffix(".h").tempfile().unwrap();
+        write!(&mut file, r#"
+#define KBUILD_MODNAME "cargo_bpf_bindings"
+#include <linux/kconfig.h>
+#include <{}>
+        "#, path)
+        .unwrap();
+        let header = file.path().to_owned();
+        (Some(file), header)
+    } else {
+        (None, header.to_owned())
+    };
+
     let builder = builder().header(header.to_str().unwrap());
-    let bindings = generate(&builder, extra_args);
+    let bindings = generate(&builder, extra_args).map_err(|e| CommandError(e))?;
     let mut out = io::stdout();
     writeln!(
         &mut out,
