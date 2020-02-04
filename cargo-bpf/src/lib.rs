@@ -5,7 +5,7 @@
 // http://opensource.org/licenses/MIT>, at your option. This file may not be
 // copied, modified, or distributed except according to those terms.
 
-mod bindgen;
+pub mod bindgen;
 mod build;
 mod llvm;
 mod load;
@@ -20,7 +20,6 @@ impl std::convert::From<std::io::Error> for CommandError {
     }
 }
 
-pub use self::bindgen::cmd_bindgen as bindgen;
 pub use build::{build, cmd_build};
 pub use load::load;
 pub use new::new;

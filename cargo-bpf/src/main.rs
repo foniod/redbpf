@@ -219,7 +219,7 @@ fn main() {
             .values_of("BINDGEN_ARGS")
             .map(|i| i.collect())
             .unwrap_or_else(Vec::new);
-        if let Err(e) = cargo_bpf::bindgen(&header, &extra_args[..]) {
+        if let Err(e) = cargo_bpf::bindgen::cmd_bindgen(&header, &extra_args[..]) {
             clap::Error::with_description(&e.0, clap::ErrorKind::InvalidValue).exit()
         }
     }
