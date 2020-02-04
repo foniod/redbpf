@@ -28,6 +28,7 @@ mod {name} {{
 #![allow(non_camel_case_types)]
 #![allow(non_upper_case_globals)]
 #![allow(non_snake_case)]
+#![allow(unused_unsafe)]
 #![allow(clippy::all)]
 {bindings}
 }}
@@ -53,13 +54,7 @@ fn main() {
         "sk_.*",
         "inet_sock",
     ];
-    let xdp_vars = [
-        "ETH_.*",
-        "IPPROTO_.*",
-        "SOCK_.*",
-        "SK_FL_.*",
-        "AF_.*",
-    ];
+    let xdp_vars = ["ETH_.*", "IPPROTO_.*", "SOCK_.*", "SK_FL_.*", "AF_.*"];
 
     let mut builder = bpf_bindgen::builder().header("./include/redbpf_helpers.h");
 
@@ -72,14 +67,14 @@ fn main() {
     }
 
     builder = builder.opaque_type("xregs_state");
-    let bindings = builder.generate().expect("failed to generate bindings");
-
-    create_module(
-        out_dir.join("gen_bindings.rs"),
-        "gen_bindings",
-        &bindings.to_string(),
-    )
-    .unwrap();
+    let mut bindings = builder
+        .generate()
+        .expect("failed to generate bindings")
+        .to_string();
+    let accessors = bpf_bindgen::generate_read_accessors(&bindings, &["sock"]);
+    bindings.push_str("use crate::helpers::bpf_probe_read;");
+    bindings.push_str(&accessors);
+    create_module(out_dir.join("gen_bindings.rs"), "gen_bindings", &bindings).unwrap();
 
     let bindings = bpf_bindgen::builder()
         .header("./include/redbpf_helpers.h")
