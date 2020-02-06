@@ -37,17 +37,9 @@ pub extern "C" fn block_port_80(ctx: XdpContext) -> XdpAction {
 }
 ```
  */
-use core::mem;
-use core::slice;
-use cty::*;
-
 use crate::bindings::*;
 use crate::maps::{PerfMap as PerfMapBase, PerfMapFlags};
-
-use redbpf_macros::impl_xdp_array;
-
-pub trait XdpArray {}
-impl_xdp_array!();
+use crate::net::NetworkBuffer;
 
 /// The return type of XDP probes}
 #[repr(u32)]
@@ -71,36 +63,6 @@ pub enum XdpAction {
     Redirect = xdp_action_XDP_REDIRECT,
 }
 
-/// The packet transport header.
-///
-/// Currently only `TCP` and `UDP` transports are supported.
-pub enum Transport {
-    TCP(*const tcphdr),
-    UDP(*const udphdr),
-}
-
-impl Transport {
-    /// Returns the source port.
-    #[inline]
-    pub fn source(&self) -> u16 {
-        let source = match *self {
-            Transport::TCP(hdr) => unsafe { (*hdr).source },
-            Transport::UDP(hdr) => unsafe { (*hdr).source },
-        };
-        u16::from_be(source)
-    }
-
-    /// Returns the destination port.
-    #[inline]
-    pub fn dest(&self) -> u16 {
-        let dest = match *self {
-            Transport::TCP(hdr) => unsafe { (*hdr).dest },
-            Transport::UDP(hdr) => unsafe { (*hdr).dest },
-        };
-        u16::from_be(dest)
-    }
-}
-
 /// Context object provided to XDP programs.
 ///
 /// XDP programs are passed a `XdpContext` instance as their argument. Through
@@ -116,154 +78,18 @@ impl XdpContext {
     pub fn inner(&self) -> *mut xdp_md {
         self.ctx
     }
+}
 
-    #[inline]
-    unsafe fn ptr_at<U>(&self, addr: usize) -> Option<*const U> {
-        if !self.check_bounds(addr, addr + mem::size_of::<U>()) {
-            return None;
-        }
-
-        Some(addr as *const U)
+impl NetworkBuffer for XdpContext {
+    fn data_start(&self) -> usize {
+        unsafe { (*self.ctx).data as usize }
     }
 
-    #[inline]
-    unsafe fn ptr_after<T, U>(&self, prev: *const T) -> Option<*const U> {
-        self.ptr_at(prev as usize + mem::size_of::<T>())
-    }
-
-    #[inline]
-    fn check_bounds(&self, start: usize, end: usize) -> bool {
-        let ctx = unsafe { *self.ctx };
-        if start >= end {
-            return false;
-        }
-
-        if start < ctx.data as usize {
-            return false;
-        }
-
-        if end > ctx.data_end as usize {
-            return false;
-        }
-
-        return true;
-    }
-
-    /// Returns the packet length.
-    #[inline]
-    pub fn len(&self) -> u32 {
-        unsafe {
-            let ctx = *self.ctx;
-            ctx.data_end - ctx.data
-        }
-    }
-
-    /// Returns the packet's `Ethernet` header if present.
-    #[inline]
-    pub fn eth(&self) -> Option<*const ethhdr> {
-        unsafe { self.ptr_at((*self.ctx).data as usize) }
-    }
-
-    /// Returns the packet's `IP` header if present.
-    #[inline]
-    pub fn ip(&self) -> Option<*const iphdr> {
-        let eth = self.eth()?;
-        unsafe {
-            if (*eth).h_proto != u16::from_be(ETH_P_IP as u16) {
-                return None;
-            }
-
-            self.ptr_after(eth)
-        }
-    }
-
-    /// Returns the packet's transport header if present.
-    #[inline]
-    pub fn transport(&self) -> Option<Transport> {
-        unsafe {
-            let ip = self.ip()?;
-            let addr = ip as usize + ((*ip).ihl() * 4) as usize;
-            let transport = match (*ip).protocol as u32 {
-                IPPROTO_TCP => (Transport::TCP(self.ptr_at(addr)?)),
-                IPPROTO_UDP => (Transport::UDP(self.ptr_at(addr)?)),
-                _ => return None,
-            };
-
-            Some(transport)
-        }
-    }
-
-    /// Returns the packet's data starting after the transport headers.
-    #[inline]
-    pub fn data(&self) -> Option<Data> {
-        use Transport::*;
-        unsafe {
-            let base: *const c_void = match self.transport()? {
-                TCP(hdr) => {
-                    let mut addr = hdr as usize + mem::size_of::<tcphdr>();
-                    let data_offset = (*hdr).doff();
-                    if data_offset > 5 {
-                        addr += ((data_offset - 5) * 4) as usize;
-                    }
-                    self.ptr_at(addr)
-                }
-                UDP(hdr) => self.ptr_after(hdr),
-            }?;
-
-            Some(Data {
-                ctx: self.clone(),
-                base: base as usize,
-            })
-        }
+    fn data_end(&self) -> usize {
+        unsafe { (*self.ctx).data_end as usize }
     }
 }
 
-/// Data type returned by calling `XdpContext::data()`
-pub struct Data {
-    ctx: XdpContext,
-    base: usize
-}
-
-impl Data {
-    /// Returns the offset from the first byte of the packet.
-    #[inline]
-    pub fn offset(&self) -> usize {
-        let ctx = unsafe { *self.ctx.inner() };
-        unsafe { (self.base - ctx.data as usize) }
-    }
-
-    /// Returns the length of the data.
-    ///
-    /// This is equivalent to the length of the packet minus the length of the headers.
-    #[inline]
-    pub fn len(&self) -> usize {
-        let ctx = unsafe { *self.ctx.inner() };
-        unsafe { (ctx.data_end as usize - self.base) }
-    }
-
-    /// Returns a `slice` of `len` bytes from the data.
-    #[inline]
-    pub fn slice(&self, len: usize) -> Option<&[u8]> {
-        unsafe {
-            if !self.ctx.check_bounds(self.base, self.base + len) {
-                return None;
-            }
-            let s = slice::from_raw_parts(self.base as *const u8, len);
-            Some(s)
-        }
-    }
-
-    #[inline]
-    pub fn read<T: XdpArray>(&self) -> Option<T> {
-        unsafe {
-            let len = mem::size_of::<T>();
-            if !self.ctx.check_bounds(self.base, self.base + len) {
-                return None;
-            }
-            Some((self.base as *const T).read_unaligned())
-        }
-    }
-}
 /* NB: this needs to be kept in sync with redbpf::xdp::MapData */
 /// Convenience data type to exchange payload data.
 #[repr(C)]

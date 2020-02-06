@@ -134,11 +134,11 @@ pub fn program(input: TokenStream) -> TokenStream {
 }
 
 #[proc_macro]
-pub fn impl_xdp_array(_: TokenStream) -> TokenStream {
+pub fn impl_network_buffer_array(_: TokenStream) -> TokenStream {
     let mut tokens = TokenStream2::new();
     for i in 1..=512usize {
         tokens.extend(quote! {
-            impl XdpArray for [u8; #i] {}
+            impl NetworkBufferArray for [u8; #i] {}
         });
     }
 

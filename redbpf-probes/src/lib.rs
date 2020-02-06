@@ -56,4 +56,5 @@ pub mod bindings;
 pub mod helpers;
 pub mod kprobe;
 pub mod maps;
+pub mod net;
 pub mod xdp;
