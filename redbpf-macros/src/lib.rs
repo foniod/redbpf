@@ -261,3 +261,23 @@ pub fn xdp(attrs: TokenStream, item: TokenStream) -> TokenStream {
     item.block.stmts.insert(0, ctx);
     probe_impl("xdp", attrs, item).into()
 }
+
+#[proc_macro_attribute]
+pub fn socket_filter(attrs: TokenStream, item: TokenStream) -> TokenStream {
+    let mut item = parse_macro_input!(item as ItemFn);
+    let ident = item.sig.ident.clone();
+    let outer_ident = Ident::new(&format!("outer_{}", ident), Span::call_site());
+    let wrapper = parse_quote! {
+        fn #outer_ident(skb: *const ::redbpf_probes::bindings::__sk_buff) -> i32 {
+            let skb = ::redbpf_probes::socket_filter::SkBuff { skb };
+            return match #ident(skb) {
+                Ok(::redbpf_probes::socket_filter::SkBuffAction::SendToUserspace) => -1,
+                _ => 0
+            };
+
+            #item
+        }
+    };
+
+    probe_impl("socketfilter", attrs, wrapper).into()
+}
