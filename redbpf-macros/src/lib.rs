@@ -55,7 +55,7 @@ use syn::parse::{Parse, ParseStream};
 use syn::punctuated::Punctuated;
 use syn::token::Comma;
 use syn::{
-    parse_macro_input, parse_quote, parse_str, Block, Expr, ExprLit, File, FnArg, ItemFn, Lit, Pat,
+    parse_macro_input, parse_quote, parse_str, Expr, ExprLit, File, FnArg, ItemFn, Lit, Pat,
     PatIdent, PatType, Result, Stmt,
 };
 
@@ -264,7 +264,7 @@ pub fn xdp(attrs: TokenStream, item: TokenStream) -> TokenStream {
 
 #[proc_macro_attribute]
 pub fn socket_filter(attrs: TokenStream, item: TokenStream) -> TokenStream {
-    let mut item = parse_macro_input!(item as ItemFn);
+    let item = parse_macro_input!(item as ItemFn);
     let ident = item.sig.ident.clone();
     let outer_ident = Ident::new(&format!("outer_{}", ident), Span::call_site());
     let wrapper = parse_quote! {
