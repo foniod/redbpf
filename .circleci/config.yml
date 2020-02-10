@@ -121,7 +121,7 @@ workflows:
       - build_ubuntu:
           name: "ubuntu 19.04"
           tag: "19.04"
-          kernel_version: "5.0.0-32-generic"
+          kernel_version: "5.0.0-38-generic"
           filters:
             tags:
               only: /.*/
