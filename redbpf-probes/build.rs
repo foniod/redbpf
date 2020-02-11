@@ -71,7 +71,10 @@ fn main() {
         .generate()
         .expect("failed to generate bindings")
         .to_string();
-    let accessors = bpf_bindgen::generate_read_accessors(&bindings, &["sock"]);
+    let accessors = bpf_bindgen::generate_read_accessors(
+        &bindings,
+        &["sock", "file", "inode", "path", "dentry", "qstr"],
+    );
     bindings.push_str("use crate::helpers::bpf_probe_read;");
     bindings.push_str(&accessors);
     create_module(out_dir.join("gen_bindings.rs"), "gen_bindings", &bindings).unwrap();

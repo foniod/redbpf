@@ -4,7 +4,7 @@ use crate::bindings::*;
 use cty::*;
 pub use ufmt;
 use ufmt::uWrite;
-mod gen {
+pub mod gen {
     include!(concat!(env!("OUT_DIR"), "/gen_helpers.rs"));
 }
 
