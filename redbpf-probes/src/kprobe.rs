@@ -40,6 +40,7 @@ pub extern "C" fn enter_execve(ctx: *mut c_void) -> i32 {
 use crate::bindings::*;
 use cty::*;
 
+#[derive(Copy, Clone)]
 pub struct Registers {
     pub ctx: *mut pt_regs,
 }
