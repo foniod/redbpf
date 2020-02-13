@@ -93,6 +93,7 @@ Say that you're building an XDP program to block all traffic directed to port 80
 #![no_main]
 use redbpf_probes::bindings::*;
 use redbpf_probes::xdp::{XdpAction, XdpContext};
+use redbpf_probes::net::NetworkBuffer;
 use redbpf_macros::{program, xdp};
 
 program!(0xFFFFFFFE, "GPL");
