@@ -196,6 +196,20 @@ fn probe_impl(ty: &str, attrs: TokenStream, item: ItemFn) -> TokenStream {
     tokens.into()
 }
 
+fn wrap_kprobe(item: ItemFn) -> ItemFn {
+    let ident = item.sig.ident.clone();
+    let outer_ident = Ident::new(&format!("outer_{}", ident), Span::call_site());
+    parse_quote! {
+        fn #outer_ident(ctx: *mut c_void) -> i32 {
+            let regs = ::redbpf_probes::kprobe::Registers::from(ctx);
+            let _ = #ident(regs);
+            return 0;
+
+            #item
+        }
+    }
+}
+
 /// Attribute macro that must be used to define [`kprobes`](https://www.kernel.org/doc/Documentation/kprobes.txt).
 ///
 /// # Example
@@ -209,7 +223,8 @@ fn probe_impl(ty: &str, attrs: TokenStream, item: ItemFn) -> TokenStream {
 #[proc_macro_attribute]
 pub fn kprobe(attrs: TokenStream, item: TokenStream) -> TokenStream {
     let item = parse_macro_input!(item as ItemFn);
-    probe_impl("kprobe", attrs, item).into()
+    let wrapper = wrap_kprobe(item);
+    probe_impl("kprobe", attrs, wrapper).into()
 }
 
 /// Attribute macro that must be used to define [`kretprobes`](https://www.kernel.org/doc/Documentation/kprobes.txt).
@@ -225,7 +240,8 @@ pub fn kprobe(attrs: TokenStream, item: TokenStream) -> TokenStream {
 #[proc_macro_attribute]
 pub fn kretprobe(attrs: TokenStream, item: TokenStream) -> TokenStream {
     let item = parse_macro_input!(item as ItemFn);
-    probe_impl("kretprobe", attrs, item).into()
+    let wrapper = wrap_kprobe(item);
+    probe_impl("kretprobe", attrs, wrapper).into()
 }
 
 /// Attribute macro that must be used to define [`XDP` probes](https://www.iovisor.org/technology/xdp).
