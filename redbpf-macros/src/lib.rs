@@ -117,7 +117,7 @@ pub fn program(input: TokenStream) -> TokenStream {
             use ::redbpf_probes::helpers::{bpf_trace_printk, TraceMessage, ufmt};
 
             let mut msg = TraceMessage::new();
-            ufmt::uwrite!(&mut msg, "panic in {}\n\0", file!());
+            let _ = ufmt::uwrite!(&mut msg, "panic in {}\n\0", file!());
             msg.printk();
 
             unsafe { core::hint::unreachable_unchecked() }
