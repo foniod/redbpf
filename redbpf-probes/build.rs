@@ -17,7 +17,6 @@ use syn::{
 };
 
 use cargo_bpf_lib::bindgen as bpf_bindgen;
-use redbpf::build::headers::kernel_headers;
 
 fn create_module(path: PathBuf, name: &str, bindings: &str) -> io::Result<()> {
     let mut file = File::create(path)?;

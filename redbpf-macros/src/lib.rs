@@ -54,10 +54,7 @@ use std::str;
 use syn::parse::{Parse, ParseStream};
 use syn::punctuated::Punctuated;
 use syn::token::Comma;
-use syn::{
-    parse_macro_input, parse_quote, parse_str, Expr, ExprLit, File, FnArg, ItemFn, Lit, Pat,
-    PatIdent, PatType, Result, Stmt,
-};
+use syn::{parse_macro_input, parse_quote, parse_str, Expr, ExprLit, File, ItemFn, Lit, Result};
 
 fn inline_string_literal(e: &Expr) -> (TokenStream2, TokenStream2) {
     let mut bytes = match e {

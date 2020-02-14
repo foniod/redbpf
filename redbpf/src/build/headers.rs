@@ -5,8 +5,6 @@
 // http://opensource.org/licenses/MIT>, at your option. This file may not be
 // copied, modified, or distributed except according to those terms.
 
-use std::path::PathBuf;
-
 use crate::build::Error;
 use bpf_sys::headers::prefix_kernel_headers;
 

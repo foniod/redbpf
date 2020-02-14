@@ -1,7 +1,6 @@
 use proc_macro2::{Ident, Span};
 use quote::quote;
 use std::collections::{HashMap, HashSet};
-use std::fs;
 use syn::visit::{visit_item_struct, Visit};
 use syn::{self, parse_str, Field, File, Item, ItemStruct, ItemUnion, Path, Type, TypePath};
 

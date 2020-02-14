@@ -8,7 +8,6 @@
 #![deny(clippy::all)]
 use std::env;
 use std::path::PathBuf;
-use std::fs;
 
 const KERNEL_HEADERS: [&'static str; 6] = [
     "arch/x86/include/generated/uapi",
@@ -38,6 +37,10 @@ fn main() {
     libbpf
         .flag("-Wno-sign-compare")
         .flag("-Wno-int-conversion")
+        .flag("-Wno-unused-parameter")
+        .flag("-Wno-unused-result")
+        .flag("-Wno-format-truncation")
+        .flag("-Wno-missing-field-initializers")
         .include("libbpf/include/uapi")
         .include("libbpf/include")
         .include("bcc")
@@ -98,16 +101,4 @@ fn main() {
     bindings
         .write_to_file(out_path.join("perf_reader_bindings.rs"))
         .expect("Couldn't write bindings!");
-}
-
-fn copy_libelf_headers(out_path: &PathBuf) {
-    let libelf_prefix = "/usr/include"; // FIXME: find this with pkg-config
-    let libelf_path = PathBuf::from(libelf_prefix);
-
-    let _ = fs::create_dir(out_path);
-    for header in &["libelf.h", "gelf.h", "nlist.h"] {
-        let input = libelf_path.join(header);
-        let output = out_path.join(header);
-        fs::copy(input, output).expect(&format!("couldn't copy {}", header));
-    }
 }

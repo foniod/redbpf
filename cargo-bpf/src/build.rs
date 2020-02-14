@@ -5,7 +5,6 @@
 // http://opensource.org/licenses/MIT>, at your option. This file may not be
 // copied, modified, or distributed except according to those terms.
 
-use libc;
 use std::convert::From;
 use std::env;
 use std::fmt::{self, Display};
@@ -13,7 +12,6 @@ use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use std::slice;
 use std::str;
 use toml_edit;
 
