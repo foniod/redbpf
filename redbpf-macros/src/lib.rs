@@ -259,23 +259,21 @@ pub fn kretprobe(attrs: TokenStream, item: TokenStream) -> TokenStream {
 /// ```
 #[proc_macro_attribute]
 pub fn xdp(attrs: TokenStream, item: TokenStream) -> TokenStream {
-    let mut item = parse_macro_input!(item as ItemFn);
-    let arg = item.sig.inputs.pop().unwrap();
-    let pat = match arg.value() {
-        FnArg::Typed(PatType { pat, .. }) => pat,
-        _ => panic!("unexpected xdp probe signature"),
+    let item = parse_macro_input!(item as ItemFn);
+    let ident = item.sig.ident.clone();
+    let outer_ident = Ident::new(&format!("outer_{}", ident), Span::call_site());
+    let wrapper = parse_quote! {
+        fn #outer_ident(ctx: *mut ::redbpf_probes::bindings::xdp_md) -> ::redbpf_probes::xdp::XdpAction {
+            let ctx = ::redbpf_probes::xdp::XdpContext { ctx };
+            return match #ident(ctx) {
+                Ok(action) => action,
+                Err(_) => ::redbpf_probes::xdp::XdpAction::Pass
+            };
+
+            #item
+        }
     };
-    let ident = if let Pat::Ident(PatIdent { ident, .. }) = &**pat {
-        ident
-    } else {
-        panic!("unexpected xdp probe signature")
-    };
-    let raw_ctx = Ident::new(&format!("_raw_{}", ident), Span::call_site());
-    let arg: FnArg = parse_quote! { #raw_ctx: *mut xdp_md };
-    item.sig.inputs.push(arg);
-    let ctx: Stmt = parse_quote! { let #ident = XdpContext { ctx: #raw_ctx }; };
-    item.block.stmts.insert(0, ctx);
-    probe_impl("xdp", attrs, item).into()
+    probe_impl("xdp", attrs, wrapper).into()
 }
 
 #[proc_macro_attribute]

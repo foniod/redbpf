@@ -39,7 +39,9 @@ pub extern "C" fn block_port_80(ctx: XdpContext) -> XdpAction {
  */
 use crate::bindings::*;
 use crate::maps::{PerfMap as PerfMapBase, PerfMapFlags};
-use crate::net::NetworkBuffer;
+use crate::net::{NetworkBuffer, NetworkResult};
+
+pub type Result = NetworkResult<XdpAction>;
 
 /// The return type of XDP probes}
 #[repr(u32)]
