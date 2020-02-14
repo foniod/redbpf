@@ -34,6 +34,14 @@ impl Transport {
     }
 }
 
+pub enum NetworkError {
+    OutOfBounds,
+    NoIPHeader,
+    UnsupportedTransport(u32),
+}
+
+pub type NetworkResult<T> = Result<T, NetworkError>;
+
 pub trait NetworkBuffer
 where
     Self: Clone + Sized,
@@ -48,49 +56,47 @@ where
     }
 
     #[inline]
-    unsafe fn ptr_at<U>(&self, addr: usize) -> Option<*const U> {
-        if !self.check_bounds(addr, addr + mem::size_of::<U>()) {
-            return None;
-        }
+    unsafe fn ptr_at<U>(&self, addr: usize) -> NetworkResult<*const U> {
+        self.check_bounds(addr, addr + mem::size_of::<U>())?;
 
-        Some(addr as *const U)
+        Ok(addr as *const U)
     }
 
     #[inline]
-    unsafe fn ptr_after<T, U>(&self, prev: *const T) -> Option<*const U> {
+    unsafe fn ptr_after<T, U>(&self, prev: *const T) -> NetworkResult<*const U> {
         self.ptr_at(prev as usize + mem::size_of::<T>())
     }
 
     #[inline]
-    fn check_bounds(&self, start: usize, end: usize) -> bool {
+    fn check_bounds(&self, start: usize, end: usize) -> NetworkResult<()> {
         if start >= end {
-            return false;
+            return Err(NetworkError::OutOfBounds);
         }
 
         if start < self.data_start() as usize {
-            return false;
+            return Err(NetworkError::OutOfBounds);
         }
 
         if end > self.data_end() as usize {
-            return false;
+            return Err(NetworkError::OutOfBounds);
         }
 
-        return true;
+        return Ok(());
     }
 
     /// Returns the packet's `Ethernet` header if present.
     #[inline]
-    fn eth(&self) -> Option<*const ethhdr> {
+    fn eth(&self) -> NetworkResult<*const ethhdr> {
         unsafe { self.ptr_at(self.data_start() as usize) }
     }
 
     /// Returns the packet's `IP` header if present.
     #[inline]
-    fn ip(&self) -> Option<*const iphdr> {
+    fn ip(&self) -> NetworkResult<*const iphdr> {
         let eth = self.eth()?;
         unsafe {
             if (*eth).h_proto != u16::from_be(ETH_P_IP as u16) {
-                return None;
+                return Err(NetworkError::NoIPHeader);
             }
 
             self.ptr_after(eth)
@@ -99,23 +105,23 @@ where
 
     /// Returns the packet's transport header if present.
     #[inline]
-    fn transport(&self) -> Option<Transport> {
+    fn transport(&self) -> NetworkResult<Transport> {
         unsafe {
             let ip = self.ip()?;
             let addr = ip as usize + ((*ip).ihl() * 4) as usize;
             let transport = match (*ip).protocol as u32 {
                 IPPROTO_TCP => (Transport::TCP(self.ptr_at(addr)?)),
                 IPPROTO_UDP => (Transport::UDP(self.ptr_at(addr)?)),
-                _ => return None,
+                t => return Err(NetworkError::UnsupportedTransport(t)),
             };
 
-            Some(transport)
+            Ok(transport)
         }
     }
 
     /// Returns the packet's data starting after the transport headers.
     #[inline]
-    fn data(&self) -> Option<Data<Self>> {
+    fn data(&self) -> NetworkResult<Data<Self>> {
         use Transport::*;
         unsafe {
             let base: *const c_void = match self.transport()? {
@@ -131,7 +137,7 @@ where
             }?;
 
             let ctx: Self = self.clone();
-            Some(Data {
+            Ok(Data {
                 ctx,
                 base: base as usize,
             })
@@ -162,24 +168,20 @@ impl<T: NetworkBuffer> Data<T> {
 
     /// Returns a `slice` of `len` bytes from the data.
     #[inline]
-    pub fn slice(&self, len: usize) -> Option<&[u8]> {
+    pub fn slice(&self, len: usize) -> NetworkResult<&[u8]> {
         unsafe {
-            if !self.ctx.check_bounds(self.base, self.base + len) {
-                return None;
-            }
+            self.ctx.check_bounds(self.base, self.base + len)?;
             let s = slice::from_raw_parts(self.base as *const u8, len);
-            Some(s)
+            Ok(s)
         }
     }
 
     #[inline]
-    pub fn read<U: NetworkBufferArray>(&self) -> Option<U> {
+    pub fn read<U: NetworkBufferArray>(&self) -> NetworkResult<U> {
         unsafe {
             let len = mem::size_of::<U>();
-            if !self.ctx.check_bounds(self.base, self.base + len) {
-                return None;
-            }
-            Some((self.base as *const U).read_unaligned())
+            self.ctx.check_bounds(self.base, self.base + len)?;
+            Ok((self.base as *const U).read_unaligned())
         }
     }
 }
