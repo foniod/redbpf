@@ -52,7 +52,8 @@ fn main() {
             libbpf.include(include);
         }
         libbpf
-            .define("COMPAT_NEED_REALLOCARRAY", "1");
+            .define("COMPAT_NEED_REALLOCARRAY", "1")
+            .flag("-include").flag("bpfsys-musl.h");
     }
     libbpf
         .flag("-include").flag("linux/stddef.h")
