@@ -162,9 +162,25 @@ pub fn generate_read_accessors(bindings: &str, whitelist: &[&str]) -> String {
                 let ident = acc.field.ident.clone().unwrap();
                 let ty = &acc.field.ty;
                 let prefix = acc.prefix.iter().map(|p| Ident::new(p, Span::call_site()));
-                quote! {
-                    pub fn #ident(&self) -> #ty {
-                        bpf_probe_read(unsafe { &#(#prefix).*.#ident })
+                match ty {
+                    Type::Ptr(_) => {
+                        quote! {
+                            pub fn #ident(&self) -> Option<#ty> {
+                                let v = bpf_probe_read(unsafe { &#(#prefix).*.#ident });
+                                if v.is_null() {
+                                    None
+                                } else {
+                                    Some(v)
+                                }
+                            }
+                        }
+                    }
+                    _ => {
+                        quote! {
+                            pub fn #ident(&self) -> #ty {
+                                bpf_probe_read(unsafe { &#(#prefix).*.#ident })
+                            }
+                        }
                     }
                 }
             });
