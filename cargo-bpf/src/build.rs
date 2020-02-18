@@ -13,7 +13,7 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::str;
-use toml_edit;
+use toml_edit::{Document, Item};
 
 use crate::llvm::process_ir;
 use crate::CommandError;
@@ -68,14 +68,9 @@ impl From<Error> for CommandError {
     }
 }
 
-pub fn build_program(
-    cargo: &Path,
-    package: &Path,
-    out_dir: &Path,
-    program: &str,
-) -> Result<(), Error> {
+pub fn build_probe(cargo: &Path, package: &Path, out_dir: &Path, probe: &str) -> Result<(), Error> {
     let llc_args = ["-march=bpf", "-filetype=obj", "-o"];
-    let elf_target = out_dir.join(format!("{}.elf", program));
+    let elf_target = out_dir.join(format!("{}.elf", probe));
 
     let current_dir = env::current_dir().unwrap();
     let out_dir = current_dir.join(out_dir);
@@ -86,17 +81,17 @@ pub fn build_program(
         .current_dir(package)
         .args("rustc --release --features=probes".split(" "))
         .arg("--bin")
-        .arg(program)
+        .arg(probe)
         .arg("--")
         .args(
             "--emit=llvm-bc -C panic=abort -C lto -C link-arg=-nostartfiles -C opt-level=3"
                 .split(" "),
         )
-        .args(format!("-o {}/{}", out_dir.to_str().unwrap(), program).split(" "))
+        .args(format!("-o {}/{}", out_dir.to_str().unwrap(), probe).split(" "))
         .status()?
         .success()
     {
-        return Err(Error::Compile(program.to_string(), None));
+        return Err(Error::Compile(probe.to_string(), None));
     }
 
     let mut bc_files: Vec<PathBuf> = fs::read_dir(out_dir)?
@@ -111,7 +106,7 @@ pub fn build_program(
         .map(|e| e.as_ref().unwrap().path())
         .collect();
     if bc_files.len() != 1 {
-        return Err(Error::MissingBitcode(program.to_string()));
+        return Err(Error::MissingBitcode(probe.to_string()));
     }
 
     let bc_file = bc_files.drain(..).next().unwrap();
@@ -119,9 +114,15 @@ pub fn build_program(
     let opt_bc_file = bc_file.with_extension("bc.opt");
 
     process_ir(&bc_file, &processed_bc_file).map_err(|msg| {
-        Error::Compile(program.into(), Some(format!("couldn't process IR file: {}", msg)))
+        Error::Compile(
+            probe.into(),
+            Some(format!("couldn't process IR file: {}", msg)),
+        )
     })?;
-    println!("IR processed before: {:?}, after: {:?}", bc_file, processed_bc_file);
+    println!(
+        "IR processed before: {:?}, after: {:?}",
+        bc_file, processed_bc_file
+    );
 
     let opt = get_opt_executable()?;
     if !Command::new(opt)
@@ -130,7 +131,7 @@ pub fn build_program(
         .status()?
         .success()
     {
-        return Err(Error::Link(program.to_string()));
+        return Err(Error::Link(probe.to_string()));
     }
     println!("IR optimised: {:?}", opt_bc_file);
 
@@ -142,10 +143,77 @@ pub fn build_program(
         .status()?
         .success()
     {
-        return Err(Error::Link(program.to_string()));
+        return Err(Error::Link(probe.to_string()));
     }
 
     Ok(())
+}
+
+pub fn build(
+    cargo: &Path,
+    package: &Path,
+    out_dir: &Path,
+    mut probes: Vec<String>,
+) -> Result<(), Error> {
+    let path = package.join("Cargo.toml");
+    if !path.exists() {
+        return Err(Error::MissingManifest(path.clone()));
+    }
+
+    if probes.is_empty() {
+        let doc = load_package(package)?;
+        probes = probe_names(&doc)?
+    };
+
+    for probe in probes {
+        build_probe(cargo, package, &out_dir.join(probe.clone()), &probe)?;
+    }
+
+    Ok(())
+}
+
+pub fn cmd_build(programs: Vec<String>) -> Result<(), CommandError> {
+    let current_dir = std::env::current_dir().unwrap();
+    // FIXME: parse --target-dir etc
+    let out_dir = PathBuf::from("target/release/bpf-programs");
+    let ret = build(Path::new("cargo"), &current_dir, &out_dir, programs)?;
+    Ok(ret)
+}
+
+pub fn probe_files(package: &Path) -> Result<Vec<String>, Error> {
+    let doc = load_package(package)?;
+    let probes = probe_names(&doc)?;
+    Ok(probes
+        .iter()
+        .map(|probe| {
+            package
+                .join("src")
+                .join(probe)
+                .join("main.rs")
+                .to_string_lossy()
+                .into()
+        })
+        .collect())
+}
+
+fn load_package(package: &Path) -> Result<Document, Error> {
+    let path = package.join("Cargo.toml");
+    if !path.exists() {
+        return Err(Error::MissingManifest(path.clone()));
+    }
+
+    let data = fs::read_to_string(path).unwrap();
+    Ok(data.parse::<Document>().unwrap())
+}
+
+fn probe_names(doc: &Document) -> Result<Vec<String>, Error> {
+    match &doc["bin"] {
+        Item::ArrayOfTables(array) => Ok(array
+            .iter()
+            .map(|t| t["name"].as_str().unwrap().into())
+            .collect()),
+        _ => return Err(Error::NoPrograms),
+    }
 }
 
 fn get_opt_executable() -> Result<String, Error> {
@@ -180,47 +248,4 @@ fn get_llc_executable() -> Result<String, Error> {
     }
 
     return Err(Error::NoLLC);
-}
-
-pub fn build(
-    cargo: &Path,
-    package: &Path,
-    out_dir: &Path,
-    programs: Vec<String>,
-) -> Result<(), Error> {
-    use toml_edit::{Document, Item};
-
-    let path = package.join("Cargo.toml");
-    if !path.exists() {
-        return Err(Error::MissingManifest(path.clone()));
-    }
-
-    let targets = if !programs.is_empty() {
-        programs
-    } else {
-        let data = fs::read_to_string(path).unwrap();
-        let config = data.parse::<Document>().unwrap();
-        let targets: Vec<String> = match &config["bin"] {
-            Item::ArrayOfTables(array) => array
-                .iter()
-                .map(|t| t["name"].as_str().unwrap().into())
-                .collect(),
-            _ => return Err(Error::NoPrograms),
-        };
-        targets
-    };
-
-    for program in targets {
-        build_program(cargo, package, &out_dir.join(program.clone()), &program)?;
-    }
-
-    Ok(())
-}
-
-pub fn cmd_build(programs: Vec<String>) -> Result<(), CommandError> {
-    let current_dir = std::env::current_dir().unwrap();
-    // FIXME: parse --target-dir etc
-    let out_dir = PathBuf::from("target/release/bpf-programs");
-    let ret = build(Path::new("cargo"), &current_dir, &out_dir, programs)?;
-    Ok(ret)
 }

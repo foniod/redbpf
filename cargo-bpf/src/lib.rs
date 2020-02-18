@@ -21,7 +21,7 @@ impl std::convert::From<std::io::Error> for CommandError {
     }
 }
 
-pub use build::{build, cmd_build};
+pub use build::*;
 pub use load::load;
 pub use new::new;
 pub use new_program::new_program;
