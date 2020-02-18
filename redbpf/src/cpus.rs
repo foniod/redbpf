@@ -40,7 +40,7 @@ fn list_from_string(cpus: &str) -> Vec<CpuId> {
 
         let start = CpuId::from_str(start.unwrap()).unwrap();
         let end = CpuId::from_str(end.unwrap()).unwrap();
-        (start..=end)
+        start..=end
     });
     cpu_list.collect()
 }
