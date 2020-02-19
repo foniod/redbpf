@@ -48,11 +48,11 @@ impl<K, V> HashMap<K, V> {
 
     /// Returns a reference to the value corresponding to the key.
     #[inline]
-    pub fn get(&mut self, mut key: K) -> Option<&V> {
+    pub fn get(&mut self, key: &K) -> Option<&V> {
         unsafe {
             let value = bpf_map_lookup_elem(
                 &mut self.def as *mut _ as *mut c_void,
-                &mut key as *mut _ as *mut c_void,
+                key as *const _ as *const c_void,
             );
             if value.is_null() {
                 None
@@ -64,12 +64,12 @@ impl<K, V> HashMap<K, V> {
 
     /// Set the `value` in the map for `key`
     #[inline]
-    pub fn set(&mut self, mut key: K, mut value: V) {
+    pub fn set(&mut self, key: K, value: V) {
         unsafe {
             bpf_map_update_elem(
                 &mut self.def as *mut _ as *mut c_void,
-                &mut key as *mut _ as *mut c_void,
-                &mut value as *mut _ as *mut c_void,
+                &key as *const _ as *const c_void,
+                &value as *const _ as *const c_void,
                 BPF_ANY.into(),
             );
         }
@@ -77,11 +77,11 @@ impl<K, V> HashMap<K, V> {
 
     /// Delete the entry indexed by `key`
     #[inline]
-    pub fn delete(&mut self, mut key: K) {
+    pub fn delete(&mut self, key: &K) {
         unsafe {
             bpf_map_delete_elem(
                 &mut self.def as *mut _ as *mut c_void,
-                &mut key as *mut _ as *mut c_void,
+                key as *const _ as *const c_void,
             );
         }
     }
@@ -184,15 +184,13 @@ impl<T> PerfMap<T> {
     /// Insert a new event in the perf events array keyed by the index and with
     /// the additional xdp payload data specified in the given `PerfMapFlags`.
     #[inline]
-    pub fn insert_with_flags<C>(&mut self, ctx: *mut C, mut data: T, flags: PerfMapFlags) {
-        unsafe {
-            bpf_perf_event_output(
-                ctx as *mut _ as *mut c_void,
-                &mut self.def as *mut _ as *mut c_void,
-                flags.into(),
-                &mut data as *mut _ as *mut c_void,
-                mem::size_of::<T>() as u64,
-            );
-        };
+    pub fn insert_with_flags<C>(&mut self, ctx: *mut C, data: T, flags: PerfMapFlags) {
+        bpf_perf_event_output(
+            ctx as *mut _ as *mut c_void,
+            &mut self.def as *mut _ as *mut c_void,
+            flags.into(),
+            &data as *const _ as *const c_void,
+            mem::size_of::<T>() as u64,
+        );
     }
 }

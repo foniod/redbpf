@@ -97,6 +97,26 @@ pub fn bpf_trace_printk(message: &[u8]) -> ::cty::c_int {
     }
 }
 
+#[inline]
+pub fn bpf_perf_event_output(
+    ctx: *mut c_void,
+    map: *mut c_void,
+    flags: u64,
+    data: *const c_void,
+    size: u64,
+) -> i32 {
+    unsafe {
+        let f: unsafe extern "C" fn(
+            ctx: *mut c_void,
+            map: *mut c_void,
+            flags: u64,
+            data: *const c_void,
+            size: u64,
+        ) -> i32 = ::core::mem::transmute(25usize);
+        f(ctx, map, flags, data, size)
+    }
+}
+
 #[macro_export]
 macro_rules! bpf_probe_read {
     ( $x:expr ) => {
