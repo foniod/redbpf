@@ -126,7 +126,14 @@ pub fn build_probe(cargo: &Path, package: &Path, out_dir: &Path, probe: &str) ->
 
     let opt = get_opt_executable()?;
     if !Command::new(opt)
-        .args(&["-march=bpf", "-O3", "-o", opt_bc_file.to_str().unwrap()])
+        .args(&[
+            "-march=bpf",
+            "-O3",
+            "--loop-unroll",
+            &format!("--unroll-threshold={}", std::u32::MAX),
+            "-o",
+            opt_bc_file.to_str().unwrap(),
+        ])
         .arg(processed_bc_file.to_str().unwrap())
         .status()?
         .success()
