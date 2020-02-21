@@ -2,7 +2,7 @@
 name = "redbpf-macros"
 description = "Procedural macros for redbpf"
 repository = "https://github.com/redsift/redbpf"
-documentation = "https://redsift.github.io/rust/redbpf/doc/redbpf_macros/"
+documentation = "https://ingraind.org/api//redbpf_macros/"
 authors = ["Alessandro Decina <alessandro.d@gmail.com>", "Peter Parkanyi <peter@redsift.io>"]
 version = "0.9.11"
 edition = '2018'
