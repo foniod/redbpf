@@ -99,10 +99,10 @@ jobs:
 
             git config --global user.email "team@redsift.com"
             git config --global user.name "CircleCI bot"
-            git clone https://$GITHUB_HTTP_TOKEN:@github.com/redsift/redsift.github.io publish
-            rm -rf publish/rust/redbpf/doc
-            mkdir -p publish/rust/redbpf/
-            cp -r target/doc publish/rust/redbpf/
+            git clone https://$GITHUB_HTTP_TOKEN:@github.com/redsift/ingraind.org publish
+            rm -rf publish/api/
+            mkdir -p publish/api/
+            cp -r target/doc/* publish/api/
             cd publish
             git add *
             git commit -a -m '[CI] Update redbpf docs'

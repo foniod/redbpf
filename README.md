@@ -15,23 +15,23 @@ programs. It includes:
 compiled to eBPF bytecode and executed by the linux in-kernel eBPF virtual
 machine.
     
-    [![Documentation](https://img.shields.io/badge/docs-latest-red.svg)](https://redsift.github.io/rust/redbpf/doc/redbpf_probes/)
+    [![Documentation](https://img.shields.io/badge/docs-latest-red.svg)](https://ingraind.org/api/redbpf_probes/)
 
 - `redbpf-macros` - companion crate to `redbpf-probes` which provides
 procedural macros to reduce the amount of boilerplate needed to produce eBPF
 programs.
 
-    [![Documentation](https://img.shields.io/badge/docs-latest-red.svg)](https://redsift.github.io/rust/redbpf/doc/redbpf_macros/)
+    [![Documentation](https://img.shields.io/badge/docs-latest-red.svg)](https://ingraind.org/api/redbpf_macros/)
 
 - `redbpf`, a user space library that can be used to parse and load eBPF
 programs written using `redbpf-probes` and `redbpf-macros`.
 
-    [![Documentation](https://img.shields.io/badge/docs-latest-red.svg)](https://redsift.github.io/rust/redbpf/doc/redbpf/)
+    [![Documentation](https://img.shields.io/badge/docs-latest-red.svg)](https://ingraind.org/api/redbpf/)
 
 - `cargo-bpf`, a cargo subcommand for creating, developing and building eBPF
 programs in Rust using the RedBPF APIs.
     
-    [![Documentation](https://img.shields.io/badge/docs-latest-red.svg)](https://redsift.github.io/rust/redbpf/doc/cargo_bpf/)
+    [![Documentation](https://img.shields.io/badge/docs-latest-red.svg)](https://ingraind.org/api/cargo_bpf/)
 
 # Usage
 
