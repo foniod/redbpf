@@ -35,9 +35,17 @@ programs in Rust using the RedBPF APIs.
 
 # Usage
 
-The easiest way to get started is to install `cargo-bpf`, see the [cargo bpf documentation](https://ingraind.org/api/cargo_bpf/) for more info.
+The easiest way to get started is to install `cargo-bpf`, see the
+[cargo bpf
+documentation](https://ingraind.org/api/cargo_bpf/)
+for more info.
 
-To see how and what RedBPF can be used for, check out the [ingraind project](https://github.com/redsift/ingraind/tree/v1.0).
+The
+[`rust-tools`](https://github.com/redsift/redbpf/tree/master/redbpf-tools)
+directory also contains examples of using redbpf in real life.
+
+To see how and what RedBPF can be used for, check out the [ingraind
+project](https://github.com/redsift/ingraind/tree/v1.0).
 
 # Requirements
 
@@ -47,7 +55,52 @@ In order to build some of the code here, you will need the following:
  * LLVM 9, or an LLVM version compatible with the Rust release you're using to build
  * The latest stable Rust compiler. We only promise to build with the latest stable and nightly compilers.
 
-## License
+# Getting started
+
+It's easiest to get started by installing `cargo-bpf` using cargo.
+
+	cargo install cargo-bpf
+	cargo bpf --help
+
+If you would like to go the git way, clone this repository then make
+sure you sync the git submodules necessary to build redbpf:
+
+    git submodule sync
+    git submodule update --init
+
+Then install the dependencies for your distro before running the usual ritual.
+
+	cargo build --release
+    cargo install --path cargo-bpf
+
+## Ubuntu
+
+Install the following dependencies:
+
+	apt-get install -y curl \
+		wget \
+		gnupg2 \
+		software-properties-common \
+		build-essential \
+		clang-9 \
+		llvm-9 \
+		libelf-dev \
+		linux-headers \
+		ca-certificates{,-java}
+
+# Fedora
+
+	yum install -y clang-9.0.0 \
+		llvm-9.0.0 \
+		llvm-libs-9.0.0 \
+		llvm-devel-9.0.0 \
+		llvm-static-9.0.0 \
+		kernel \
+		kernel-devel \
+		elfutils-libelf-devel \
+		ca-certificates
+
+# License
 
 This repository contains code from other software in the following
 directories, licensed under their own particular licenses:
@@ -67,7 +120,7 @@ RedBPF and its components, unless otherwise stated, are licensed under either of
 
 at your option.
 
-### Contribution
+# Contribution
 
 Unless you explicitly state otherwise, any contribution intentionally submitted
 for inclusion in the work by you, as defined in the Apache-2.0 license, shall be dual licensed as above, without any
