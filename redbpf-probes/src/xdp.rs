@@ -144,7 +144,7 @@ impl<T> PerfMap<T> {
     /// `packet_size` specifies the number of bytes from the current packet that
     /// the kernel should append to the event data.
     #[inline]
-    pub fn insert(&mut self, ctx: &XdpContext, data: MapData<T>) {
+    pub fn insert(&mut self, ctx: &XdpContext, data: &MapData<T>) {
         let size = data.size;
         self.0
             .insert_with_flags(ctx.inner(), data, PerfMapFlags::with_xdp_size(size))
@@ -156,7 +156,7 @@ impl<T> PerfMap<T> {
     pub fn insert_with_flags(
         &mut self,
         ctx: &XdpContext,
-        data: MapData<T>,
+        data: &MapData<T>,
         mut flags: PerfMapFlags,
     ) {
         flags.xdp_size = data.size;

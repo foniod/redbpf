@@ -64,7 +64,7 @@ impl<K, V> HashMap<K, V> {
 
     /// Set the `value` in the map for `key`
     #[inline]
-    pub fn set(&mut self, key: K, value: V) {
+    pub fn set(&mut self, key: &K, value: &V) {
         unsafe {
             bpf_map_update_elem(
                 &mut self.def as *mut _ as *mut c_void,
@@ -177,19 +177,19 @@ impl<T> PerfMap<T> {
     /// If you want to use a key other than the current CPU, see
     /// `insert_with_flags`.
     #[inline]
-    pub fn insert<C>(&mut self, ctx: *mut C, data: T) {
+    pub fn insert<C>(&mut self, ctx: *mut C, data: &T) {
         self.insert_with_flags(ctx, data, PerfMapFlags::default())
     }
 
     /// Insert a new event in the perf events array keyed by the index and with
     /// the additional xdp payload data specified in the given `PerfMapFlags`.
     #[inline]
-    pub fn insert_with_flags<C>(&mut self, ctx: *mut C, data: T, flags: PerfMapFlags) {
+    pub fn insert_with_flags<C>(&mut self, ctx: *mut C, data: &T, flags: PerfMapFlags) {
         bpf_perf_event_output(
             ctx as *mut _ as *mut c_void,
             &mut self.def as *mut _ as *mut c_void,
             flags.into(),
-            &data as *const _ as *const c_void,
+            data as *const _ as *const c_void,
             mem::size_of::<T>() as u64,
         );
     }
