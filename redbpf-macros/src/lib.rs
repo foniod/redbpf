@@ -26,22 +26,15 @@ to simplify creating and building eBPF programs.
 ```
 #![no_std]
 #![no_main]
-use redbpf_macros::{program, kprobe, xdp};
-use redbpf_probes::bindings::*;
-use redbpf_probes::xdp::{XdpAction, XdpContext};
+use redbpf_probes::xdp::prelude::*;
 
 // configure kernel version compatibility and license
 program!(0xFFFFFFFE, "GPL");
 
 #[xdp]
-pub extern "C" fn example_xdp_probe(ctx: XdpContext) -> XdpAction {
+fn example_xdp_probe(ctx: XdpContext) -> XdpResult {
     ...
-    XdpAction::Pass
-}
-
-#[kprobe("__x64_sys_clone")]
-pub extern "C" fn example_kprobe(ctx: *mut pt_regs) {
-    ...
+    Ok(XdpAction::Pass)
 }
 ```
 */
@@ -130,6 +123,7 @@ pub fn program(input: TokenStream) -> TokenStream {
     tokens.into()
 }
 
+#[doc(hidden)]
 #[proc_macro]
 pub fn impl_network_buffer_array(_: TokenStream) -> TokenStream {
     let mut tokens = TokenStream2::new();
@@ -211,8 +205,10 @@ fn wrap_kprobe(item: ItemFn) -> ItemFn {
 ///
 /// # Example
 /// ```
+/// use redbpf_probes::kprobe::prelude::*;
+///
 /// #[kprobe("__x64_sys_clone")]
-/// pub extern "C" fn clone_enter(ctx: *mut pt_regs) {
+/// fn clone_enter(registers: Registers) {
 ///     // this is executed when clone() is invoked
 ///     ...
 /// }
@@ -228,8 +224,10 @@ pub fn kprobe(attrs: TokenStream, item: TokenStream) -> TokenStream {
 ///
 /// # Example
 /// ```
+/// use redbpf_probes::kprobe::prelude::*;
+///
 /// #[kretprobe("__x64_sys_clone")]
-/// pub extern "C" fn clone_exit(ctx: *mut pt_regs) {
+/// fn clone_exit(regs: Registers) {
 ///     // this is executed when clone() returns
 ///     ...
 /// }
@@ -248,8 +246,10 @@ pub fn kretprobe(attrs: TokenStream, item: TokenStream) -> TokenStream {
 ///
 /// # Example
 /// ```
+/// use redbpf_probes::xdp::prelude::*;
+///
 /// #[xdp]
-/// pub extern "C" fn example_xdp_probe(ctx: XdpContext) -> XdpAction {
+/// fn example_xdp_probe(ctx: XdpContext) -> XdpAction {
 ///     ...
 ///     XdpAction::Pass
 /// }
