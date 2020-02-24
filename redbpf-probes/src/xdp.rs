@@ -41,7 +41,8 @@ use crate::bindings::*;
 use crate::maps::{PerfMap as PerfMapBase, PerfMapFlags};
 use crate::net::{NetworkBuffer, NetworkResult};
 
-pub type Result = NetworkResult<XdpAction>;
+/// The result type for XDP programs.
+pub type XdpResult = NetworkResult<XdpAction>;
 
 /// The return type of XDP probes}
 #[repr(u32)]
