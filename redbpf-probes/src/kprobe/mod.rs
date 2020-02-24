@@ -36,6 +36,7 @@ pub extern "C" fn enter_execve(ctx: *mut c_void) -> i32 {
 }
 ```
  */
+pub mod prelude;
 
 use crate::bindings::*;
 use cty::*;

@@ -36,6 +36,8 @@ fn forward_tcp(skb: SkBuff) -> SkBuffResult {
 }
 ```
 */
+pub mod prelude;
+
 use crate::bindings::*;
 use crate::helpers::bpf_skb_load_bytes;
 use core::mem;

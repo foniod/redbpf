@@ -34,6 +34,8 @@ fn block_port_80(ctx: XdpContext) -> XdpResult<XdpAction> {
 }
 ```
  */
+pub mod prelude;
+
 use crate::bindings::*;
 use crate::maps::{PerfMap as PerfMapBase, PerfMapFlags};
 use crate::net::{NetworkBuffer, NetworkResult};
