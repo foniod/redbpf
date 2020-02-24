@@ -68,8 +68,8 @@ impl<K, V> HashMap<K, V> {
         unsafe {
             bpf_map_update_elem(
                 &mut self.def as *mut _ as *mut c_void,
-                &key as *const _ as *const c_void,
-                &value as *const _ as *const c_void,
+                key as *const _ as *const c_void,
+                value as *const _ as *const c_void,
                 BPF_ANY.into(),
             );
         }
