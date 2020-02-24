@@ -1,4 +1,4 @@
-// Copyright 2019 Authors of Red Sift
+// Copyright 2019-2020 Authors of Red Sift
 //
 // Licensed under the Apache License, Version 2.0, <LICENSE-APACHE or
 // http://apache.org/licenses/LICENSE-2.0> or the MIT license <LICENSE-MIT or
@@ -19,21 +19,18 @@ Block all traffic directed to port 80:
 ```
 #![no_std]
 #![no_main]
-use redbpf_probes::bindings::*;
-use redbpf_probes::xdp::{XdpAction, XdpContext};
-use redbpf_macros::{program, xdp};
+use redbpf_probes::xdp::prelude::*;
 
 program!(0xFFFFFFFE, "GPL");
 
 #[xdp]
-pub extern "C" fn block_port_80(ctx: XdpContext) -> XdpAction {
-    if let Some(transport) = ctx.transport() {
-        if transport.dest() == 80 {
-            return XdpAction::Drop;
-        }
+fn block_port_80(ctx: XdpContext) -> XdpResult<XdpAction> {
+    let transport = ctx.transport()?;
+    if transport.dest() == 80 {
+        return Ok(XdpAction::Drop);
     }
 
-    XdpAction::Pass
+    Ok(XdpAction::Pass)
 }
 ```
  */
@@ -44,7 +41,7 @@ use crate::net::{NetworkBuffer, NetworkResult};
 /// The result type for XDP programs.
 pub type XdpResult = NetworkResult<XdpAction>;
 
-/// The return type of XDP probes}
+/// The return type for successful XDP probes.
 #[repr(u32)]
 pub enum XdpAction {
     /// Signals that the program had an unexpected anomaly. Should only be used
@@ -69,14 +66,15 @@ pub enum XdpAction {
 /// Context object provided to XDP programs.
 ///
 /// XDP programs are passed a `XdpContext` instance as their argument. Through
-/// the context, programs can inspect and modify the packet.
+/// the context, programs can inspect, modify and redirect the underlying
+/// networking data.
 #[derive(Clone)]
 pub struct XdpContext {
     pub ctx: *mut xdp_md,
 }
 
 impl XdpContext {
-    /// Returns the raw `xdp_md` context.
+    /// Returns the raw `xdp_md` context passed by the kernel.
     #[inline]
     pub fn inner(&self) -> *mut xdp_md {
         self.ctx
