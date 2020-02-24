@@ -130,7 +130,10 @@ pub fn build_probe(cargo: &Path, package: &Path, out_dir: &Path, probe: &str) ->
             "-march=bpf",
             "-O3",
             "--loop-unroll",
-            &format!("--unroll-threshold={}", std::u32::MAX),
+            &format!("--unroll-threshold={}", std::u32::MAX), // unroll at any cost
+            "--unroll-max-upperbound=500", // the max loop iteration count to unroll
+            // enable upperbound unrolling when the exact trip count can't be computed
+            "--passes=always-inline,function(unroll<upperbound>)",
             "-o",
             opt_bc_file.to_str().unwrap(),
         ])
