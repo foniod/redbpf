@@ -166,7 +166,7 @@ pub fn generate_read_accessors(bindings: &str, whitelist: &[&str]) -> String {
                     Type::Ptr(_) => {
                         quote! {
                             pub fn #ident(&self) -> Option<#ty> {
-                                let v = bpf_probe_read(unsafe { &#(#prefix).*.#ident });
+                                let v = unsafe { bpf_probe_read(&#(#prefix).*.#ident) }.ok()?;
                                 if v.is_null() {
                                     None
                                 } else {
@@ -177,8 +177,8 @@ pub fn generate_read_accessors(bindings: &str, whitelist: &[&str]) -> String {
                     }
                     _ => {
                         quote! {
-                            pub fn #ident(&self) -> #ty {
-                                bpf_probe_read(unsafe { &#(#prefix).*.#ident })
+                            pub fn #ident(&self) -> Option<#ty> {
+                                unsafe { bpf_probe_read(&#(#prefix).*.#ident) }.ok()
                             }
                         }
                     }

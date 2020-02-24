@@ -72,17 +72,18 @@ pub fn bpf_ktime_get_ns() -> u64 {
 }
 
 #[inline]
-pub fn bpf_probe_read<T>(src: *const T) -> T {
-    unsafe {
-        let mut v: MaybeUninit<T> = MaybeUninit::uninit();
-        gen::bpf_probe_read(
-            v.as_mut_ptr() as *mut c_void,
-            size_of::<T>() as u32,
-            src as *const c_void,
-        );
-
-        v.assume_init()
+pub unsafe fn bpf_probe_read<T>(src: *const T) -> Result<T, i32> {
+    let mut v: MaybeUninit<T> = MaybeUninit::uninit();
+    let ret = gen::bpf_probe_read(
+        v.as_mut_ptr() as *mut c_void,
+        size_of::<T>() as u32,
+        src as *const c_void,
+    );
+    if ret < 0 {
+        return Err(ret);
     }
+
+    Ok(v.assume_init())
 }
 
 #[inline]
@@ -115,11 +116,4 @@ pub fn bpf_perf_event_output(
         ) -> i32 = ::core::mem::transmute(25usize);
         f(ctx, map, flags, data, size)
     }
-}
-
-#[macro_export]
-macro_rules! bpf_probe_read {
-    ( $x:expr ) => {
-        bpf_probe_read(unsafe { $x })
-    };
 }
