@@ -273,6 +273,23 @@ pub fn xdp(attrs: TokenStream, item: TokenStream) -> TokenStream {
     probe_impl("xdp", attrs, wrapper).into()
 }
 
+/// Attribute macro that must be used to define [`socket
+/// filter`](https://www.kernel.org/doc/Documentation/networking/filter.txt)
+/// probes.
+///
+/// See also the [`socket filter` API provided by
+/// `redbpf-probes`](https://redsift.github.io/rust/redbpf/doc/redbpf_probes/socket_filter/index.html).
+///
+/// # Example
+/// ```
+/// use redbpf_probes::socket_filter::prelude::*;
+///
+/// #[socket_filter]
+/// fn example_socket_filter(skb: SkBuff) -> SkBuffResult {
+///     ...
+///     Ok(SkBuffAction::SendToUserspace)
+/// }
+/// ```
 #[proc_macro_attribute]
 pub fn socket_filter(attrs: TokenStream, item: TokenStream) -> TokenStream {
     let item = parse_macro_input!(item as ItemFn);
