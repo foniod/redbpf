@@ -165,11 +165,9 @@ pub fn map(attrs: TokenStream, item: TokenStream) -> TokenStream {
     tokens.into()
 }
 
-fn probe_impl(ty: &str, attrs: TokenStream, item: ItemFn) -> TokenStream {
-    let name = if attrs.is_empty() {
-        item.sig.ident.to_string()
-    } else {
-        match parse_macro_input!(attrs as Expr) {
+fn probe_impl(ty: &str, attrs: TokenStream, item: ItemFn, mut name: String) -> TokenStream {
+    if !attrs.is_empty() {
+        name = match parse_macro_input!(attrs as Expr) {
             Expr::Lit(ExprLit {
                 lit: Lit::Str(s), ..
             }) => s.value().clone(),
@@ -216,8 +214,9 @@ fn wrap_kprobe(item: ItemFn) -> ItemFn {
 #[proc_macro_attribute]
 pub fn kprobe(attrs: TokenStream, item: TokenStream) -> TokenStream {
     let item = parse_macro_input!(item as ItemFn);
+    let name = item.sig.ident.to_string();
     let wrapper = wrap_kprobe(item);
-    probe_impl("kprobe", attrs, wrapper).into()
+    probe_impl("kprobe", attrs, wrapper, name).into()
 }
 
 /// Attribute macro that must be used to define [`kretprobes`](https://www.kernel.org/doc/Documentation/kprobes.txt).
@@ -235,8 +234,9 @@ pub fn kprobe(attrs: TokenStream, item: TokenStream) -> TokenStream {
 #[proc_macro_attribute]
 pub fn kretprobe(attrs: TokenStream, item: TokenStream) -> TokenStream {
     let item = parse_macro_input!(item as ItemFn);
+    let name = item.sig.ident.to_string();
     let wrapper = wrap_kprobe(item);
-    probe_impl("kretprobe", attrs, wrapper).into()
+    probe_impl("kretprobe", attrs, wrapper, name).into()
 }
 
 /// Attribute macro that must be used to define [`XDP` probes](https://www.iovisor.org/technology/xdp).
@@ -257,6 +257,7 @@ pub fn kretprobe(attrs: TokenStream, item: TokenStream) -> TokenStream {
 #[proc_macro_attribute]
 pub fn xdp(attrs: TokenStream, item: TokenStream) -> TokenStream {
     let item = parse_macro_input!(item as ItemFn);
+    let name = item.sig.ident.to_string();
     let ident = item.sig.ident.clone();
     let outer_ident = Ident::new(&format!("outer_{}", ident), Span::call_site());
     let wrapper = parse_quote! {
@@ -270,7 +271,7 @@ pub fn xdp(attrs: TokenStream, item: TokenStream) -> TokenStream {
             #item
         }
     };
-    probe_impl("xdp", attrs, wrapper).into()
+    probe_impl("xdp", attrs, wrapper, name).into()
 }
 
 /// Attribute macro that must be used to define [`socket
@@ -293,6 +294,7 @@ pub fn xdp(attrs: TokenStream, item: TokenStream) -> TokenStream {
 #[proc_macro_attribute]
 pub fn socket_filter(attrs: TokenStream, item: TokenStream) -> TokenStream {
     let item = parse_macro_input!(item as ItemFn);
+    let name = item.sig.ident.to_string();
     let ident = item.sig.ident.clone();
     let outer_ident = Ident::new(&format!("outer_{}", ident), Span::call_site());
     let wrapper = parse_quote! {
@@ -307,5 +309,5 @@ pub fn socket_filter(attrs: TokenStream, item: TokenStream) -> TokenStream {
         }
     };
 
-    probe_impl("socketfilter", attrs, wrapper).into()
+    probe_impl("socketfilter", attrs, wrapper, name).into()
 }
