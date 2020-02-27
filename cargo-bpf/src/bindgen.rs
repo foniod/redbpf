@@ -5,7 +5,7 @@
 // http://opensource.org/licenses/MIT>, at your option. This file may not be
 // copied, modified, or distributed except according to those terms.
 
-use bindgen;
+use bindgen::{self, callbacks::ParseCallbacks};
 pub use bindgen::Builder;
 use std::io::{self, Write};
 use std::path::Path;
@@ -34,6 +34,7 @@ pub fn builder() -> Builder {
         .clang_args(&flags)
         .use_core()
         .ctypes_prefix("::cty")
+        .parse_callbacks(Box::new(Callbacks))
 }
 
 pub fn generate(builder: &Builder, extra_args: &[&str]) -> Result<String, String> {
@@ -93,4 +94,19 @@ pub use generated_bindings::*;
     .unwrap();
 
     Ok(())
+}
+
+#[derive(Debug)]
+struct Callbacks;
+
+impl ParseCallbacks for Callbacks {
+    fn item_name(&self, name: &str) -> Option<String> {
+        match name {
+            "u8"
+            | "u16"
+            | "u32"
+            | "u64" => Some(format!("_cargo_bpf_{}", name)),
+            _ => None
+        }
+    }
 }
