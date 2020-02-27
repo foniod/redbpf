@@ -75,7 +75,7 @@ use std::mem;
 use std::mem::MaybeUninit;
 use std::os::unix::io::RawFd;
 
-pub use crate::error::{LoadError, Result};
+pub use crate::error::{Error, Result};
 pub use crate::perf::*;
 use crate::uname::get_kernel_internal_version;
 
@@ -214,7 +214,7 @@ impl ProgramKind {
             "xdp" => Ok(XDP),
             "socketfilter" => Ok(SocketFilter),
             "tracepoint" => Ok(Tracepoint),
-            sec => Err(LoadError::Section(sec.to_string())),
+            sec => Err(Error::Section(sec.to_string())),
         }
     }
 }
@@ -266,7 +266,7 @@ impl Program {
         };
 
         if fd < 0 {
-            Err(LoadError::BPF)
+            Err(Error::BPF)
         } else {
             self.fd = Some(fd);
             Ok(fd)
@@ -292,7 +292,7 @@ impl Program {
         };
 
         if pfd < 0 {
-            Err(LoadError::BPF)
+            Err(Error::BPF)
         } else {
             self.pfd = Some(pfd);
             Ok(pfd)
@@ -311,7 +311,7 @@ impl Program {
         };
 
         if res < 0 {
-            Err(LoadError::BPF)
+            Err(Error::BPF)
         } else {
             Ok(res)
         }
@@ -323,7 +323,7 @@ impl Program {
             unsafe { bpf_sys::bpf_attach_xdp(ciface.as_ptr(), self.fd.unwrap(), flags as u32) };
 
         if res < 0 {
-            Err(LoadError::BPF)
+            Err(Error::BPF)
         } else {
             Ok(())
         }
@@ -334,15 +334,15 @@ impl Program {
         let sfd = unsafe { bpf_sys::bpf_open_raw_sock(ciface.as_ptr()) };
 
         if sfd < 0 {
-            return Err(LoadError::IO(io::Error::last_os_error()));
+            return Err(Error::IO(io::Error::last_os_error()));
         }
 
-        match unsafe { bpf_sys::bpf_attach_socket(sfd, self.fd.ok_or(LoadError::BPF)?) } {
+        match unsafe { bpf_sys::bpf_attach_socket(sfd, self.fd.ok_or(Error::BPF)?) } {
             0 => {
                 self.pfd = Some(sfd);
                 Ok(sfd)
             }
-            _ => Err(LoadError::IO(io::Error::last_os_error())),
+            _ => Err(Error::IO(io::Error::last_os_error())),
         }
     }
 }
@@ -413,7 +413,7 @@ fn get_split_section_name<'o>(
     let name = object
         .shdr_strtab
         .get_unsafe(shdr.sh_name)
-        .ok_or_else(|| LoadError::Section(format!("Section name not found: {}", shndx)))?;
+        .ok_or_else(|| Error::Section(format!("Section name not found: {}", shndx)))?;
 
     let mut names = name.splitn(2, '/');
 
@@ -431,10 +431,10 @@ impl Rel {
         maps: &HashMap<usize, Map>,
         symtab: &[Sym],
     ) -> Result<()> {
-        let prog = programs.get_mut(&self.target).ok_or(LoadError::Reloc)?;
+        let prog = programs.get_mut(&self.target).ok_or(Error::Reloc)?;
         let map = maps
             .get(&symtab[self.sym].st_shndx)
-            .ok_or(LoadError::Reloc)?;
+            .ok_or(Error::Reloc)?;
         let insn_idx = (self.offset / std::mem::size_of::<bpf_insn>() as u64) as usize;
 
         prog.code[insn_idx].set_src_reg(bpf_sys::BPF_PSEUDO_MAP_FD as u8);
@@ -459,7 +459,7 @@ impl Map {
             )
         };
         if fd < 0 {
-            return Err(LoadError::Map);
+            return Err(Error::Map);
         }
 
         Ok(Map {
@@ -474,12 +474,12 @@ impl Map {
 impl<'base, K: Clone, V: Clone> BPFHashMap<'base, K, V> {
     pub fn new<'a>(base: &'a Map) -> Result<BPFHashMap<'a, K, V>> {
         if base.config.type_ != bpf_sys::bpf_map_type_BPF_MAP_TYPE_HASH {
-            return Err(LoadError::InvalidMap);
+            return Err(Error::Map);
         }
         if mem::size_of::<K>() != base.config.key_size as usize
             || mem::size_of::<V>() != base.config.value_size as usize
         {
-            return Err(LoadError::InvalidMap);
+            return Err(Error::Map);
         }
 
         Ok(BPFHashMap {

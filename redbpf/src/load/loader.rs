@@ -15,16 +15,16 @@ use std::path::PathBuf;
 
 use crate::cpus;
 use crate::ProgramKind::*;
-use crate::{LoadError, Module, PerfMap, xdp};
+use crate::{Error, Module, PerfMap, xdp};
 use crate::load::map_io::PerfMessageStream;
 
 #[derive(Debug)]
 pub enum LoaderError {
     FileError(io::Error),
-    ParseError(LoadError),
-    LoadError(String, LoadError),
-    XdpError(String, LoadError),
-    KprobeError(String, LoadError),
+    ParseError(Error),
+    LoadError(String, Error),
+    XdpError(String, Error),
+    KprobeError(String, Error),
 }
 
 /// High level API to load bpf programs.

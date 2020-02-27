@@ -50,7 +50,7 @@
 #![allow(clippy::cast_lossless)]
 #![allow(clippy::cast_ptr_alignment)]
 
-use crate::{LoadError, Map, BPFHashMap, Result};
+use crate::{Error, Map, BPFHashMap, Result};
 use std::cell::RefCell;
 use std::io;
 use std::mem;
@@ -85,7 +85,7 @@ unsafe fn open_perf_buffer(pid: i32, cpu: i32, group: RawFd, flags: u32) -> Resu
         flags | PERF_FLAG_FD_CLOEXEC,
     );
     if pfd < 0 {
-        Err(LoadError::IO(io::Error::last_os_error()))
+        Err(Error::IO(io::Error::last_os_error()))
     } else {
         Ok(pfd as RawFd)
     }
@@ -142,11 +142,11 @@ impl PerfMap {
             );
 
             if base_ptr == MAP_FAILED {
-                return Err(LoadError::IO(io::Error::last_os_error()));
+                return Err(Error::IO(io::Error::last_os_error()));
             }
 
             if ioctl(fd, PERF_EVENT_IOC_ENABLE, 0) != 0 {
-                return Err(LoadError::IO(io::Error::last_os_error()));
+                return Err(Error::IO(io::Error::last_os_error()));
             }
 
             let tm = BPFHashMap::<i32, i32>::new(map).unwrap();
