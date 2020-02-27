@@ -50,7 +50,7 @@
 #![allow(clippy::cast_lossless)]
 #![allow(clippy::cast_ptr_alignment)]
 
-use crate::{LoadError, Map, Result, VoidPtr};
+use crate::{Error, Map, HashMap, Result};
 use std::cell::RefCell;
 use std::io;
 use std::mem;
@@ -85,7 +85,7 @@ unsafe fn open_perf_buffer(pid: i32, cpu: i32, group: RawFd, flags: u32) -> Resu
         flags | PERF_FLAG_FD_CLOEXEC,
     );
     if pfd < 0 {
-        Err(LoadError::IO(io::Error::last_os_error()))
+        Err(Error::IO(io::Error::last_os_error()))
     } else {
         Ok(pfd as RawFd)
     }
@@ -123,13 +123,13 @@ impl PerfMap {
     pub fn bind(
         map: &mut Map,
         pid: i32,
-        mut cpu: i32,
+        cpu: i32,
         page_cnt: usize,
         group: RawFd,
         flags: u32,
     ) -> Result<PerfMap> {
         unsafe {
-            let mut fd = open_perf_buffer(pid, cpu, group, flags)?;
+            let fd = open_perf_buffer(pid, cpu, group, flags)?;
             let page_size = sysconf(_SC_PAGESIZE) as usize;
             let mmap_size = page_size * (page_cnt + 1);
             let base_ptr = mmap(
@@ -142,17 +142,15 @@ impl PerfMap {
             );
 
             if base_ptr == MAP_FAILED {
-                return Err(LoadError::IO(io::Error::last_os_error()));
+                return Err(Error::IO(io::Error::last_os_error()));
             }
 
             if ioctl(fd, PERF_EVENT_IOC_ENABLE, 0) != 0 {
-                return Err(LoadError::IO(io::Error::last_os_error()));
+                return Err(Error::IO(io::Error::last_os_error()));
             }
 
-            map.set(
-                &mut cpu as *mut i32 as VoidPtr,
-                &mut fd as *mut i32 as VoidPtr,
-            );
+            let tm = HashMap::<i32, i32>::new(map).unwrap();
+            tm.set(cpu, fd);
 
             Ok(PerfMap {
                 base_ptr: AtomicPtr::new(base_ptr as *mut perf_event_mmap_page),

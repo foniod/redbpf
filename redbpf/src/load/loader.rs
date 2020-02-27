@@ -15,16 +15,16 @@ use std::path::PathBuf;
 
 use crate::cpus;
 use crate::ProgramKind::*;
-use crate::{LoadError, Module, PerfMap, xdp};
+use crate::{Error, Module, PerfMap, xdp};
 use crate::load::map_io::PerfMessageStream;
 
 #[derive(Debug)]
 pub enum LoaderError {
     FileError(io::Error),
-    ParseError(LoadError),
-    LoadError(String, LoadError),
-    XdpError(String, LoadError),
-    KprobeError(String, LoadError),
+    ParseError(Error),
+    LoadError(String, Error),
+    XdpError(String, Error),
+    KprobeError(String, Error),
 }
 
 /// High level API to load bpf programs.
@@ -94,6 +94,7 @@ impl Loader {
         }
 
         Ok(Loaded {
+            module,
             xdp: self.xdp.clone(),
             events: receiver
         })
@@ -110,6 +111,7 @@ impl Loader {
 
 /// The `Loaded` object returned by `load()`.
 pub struct Loaded {
+    pub module: Module,
     xdp: XdpConfig,
     /// The stream of events emitted by the BPF programs.
     ///

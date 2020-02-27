@@ -1,0 +1,14 @@
+[package]
+name = "redbpf-tools"
+version = "0.1.0"
+authors = ["Alessandro Decina <alessandro.d@gmail.com>"]
+edition = "2018"
+
+[build-dependencies]
+cargo-bpf = { git = "https://github.com/redsift/redbpf" }
+
+[dependencies]
+probes = {path = "./probes" }
+redbpf = { version = "^0.9.11", features = ["build", "load"], path = "../redbpf" }
+tokio = { version = "0.2.4", features = ["rt-core", "io-driver", "macros", "signal", "time"] }
+futures = "0.3"

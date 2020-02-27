@@ -6,7 +6,7 @@
 // copied, modified, or distributed except according to those terms.
 
 #[derive(Debug)]
-pub enum LoadError {
+pub enum Error {
     StringConversion,
     BPF,
     Map,
@@ -18,22 +18,22 @@ pub enum LoadError {
     Reloc,
 }
 
-pub type Result<T> = ::std::result::Result<T, LoadError>;
+pub type Result<T> = ::std::result::Result<T, Error>;
 
-impl From<::goblin::error::Error> for LoadError {
-    fn from(e: ::goblin::error::Error) -> LoadError {
-        LoadError::Parse(e)
+impl From<::goblin::error::Error> for Error {
+    fn from(e: ::goblin::error::Error) -> Error {
+        Error::Parse(e)
     }
 }
 
-impl From<::std::ffi::NulError> for LoadError {
-    fn from(_e: ::std::ffi::NulError) -> LoadError {
-        LoadError::StringConversion
+impl From<::std::ffi::NulError> for Error {
+    fn from(_e: ::std::ffi::NulError) -> Error {
+        Error::StringConversion
     }
 }
 
-impl From<::std::io::Error> for LoadError {
-    fn from(e: ::std::io::Error) -> LoadError {
-        LoadError::IO(e)
+impl From<::std::io::Error> for Error {
+    fn from(e: ::std::io::Error) -> Error {
+        Error::IO(e)
     }
 }
