@@ -67,7 +67,7 @@ pub use bpf_sys::uname;
 use bpf_sys::{bpf_insn, bpf_map_def};
 use goblin::elf::{reloc::RelocSection, section_header as hdr, Elf, SectionHeader, Sym};
 
-use std::collections::HashMap;
+use std::collections::HashMap as RSHashMap;
 use std::ffi::CString;
 use std::io;
 use std::marker::PhantomData;
@@ -170,7 +170,7 @@ pub struct Map {
     config: bpf_map_def,
 }
 
-pub struct BPFHashMap<'a, K: Clone, V: Clone> {
+pub struct HashMap<'a, K: Clone, V: Clone> {
     base: &'a Map,
     _k: PhantomData<K>,
     _v: PhantomData<V>,
@@ -354,8 +354,8 @@ impl Module {
         let shdr_relocs = &object.shdr_relocs;
 
         let mut rels = vec![];
-        let mut programs = HashMap::new();
-        let mut maps = HashMap::new();
+        let mut programs = RSHashMap::new();
+        let mut maps = RSHashMap::new();
 
         let mut license = String::new();
         let mut version = 0u32;
@@ -427,8 +427,8 @@ impl Rel {
     #[inline]
     pub fn apply(
         &self,
-        programs: &mut HashMap<usize, Program>,
-        maps: &HashMap<usize, Map>,
+        programs: &mut RSHashMap<usize, Program>,
+        maps: &RSHashMap<usize, Map>,
         symtab: &[Sym],
     ) -> Result<()> {
         let prog = programs.get_mut(&self.target).ok_or(Error::Reloc)?;
@@ -471,8 +471,8 @@ impl Map {
     }
 }
 
-impl<'base, K: Clone, V: Clone> BPFHashMap<'base, K, V> {
-    pub fn new<'a>(base: &'a Map) -> Result<BPFHashMap<'a, K, V>> {
+impl<'base, K: Clone, V: Clone> HashMap<'base, K, V> {
+    pub fn new<'a>(base: &'a Map) -> Result<HashMap<'a, K, V>> {
         if base.config.type_ != bpf_sys::bpf_map_type_BPF_MAP_TYPE_HASH {
             return Err(Error::Map);
         }
@@ -482,7 +482,7 @@ impl<'base, K: Clone, V: Clone> BPFHashMap<'base, K, V> {
             return Err(Error::Map);
         }
 
-        Ok(BPFHashMap {
+        Ok(HashMap {
             base,
             _k: PhantomData,
             _v: PhantomData,
@@ -530,7 +530,7 @@ impl<'base, K: Clone, V: Clone> BPFHashMap<'base, K, V> {
 }
 
 pub struct MapIter<'a, 'b, K: Clone, V: Clone> {
-    map: &'a BPFHashMap<'b, K, V>,
+    map: &'a HashMap<'b, K, V>,
     key: Option<K>,
 }
 

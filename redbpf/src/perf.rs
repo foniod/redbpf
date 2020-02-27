@@ -50,7 +50,7 @@
 #![allow(clippy::cast_lossless)]
 #![allow(clippy::cast_ptr_alignment)]
 
-use crate::{Error, Map, BPFHashMap, Result};
+use crate::{Error, Map, HashMap, Result};
 use std::cell::RefCell;
 use std::io;
 use std::mem;
@@ -149,7 +149,7 @@ impl PerfMap {
                 return Err(Error::IO(io::Error::last_os_error()));
             }
 
-            let tm = BPFHashMap::<i32, i32>::new(map).unwrap();
+            let tm = HashMap::<i32, i32>::new(map).unwrap();
             tm.set(cpu, fd);
 
             Ok(PerfMap {
