@@ -62,6 +62,21 @@ impl<K, V> HashMap<K, V> {
         }
     }
 
+    #[inline]
+    pub fn get_mut(&mut self, key: &K) -> Option<&mut V> {
+        unsafe {
+            let value = bpf_map_lookup_elem(
+                &mut self.def as *mut _ as *mut c_void,
+                key as *const _ as *const c_void,
+            );
+            if value.is_null() {
+                None
+            } else {
+                Some(&mut *(value as *mut V))
+            }
+        }
+    }
+
     /// Set the `value` in the map for `key`
     #[inline]
     pub fn set(&mut self, key: &K, value: &V) {
