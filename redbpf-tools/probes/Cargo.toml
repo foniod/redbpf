@@ -1,0 +1,24 @@
+[package]
+name = "probes"
+version = "0.1.0"
+edition = '2018'
+
+[build-dependencies]
+cargo-bpf = { git = "https://github.com/redsift/redbpf" }
+
+[dependencies]
+cty = "0.2"
+redbpf-macros = { git = "https://github.com/redsift/redbpf" }
+redbpf-probes = { git = "https://github.com/redsift/redbpf" }
+
+[features]
+default = []
+probes = []
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "iotop"
+path = "src/iotop/main.rs"
+required-features = ["probes"]
