@@ -34,6 +34,7 @@ pub fn builder() -> Builder {
         .clang_args(&flags)
         .use_core()
         .ctypes_prefix("::cty")
+        .opaque_type("xregs_state")
         .parse_callbacks(Box::new(Callbacks))
 }
 
