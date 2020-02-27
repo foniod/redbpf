@@ -94,6 +94,7 @@ impl Loader {
         }
 
         Ok(Loaded {
+            module,
             xdp: self.xdp.clone(),
             events: receiver
         })
@@ -110,6 +111,7 @@ impl Loader {
 
 /// The `Loaded` object returned by `load()`.
 pub struct Loaded {
+    pub module: Module,
     xdp: XdpConfig,
     /// The stream of events emitted by the BPF programs.
     ///

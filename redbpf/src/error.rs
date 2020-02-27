@@ -16,6 +16,7 @@ pub enum LoadError {
     IO(::std::io::Error),
     Uname,
     Reloc,
+    InvalidMap
 }
 
 pub type Result<T> = ::std::result::Result<T, LoadError>;

@@ -56,30 +56,28 @@ extern crate serde_derive;
 #[cfg(feature = "build")]
 pub mod build;
 pub mod cpus;
+mod error;
 #[cfg(feature = "load")]
 pub mod load;
-pub mod xdp;
-mod error;
 mod perf;
 pub mod sys;
+pub mod xdp;
 pub use bpf_sys::uname;
 
 use bpf_sys::{bpf_insn, bpf_map_def};
-use goblin::elf::{section_header as hdr, Elf, SectionHeader, Sym,
-                  reloc::RelocSection};
+use goblin::elf::{reloc::RelocSection, section_header as hdr, Elf, SectionHeader, Sym};
 
 use std::collections::HashMap;
 use std::ffi::CString;
 use std::io;
+use std::marker::PhantomData;
 use std::mem;
+use std::mem::MaybeUninit;
 use std::os::unix::io::RawFd;
 
 pub use crate::error::{LoadError, Result};
 pub use crate::perf::*;
 use crate::uname::get_kernel_internal_version;
-
-pub type VoidPtr = *mut std::os::raw::c_void;
-
 
 #[cfg(target_arch = "aarch64")]
 pub type DataPtr = *const u8;
@@ -165,22 +163,17 @@ pub enum ProgramKind {
     Tracepoint,
 }
 
-/// Maps are loaded automatically, so you normally do not have to do anything to
-/// initialise them after loading an ELF file.
-///
-/// The Map structure provides a safe wrapper around the native calls, but do
-/// take and return `VoidPtr` arguments.
-///
-/// On top of this, maps do not need to be mutable to be mutated, since the
-/// underlying code does not require such guarrantees.
-///
-/// This design makes it easier to deal with maps, and keeps them versatile for
-/// sharing data between the kernel and userspace, however, it remains a foot
-/// cannon. In the future, this might need more work.
 pub struct Map {
     pub name: String,
     pub kind: u32,
     fd: RawFd,
+    config: bpf_map_def,
+}
+
+pub struct BPFHashMap<'a, K: Clone, V: Clone> {
+    base: &'a Map,
+    _k: PhantomData<K>,
+    _v: PhantomData<V>,
 }
 
 #[allow(dead_code)]
@@ -294,7 +287,7 @@ impl Program {
                 ev_name.as_ptr(),
                 cname.as_ptr(),
                 0,
-                0
+                0,
             )
         };
 
@@ -326,7 +319,8 @@ impl Program {
 
     pub fn attach_xdp(&mut self, iface: &str, flags: xdp::Flags) -> Result<()> {
         let ciface = CString::new(iface).unwrap();
-        let res = unsafe { bpf_sys::bpf_attach_xdp(ciface.as_ptr(), self.fd.unwrap(), flags as u32) };
+        let res =
+            unsafe { bpf_sys::bpf_attach_xdp(ciface.as_ptr(), self.fd.unwrap(), flags as u32) };
 
         if res < 0 {
             Err(LoadError::BPF)
@@ -419,10 +413,7 @@ fn get_split_section_name<'o>(
     let name = object
         .shdr_strtab
         .get_unsafe(shdr.sh_name)
-        .ok_or_else(|| LoadError::Section(format!(
-            "Section name not found: {}",
-            shndx
-        )))?;
+        .ok_or_else(|| LoadError::Section(format!("Section name not found: {}", shndx)))?;
 
     let mut names = name.splitn(2, '/');
 
@@ -455,7 +446,7 @@ impl Rel {
 
 impl Map {
     pub fn load(name: &str, code: &[u8]) -> Result<Map> {
-        let config: &bpf_map_def = zero::read(code);
+        let config: bpf_map_def = *zero::read(code);
         let cname = CString::new(name.to_owned())?;
         let fd = unsafe {
             bpf_sys::bcc_create_map(
@@ -464,7 +455,7 @@ impl Map {
                 config.key_size as i32,
                 config.value_size as i32,
                 config.max_entries as i32,
-                config.map_flags as i32
+                config.map_flags as i32,
             )
         };
         if fd < 0 {
@@ -475,26 +466,121 @@ impl Map {
             name: name.to_string(),
             kind: config.type_,
             fd,
+            config,
         })
     }
-    pub fn set(&self, key: VoidPtr, value: VoidPtr) {
+}
+
+impl<'base, K: Clone, V: Clone> BPFHashMap<'base, K, V> {
+    pub fn new<'a>(base: &'a Map) -> Result<BPFHashMap<'a, K, V>> {
+        if base.config.type_ != bpf_sys::bpf_map_type_BPF_MAP_TYPE_HASH {
+            return Err(LoadError::InvalidMap);
+        }
+        if mem::size_of::<K>() != base.config.key_size as usize
+            || mem::size_of::<V>() != base.config.value_size as usize
+        {
+            return Err(LoadError::InvalidMap);
+        }
+
+        Ok(BPFHashMap {
+            base,
+            _k: PhantomData,
+            _v: PhantomData,
+        })
+    }
+
+    pub fn set(&self, mut key: K, mut value: V) {
         unsafe {
-            bpf_sys::bpf_update_elem(self.fd, key, value, 0);
+            bpf_sys::bpf_update_elem(
+                self.base.fd,
+                &mut key as *mut _ as *mut _,
+                &mut value as *mut _ as *mut _,
+                0,
+            );
         }
     }
 
-    pub fn get(&self, key: VoidPtr, value: VoidPtr) {
+    pub fn get(&self, mut key: K) -> Option<V> {
+        let mut value = MaybeUninit::zeroed();
+        if unsafe {
+            bpf_sys::bpf_lookup_elem(
+                self.base.fd,
+                &mut key as *mut _ as *mut _,
+                &mut value as *mut _ as *mut _,
+            )
+        } < 0
+        {
+            return None;
+        }
+        Some(unsafe { value.assume_init() })
+    }
+
+    pub fn delete(&self, mut key: K) {
         unsafe {
-            bpf_sys::bpf_lookup_elem(self.fd, key, value);
+            bpf_sys::bpf_delete_elem(self.base.fd, &mut key as *mut _ as *mut _);
         }
     }
 
-    pub fn delete(&self, key: VoidPtr) {
-        unsafe {
-            bpf_sys::bpf_delete_elem(self.fd, key);
+    pub fn iter<'a>(&'a self) -> MapIter<'a, '_, K, V> {
+        MapIter {
+            map: self,
+            key: None,
         }
     }
 }
+
+pub struct MapIter<'a, 'b, K: Clone, V: Clone> {
+    map: &'a BPFHashMap<'b, K, V>,
+    key: Option<K>,
+}
+
+impl<K: Clone, V: Clone> Iterator for MapIter<'_, '_, K, V> {
+    type Item = (K, V);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let key = self.key.take();
+        self.key = match key {
+            Some(mut key) => {
+                let mut next_key = MaybeUninit::<K>::zeroed();
+                let ret = unsafe {
+                    bpf_sys::bpf_get_next_key(
+                        self.map.base.fd,
+                        &mut key as *mut _ as *mut _,
+                        &mut next_key as *mut _ as *mut _,
+                    )
+                };
+                if ret < 0 {
+                    None
+                } else {
+                    Some(unsafe { next_key.assume_init() })
+                }
+            }
+            None => {
+                let mut key = MaybeUninit::<K>::zeroed();
+                if unsafe {
+                    bpf_sys::bpf_get_first_key(
+                        self.map.base.fd,
+                        &mut key as *mut _ as *mut _,
+                        self.map.base.config.key_size as usize,
+                    )
+                } < 0
+                {
+                    None
+                } else {
+                    Some(unsafe { key.assume_init() })
+                }
+            }
+        };
+
+        if self.key.is_none() {
+            return None;
+        }
+
+        let key = self.key.clone().unwrap();
+        Some((key.clone(), self.map.get(key).unwrap()))
+    }
+}
+
 #[inline]
 fn add_rel(
     rels: &mut Vec<Rel>,

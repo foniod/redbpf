@@ -50,7 +50,7 @@
 #![allow(clippy::cast_lossless)]
 #![allow(clippy::cast_ptr_alignment)]
 
-use crate::{LoadError, Map, Result, VoidPtr};
+use crate::{LoadError, Map, BPFHashMap, Result};
 use std::cell::RefCell;
 use std::io;
 use std::mem;
@@ -123,13 +123,13 @@ impl PerfMap {
     pub fn bind(
         map: &mut Map,
         pid: i32,
-        mut cpu: i32,
+        cpu: i32,
         page_cnt: usize,
         group: RawFd,
         flags: u32,
     ) -> Result<PerfMap> {
         unsafe {
-            let mut fd = open_perf_buffer(pid, cpu, group, flags)?;
+            let fd = open_perf_buffer(pid, cpu, group, flags)?;
             let page_size = sysconf(_SC_PAGESIZE) as usize;
             let mmap_size = page_size * (page_cnt + 1);
             let base_ptr = mmap(
@@ -149,10 +149,8 @@ impl PerfMap {
                 return Err(LoadError::IO(io::Error::last_os_error()));
             }
 
-            map.set(
-                &mut cpu as *mut i32 as VoidPtr,
-                &mut fd as *mut i32 as VoidPtr,
-            );
+            let tm = BPFHashMap::<i32, i32>::new(map).unwrap();
+            tm.set(cpu, fd);
 
             Ok(PerfMap {
                 base_ptr: AtomicPtr::new(base_ptr as *mut perf_event_mmap_page),
