@@ -25,7 +25,7 @@ fn main() {
         let loader = Loader::new()
             .load_file(
                 &PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-                    .join("probes/target/release/bpf-programs/biotop/biotop.elf"),
+                    .join("probes/target/release/bpf-programs/iotop/iotop.elf"),
             )
             .await
             .expect("error loading probe");
