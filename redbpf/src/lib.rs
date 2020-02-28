@@ -473,9 +473,6 @@ impl Map {
 
 impl<'base, K: Clone, V: Clone> HashMap<'base, K, V> {
     pub fn new<'a>(base: &'a Map) -> Result<HashMap<'a, K, V>> {
-        if base.config.type_ != bpf_sys::bpf_map_type_BPF_MAP_TYPE_HASH {
-            return Err(Error::Map);
-        }
         if mem::size_of::<K>() != base.config.key_size as usize
             || mem::size_of::<V>() != base.config.value_size as usize
         {
