@@ -22,3 +22,8 @@ path = "src/lib.rs"
 name = "iotop"
 path = "src/iotop/main.rs"
 required-features = ["probes"]
+
+[[bin]]
+name = "knock"
+path = "src/knock/main.rs"
+required-features = ["probes"]
