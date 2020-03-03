@@ -50,6 +50,7 @@ impl Transport {
 }
 
 pub enum NetworkError {
+    Other,
     OutOfBounds,
     NoIPHeader,
     UnsupportedTransport(u32),
