@@ -50,12 +50,17 @@ use syn::token::Comma;
 use syn::{parse_macro_input, parse_quote, parse_str, Expr, ExprLit, File, ItemFn, Lit, Result};
 
 fn inline_string_literal(e: &Expr) -> (TokenStream2, TokenStream2) {
-    let mut bytes = match e {
+    let bytes = match e {
         Expr::Lit(ExprLit {
             lit: Lit::Str(s), ..
         }) => s.value().clone().into_bytes(),
         _ => panic!("expected string literal"),
     };
+
+    inline_bytes(bytes)
+}
+
+fn inline_bytes(mut bytes: Vec<u8>) -> (TokenStream2, TokenStream2) {
     bytes.push(0u8);
     let len = bytes.len();
     let bytes = bytes;
@@ -92,6 +97,7 @@ pub fn program(input: TokenStream) -> TokenStream {
     let version = args.next().expect("no version");
     let license = args.next().expect("no license");
     let (license_ty, license) = inline_string_literal(&license);
+    let (panic_ty, panic_msg) = inline_bytes(b"panic".to_vec());
     let mut tokens = quote! {
         #[no_mangle]
         #[link_section = "license"]
@@ -104,11 +110,10 @@ pub fn program(input: TokenStream) -> TokenStream {
         #[panic_handler]
         #[no_mangle]
         pub extern "C" fn rust_begin_panic(info: &::core::panic::PanicInfo) -> ! {
-            use ::redbpf_probes::helpers::{bpf_trace_printk, TraceMessage, ufmt};
+            use ::redbpf_probes::helpers::{bpf_trace_printk};
 
-            let mut msg = TraceMessage::new();
-            let _ = ufmt::uwrite!(&mut msg, "panic in {}\n\0", file!());
-            msg.printk();
+            let msg: #panic_ty = #panic_msg;
+            bpf_trace_printk(&msg);
 
             unsafe { core::hint::unreachable_unchecked() }
         }
