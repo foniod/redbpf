@@ -29,10 +29,7 @@ fn main() {
         let interface = Some(opts.interface);
         let mut loader = Loader::new()
             .xdp(interface.map(String::from), xdp::Flags::default())
-            .load_file(
-                &PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-                    .join("probes/target/release/bpf-programs/knock/knock.elf"),
-            )
+            .load(probe_code())
             .await
             .expect("error loading probe");
 
@@ -178,4 +175,11 @@ fn parse_opts() -> Option<Opts> {
 fn print_usage(program: &str, opts: Options) {
     let brief = format!("Usage: {} [options]", program);
     print!("{}", opts.usage(&brief));
+}
+
+fn probe_code() -> &'static [u8] {
+    include_bytes!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/probes/target/release/bpf-programs/knock/knock.elf"
+    ))
 }

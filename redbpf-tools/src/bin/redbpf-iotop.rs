@@ -23,10 +23,7 @@ fn main() {
     let mut runtime = Runtime::new().unwrap();
     let _ = runtime.block_on(async {
         let loader = Loader::new()
-            .load_file(
-                &PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-                    .join("probes/target/release/bpf-programs/iotop/iotop.elf"),
-            )
+            .load(probe_code())
             .await
             .expect("error loading probe");
         tokio::spawn(async move {
@@ -94,4 +91,11 @@ fn parse_diskstats() -> io::Result<HashMap<(i32, i32), String>> {
         );
     }
     Ok(disks)
+}
+
+fn probe_code() -> &'static [u8] {
+    include_bytes!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/probes/target/release/bpf-programs/iotop/iotop.elf"
+    ))
 }
