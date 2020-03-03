@@ -1,2 +1,3 @@
 [workspace]
 members = ["bpf-sys", "redbpf", "redbpf-probes", "redbpf-macros", "cargo-bpf"]
+exclude = ["redbpf-tools"]

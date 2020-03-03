@@ -1,6 +1,6 @@
 #![no_std]
 #![no_main]
-use probes::bindings::*;
+use probes::bindings::request;
 use probes::iotop::{Counter, CounterKey, Process};
 use redbpf_probes::kprobe::prelude::*;
 

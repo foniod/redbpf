@@ -4,12 +4,12 @@ version = "0.1.0"
 edition = '2018'
 
 [build-dependencies]
-cargo-bpf = { git = "https://github.com/redsift/redbpf" }
+cargo-bpf = { version = "^0.9.12", path = "../../cargo-bpf" }
 
 [dependencies]
 cty = "0.2"
-redbpf-macros = { git = "https://github.com/redsift/redbpf" }
-redbpf-probes = { git = "https://github.com/redsift/redbpf" }
+redbpf-macros = { version = "^0.9.12", path = "../../redbpf-macros" }
+redbpf-probes = { version = "^0.9.12", path = "../../redbpf-probes" }
 
 [features]
 default = []
