@@ -15,6 +15,7 @@ commands:
             rustup default nightly
             rustup target add x86_64-unknown-linux-musl
             rustup component add rustfmt
+
   setup_ubuntu_env:
     parameters:
       tag:
@@ -44,13 +45,17 @@ commands:
           name: Install more deps
           command: |
             apt-get update
-            apt-get install -y clang llvm-9 libelf-dev linux-headers-<< parameters.kernel_version >> ca-certificates{,-java}
+            apt-get install -y clang llvm-9 libelf-dev linux-headers-<< parameters.kernel_version >> ca-certificates{,-java} libssl-dev
 
       - install_rust
 
       - run:
           name: Set env vars
-          command: echo "export KERNEL_VERSION=<< parameters.kernel_version >>" >> $BASH_ENV
+          command: |
+            cargo install sccache
+            echo "export KERNEL_VERSION=<< parameters.kernel_version >>" >> $BASH_ENV
+            echo "export RUSTC_WRAPPER=/root/.cargo/bin/sccache" >> $BASH_ENV
+            echo "export SCCACHE_BUCKET=sccache" >> $BASH_ENV
 
 jobs:
   build_ubuntu:
