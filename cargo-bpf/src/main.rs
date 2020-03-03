@@ -12,8 +12,8 @@ Cargo subcommand for working with Rust eBPF programs.
 
 `cargo-bpf` is part of the [`redbpf`](https://github.com/redsift/redbpf)
 project. In addition to `cargo-bpf`, the `redbpf` project includes
-[`redbpf-probes`](https://redsift.github.io/rust/redbpf/doc/redbpf_probes/) and
-[`redbpf-macros`](https://redsift.github.io/rust/redbpf/doc/redbpf_macros/), which
+[`redbpf-probes`](https://ingraind.org/api/redbpf_probes/) and
+[`redbpf-macros`](https://ingraind.org/api/redbpf_macros/), which
 provide an idiomatic Rust API to write programs that can be compiled to eBPF
 bytecode and executed by the linux in-kernel eBPF virtual machine.
 

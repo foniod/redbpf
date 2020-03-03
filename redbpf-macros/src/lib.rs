@@ -12,13 +12,13 @@ crate.
 # Overview
 
 `redbpf-macros` is part of the `redbpf` project. Together with
-[`redbpf-probes`](https://redsift.github.io/rust/redbpf/doc/redbpf_probes/), it
+[`redbpf-probes`](https://ingraind.org/api/redbpf_probes/), it
 provides an idiomatic Rust API to write programs that can be compiled to eBPF
 bytecode and executed by the linux in-kernel eBPF virtual machine.
 
 To streamline the process of working with eBPF programs even further,
 `redbpf` also provides
-[`cargo-bpf`](https://redsift.github.io/rust/redbpf/doc/cargo_bpf/) - a cargo subcommand
+[`cargo-bpf`](https://ingraind.org/api/cargo_bpf/) - a cargo subcommand
 to simplify creating and building eBPF programs.
 
 # Example
@@ -142,7 +142,7 @@ pub fn impl_network_buffer_array(_: TokenStream) -> TokenStream {
 }
 
 /// Attribute macro that must be used when creating [eBPF
-/// maps](https://redsift.github.io/rust/redbpf/doc/redbpf_probes/maps/index.html).
+/// maps](https://ingraind.org/api/redbpf_probes/maps/index.html).
 ///
 /// # Example
 /// ```
@@ -247,7 +247,7 @@ pub fn kretprobe(attrs: TokenStream, item: TokenStream) -> TokenStream {
 /// Attribute macro that must be used to define [`XDP` probes](https://www.iovisor.org/technology/xdp).
 ///
 /// See also the [`XDP` API provided by
-/// `redbpf-probes`](https://redsift.github.io/rust/redbpf/doc/redbpf_probes/xdp/index.html).
+/// `redbpf-probes`](https://ingraind.org/api/redbpf_probes/xdp/index.html).
 ///
 /// # Example
 /// ```
@@ -284,7 +284,7 @@ pub fn xdp(attrs: TokenStream, item: TokenStream) -> TokenStream {
 /// probes.
 ///
 /// See also the [`socket filter` API provided by
-/// `redbpf-probes`](https://redsift.github.io/rust/redbpf/doc/redbpf_probes/socket_filter/index.html).
+/// `redbpf-probes`](https://ingraind.org/api/redbpf_probes/socket_filter/index.html).
 ///
 /// # Example
 /// ```

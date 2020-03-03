@@ -23,19 +23,19 @@ programs.
 
     [![Documentation](https://img.shields.io/badge/docs-latest-red.svg)](https://ingraind.org/api/redbpf_macros/)
 
-- `redbpf`, a user space library that can be used to parse and load eBPF
+- `redbpf` - a user space library that can be used to parse and load eBPF
 programs written using `redbpf-probes` and `redbpf-macros`.
 
     [![Documentation](https://img.shields.io/badge/docs-latest-red.svg)](https://ingraind.org/api/redbpf/)
 
-- `cargo-bpf`, a cargo subcommand for creating, developing and building eBPF
+- `cargo-bpf` - a cargo subcommand for creating, developing and building eBPF
 programs in Rust using the RedBPF APIs.
     
     [![Documentation](https://img.shields.io/badge/docs-latest-red.svg)](https://ingraind.org/api/cargo_bpf/)
 
 # Usage
 
-The easiest way to get started is to install `cargo-bpf`, see the [cargo bpf documentation](https://redsift.github.io/rust/redbpf/doc/cargo_bpf/) for more info. 
+The easiest way to get started is to install `cargo-bpf`, see the [cargo bpf documentation](https://ingraind.org/api/cargo_bpf/) for more info.
 
 To see how and what RedBPF can be used for, check out the [ingraind project](https://github.com/redsift/ingraind/tree/v1.0).
 

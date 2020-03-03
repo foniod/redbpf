@@ -10,7 +10,7 @@ Types and traits for working with networking data.
 
 The main trait exported by this module is `NetworkBuffer`. It's implemented
 by
-[`XdpContext`](https://redsift.github.io/rust/redbpf/doc/redbpf_probes/xdp/struct.XdpContext.html)
+[`XdpContext`](https://ingraind.org/api/redbpf_probes/xdp/struct.XdpContext.html)
 to provide access to the network data.
  */
 use crate::bindings::*;
