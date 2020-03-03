@@ -106,7 +106,7 @@ pub struct MapData<T> {
 impl<T> MapData<T> {
     /// Create a new `MapData` value that includes only `data` and no packet
     /// payload.
-    pub fn new(&self, data: T) -> Self {
+    pub fn new(data: T) -> Self {
         MapData::<T>::with_payload(data, 0, 0)
     }
 
