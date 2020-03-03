@@ -35,6 +35,8 @@ fn main() {
             )
             .await
             .expect("error loading probe");
+
+        // configure the knock sequence
         let mut sequence = PortSequence {
             ports: [0; MAX_SEQ_LEN],
             len: opts.knock.len(),
@@ -42,6 +44,7 @@ fn main() {
         };
         sequence.ports[..opts.knock.len()].copy_from_slice(&opts.knock);
 
+        // store the sequence in the `sequence` BPF map so the XDP program can retrieve it
         let seq_map = loader
             .module
             .maps
@@ -52,6 +55,7 @@ fn main() {
         seq_map.set(0u8, sequence);
 
         tokio::spawn(async move {
+            // process perf events sent by the XDP program
             while let Some((name, events)) = loader.events.next().await {
                 for event in events {
                     match name.as_str() {
