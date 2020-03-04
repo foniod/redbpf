@@ -5,11 +5,11 @@ authors = ["Alessandro Decina <alessandro.d@gmail.com>"]
 edition = "2018"
 
 [build-dependencies]
-cargo-bpf = { version = "^0.9.12", path = "../cargo-bpf" }
+cargo-bpf = { version = "^0.9.13", path = "../cargo-bpf" }
 
 [dependencies]
 probes = { path = "./probes" }
-redbpf = {  version = "^0.9.12", path = "../redbpf", features = ["build", "load"] }
+redbpf = {  version = "^0.9.13", path = "../redbpf", features = ["build", "load"] }
 tokio = { version = "0.2.4", features = ["rt-core", "io-driver", "macros", "signal", "time"] }
 futures = "0.3"
 getopts = "0.2"
