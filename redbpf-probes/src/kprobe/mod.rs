@@ -20,19 +20,15 @@ Do something when `execve` is called.
 #![no_std]
 #![no_main]
 use redbpf_probes::bindings::*;
-use redbpf_probes::kprobe::*;
+use redbpf_probes::kprobe::prelude::*;
 use redbpf_macros::{program, kprobe};
 
 program!(0xFFFFFFFE, "GPL");
 
 #[kprobe("__arm64_sys_execve")]
-pub extern "C" fn enter_execve(ctx: *mut c_void) -> i32 {
-    let regs = Registers::from(ctx);
-
+pub fn enter_execve(regs: Registers) {
     // do something here
     // ...
-
-    0
 }
 ```
  */

@@ -134,6 +134,7 @@ pub struct Module {
 /// ```rust
 /// use redbpf::Module;
 /// use redbpf::ProgramKind::*;
+/// use redbpf::xdp;
 ///
 /// let code = std::fs::read("bpf.elf").unwrap();
 /// let mut module = Module::parse(&code).unwrap();
@@ -142,7 +143,7 @@ pub struct Module {
 ///     .iter_mut()
 ///     .filter(|p| p.kind == XDP)
 /// {
-///     prog.attach_xdp("eth0").unwrap();
+///     prog.attach_xdp("eth0", xdp::Flags::Unset).unwrap();
 /// }
 /// ```
 pub struct Program {

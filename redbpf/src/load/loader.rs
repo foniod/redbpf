@@ -118,11 +118,11 @@ pub struct Loaded {
     /// # Example
     ///
     /// ```
+    /// 
     /// while let Some((map_name, events)) = loader.events.next().await {
     ///     for event in events {
     ///         println!("-- Event: {} --", map_name);
-    ///             hexdump(&event);
-    ///         }
+    ///         hexdump(&event);
     ///     }
     /// }
     /// ```

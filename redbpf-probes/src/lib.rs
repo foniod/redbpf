@@ -31,21 +31,19 @@ This is what `redbpf_probes` and `redbpf_macros` look like in action:
 ```
 #![no_std]
 #![no_main]
-use redbpf_probes::bindings::*;
-use redbpf_probes::xdp::{XdpAction, XdpContext};
-use redbpf_macros::{program, xdp};
+use redbpf_probes::xdp::prelude::*;
 
 program!(0xFFFFFFFE, "GPL");
 
 #[xdp]
-pub extern "C" fn block_port_80(ctx: XdpContext) -> XdpAction {
-    if let Some(transport) = ctx.transport() {
+pub fn block_port_80(ctx: XdpContext) -> XdpResult {
+    if let Ok(transport) = ctx.transport() {
         if transport.dest() == 80 {
-            return XdpAction::Drop;
+            return Ok(XdpAction::Drop);
         }
     }
 
-    XdpAction::Pass
+    Ok(XdpAction::Pass)
 }
 ```
 

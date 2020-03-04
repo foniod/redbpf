@@ -19,12 +19,13 @@ Block all traffic directed to port 80:
 ```
 #![no_std]
 #![no_main]
+use redbpf_probes::bindings::*;
 use redbpf_probes::xdp::prelude::*;
 
 program!(0xFFFFFFFE, "GPL");
 
 #[xdp]
-fn block_port_80(ctx: XdpContext) -> XdpResult<XdpAction> {
+fn block_port_80(ctx: XdpContext) -> XdpResult {
     let transport = ctx.transport()?;
     if transport.dest() == 80 {
         return Ok(XdpAction::Drop);

@@ -33,7 +33,9 @@ program!(0xFFFFFFFE, "GPL");
 
 #[xdp]
 fn example_xdp_probe(ctx: XdpContext) -> XdpResult {
-    ...
+
+    // do something here
+
     Ok(XdpAction::Pass)
 }
 ```
@@ -87,6 +89,10 @@ impl Parse for Args {
 /// #Example
 ///
 /// ```
+/// #![no_std]
+/// #![no_main]
+/// use redbpf_probes::xdp::prelude::*;
+///
 /// program!(0xFFFFFFFE, "GPL");
 /// ```
 ///
@@ -233,7 +239,6 @@ pub fn kprobe(attrs: TokenStream, item: TokenStream) -> TokenStream {
 /// #[kretprobe("__x64_sys_clone")]
 /// fn clone_exit(regs: Registers) {
 ///     // this is executed when clone() returns
-///     ...
 /// }
 /// ```
 #[proc_macro_attribute]
@@ -254,9 +259,11 @@ pub fn kretprobe(attrs: TokenStream, item: TokenStream) -> TokenStream {
 /// use redbpf_probes::xdp::prelude::*;
 ///
 /// #[xdp]
-/// fn example_xdp_probe(ctx: XdpContext) -> XdpAction {
-///     ...
-///     XdpAction::Pass
+/// fn example_xdp_probe(ctx: XdpContext) -> XdpResult {
+///
+///     // do something with the packet
+///
+///     Ok(XdpAction::Pass)
 /// }
 /// ```
 #[proc_macro_attribute]

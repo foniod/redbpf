@@ -21,6 +21,7 @@ In the following example, all TCP traffic is forwarded to userspace.
 use core::mem;
 use memoffset::offset_of;
 use redbpf_probes::socket_filter::prelude::*;
+use redbpf_probes::bindings::*;
 
 #[socket_filter]
 fn forward_tcp(skb: SkBuff) -> SkBuffResult {
@@ -99,16 +100,21 @@ impl SkBuff {
     /// ```
     /// use core::mem;
     /// use memoffset::offset_of;
+    /// use redbpf_probes::socket_filter::prelude::*;
+    /// use redbpf_probes::bindings::*;
     ///
-    /// let eth_len = mem::size_of::<ethhdr>();
-    /// let eth_proto: u16 = skb.load(offset_of!(ethhdr, h_proto))?;
-    /// let ip_proto: u8 = skb.load(eth_len + offset_of!(iphdr, protocol))?;
+    /// #[socket_filter]
+    /// fn forward_tcp(skb: SkBuff) -> SkBuffResult {
+    ///     let eth_len = mem::size_of::<ethhdr>();
+    ///     let eth_proto: u16 = skb.load(offset_of!(ethhdr, h_proto))?;
+    ///     let ip_proto: u8 = skb.load(eth_len + offset_of!(iphdr, protocol))?;
     ///
-    /// // only parse TCP
-    /// if !(eth_proto as u32 == ETH_P_IP && ip_proto as u32 == IPPROTO_TCP) {
-    ///     return Ok(SkBuffAction::Ignore);
+    ///     // only parse TCP
+    ///     if !(eth_proto as u32 == ETH_P_IP && ip_proto as u32 == IPPROTO_TCP) {
+    ///         return Ok(SkBuffAction::Ignore);
+    ///     }
+    ///     Ok(SkBuffAction::SendToUserspace)
     /// }
-    /// Ok(SkBuffAction::SendToUserspace)
     /// ```
     pub fn load<T: FromBe>(&self, offset: usize) -> Result<T, SkBuffError> {
         unsafe {

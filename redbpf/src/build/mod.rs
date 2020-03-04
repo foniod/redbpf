@@ -25,23 +25,30 @@
 //!
 //! ```rust
 //! use redbpf::build::{build, generate_bindings, cache::BuildCache, headers::kernel_headers};
+//! use std::{env, error::Error, path::PathBuf};
 //!
-//! fn main() -> Result<(), Error> {
+//! fn main() -> Result<(), Box<dyn Error>> {
 //!     let out_dir = PathBuf::from(env::var("OUT_DIR")?);
 //!     let kernel_headers = kernel_headers().expect("couldn't find kernel headers");
 //!     let mut bindgen_flags: Vec<String> = kernel_headers
 //!         .iter()
 //!         .map(|dir| format!("-I{}", dir))
 //!         .collect();
-//!     bindgen_flags.extend(redbpf::build::BUILD_FLAGS.iter().map(|f| f.to_string()));
+//!
+//!     bindgen_flags
+//!         .extend(redbpf::build::BUILD_FLAGS
+//!               .iter()
+//!               .map(|f| f.to_string()));
 //!
 //!     let mut cache = BuildCache::new(&out_dir);
 //!
 //!     for file in source_files("./bpf", "c")? {
 //!         if cache.file_changed(&file) {
-//!             build(&bindgen_flags[..], &out_dir, &file).expect("Failed building BPF plugin!");
+//!             build(&bindgen_flags[..], &out_dir, &file)
+//!                 .expect("Failed building BPF plugin!");
 //!         }
 //!     }
+//!
 //!     for file in source_files("./bpf", "h")? {
 //!         if cache.file_changed(&file) {
 //!             generate_bindings(&bindgen_flags[..], &out_dir, &file)
