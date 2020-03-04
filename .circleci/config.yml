@@ -122,12 +122,14 @@ workflows:
   build_publish:
     jobs:
       - build_ubuntu:
+          context: org-global
           name: "ubuntu 18.04"
           tag: "18.04"
           filters:
             tags:
               only: /.*/
       - build_ubuntu:
+          context: org-global
           name: "ubuntu 19.04"
           tag: "19.04"
           kernel_version: "5.0.0-38-generic"
