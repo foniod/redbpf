@@ -45,7 +45,7 @@ commands:
           name: Install more deps
           command: |
             apt-get update
-            apt-get install -y clang llvm-9 libelf-dev linux-headers-<< parameters.kernel_version >> ca-certificates{,-java} libssl-dev
+            apt-get install -y clang llvm-9 libelf-dev linux-headers-<< parameters.kernel_version >> ca-certificates{,-java} libssl-dev pkg-config s3cmd
 
       - install_rust
 
@@ -55,6 +55,8 @@ commands:
             cargo install sccache
             echo "export KERNEL_VERSION=<< parameters.kernel_version >>" >> $BASH_ENV
             echo "export RUSTC_WRAPPER=/root/.cargo/bin/sccache" >> $BASH_ENV
+
+            s3cmd mb sccache
             echo "export SCCACHE_BUCKET=sccache" >> $BASH_ENV
 
 jobs:
