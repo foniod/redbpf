@@ -30,6 +30,7 @@ commands:
           command: |
             apt-get update
             apt-get install -y curl wget gnupg2 software-properties-common lsb-release git
+            echo "export DEBIAN_FRONTEND=noninteractive" >> $BASH_ENV
 
       - checkout
       - run: git submodule sync
