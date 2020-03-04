@@ -88,7 +88,7 @@ Install the following dependencies:
 		linux-headers \
 		ca-certificates{,-java}
 
-# Fedora
+## Fedora
 
 	yum install -y clang-9.0.0 \
 		llvm-9.0.0 \
