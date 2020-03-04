@@ -57,8 +57,8 @@ commands:
             echo "export KERNEL_VERSION=<< parameters.kernel_version >>" >> $BASH_ENV
             echo "export RUSTC_WRAPPER=/root/.cargo/bin/sccache" >> $BASH_ENV
 
-            s3cmd mb sccache
-            echo "export SCCACHE_BUCKET=sccache" >> $BASH_ENV
+            s3cmd mb s3://ingrain-sccache
+            echo "export SCCACHE_BUCKET=ingrain-sccache" >> $BASH_ENV
 
 jobs:
   build_ubuntu:
