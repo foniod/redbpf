@@ -111,7 +111,7 @@ program!(0xFFFFFFFE, "GPL");
 // #[map("syscall_events")]
 // static mut syscall_events: PerfMap<SomeEvent> = PerfMap::with_max_entries(1024);
 //
-// #[kprobe("__x64_do_sys_open")]
+// #[kprobe("sys_open")]
 // fn syscall_enter(regs: Registers) {{
 //   let pid_tgid = bpf_get_current_pid_tgid();
 //   ...
