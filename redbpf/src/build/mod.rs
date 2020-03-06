@@ -23,9 +23,9 @@
 //!
 //! A full working example of the build process might look like this:
 //!
-//! ```rust
+//! ```no_run
 //! use redbpf::build::{build, generate_bindings, cache::BuildCache, headers::kernel_headers};
-//! use std::{env, error::Error, path::PathBuf};
+//! use std::{env, error::Error, path::{Path, PathBuf}};
 //!
 //! fn main() -> Result<(), Box<dyn Error>> {
 //!     let out_dir = PathBuf::from(env::var("OUT_DIR")?);
@@ -42,16 +42,16 @@
 //!
 //!     let mut cache = BuildCache::new(&out_dir);
 //!
-//!     for file in source_files("./bpf", "c")? {
-//!         if cache.file_changed(&file) {
-//!             build(&bindgen_flags[..], &out_dir, &file)
+//!     for file in &[Path::new("./bpf/tool1.c"), Path::new("./bpf/tool2.c")] {
+//!         if cache.file_changed(file) {
+//!             build(&bindgen_flags[..], &out_dir, file)
 //!                 .expect("Failed building BPF plugin!");
 //!         }
 //!     }
 //!
-//!     for file in source_files("./bpf", "h")? {
-//!         if cache.file_changed(&file) {
-//!             generate_bindings(&bindgen_flags[..], &out_dir, &file)
+//!     for file in &[Path::new("./bpf/tool1.h"), Path::new("./bpf/tool2.h")] {
+//!         if cache.file_changed(file) {
+//!             generate_bindings(&bindgen_flags[..], &out_dir, file)
 //!                 .expect("Failed generating data bindings!");
 //!         }
 //!     }

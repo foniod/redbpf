@@ -11,12 +11,12 @@ use futures::prelude::*;
 use std::ffi::CString;
 use std::fs;
 use std::io;
-use std::path::PathBuf;
+use std::path::Path;
 
 use crate::cpus;
-use crate::ProgramKind::*;
-use crate::{Error, Module, PerfMap, xdp};
 use crate::load::map_io::PerfMessageStream;
+use crate::ProgramKind::*;
+use crate::{xdp, Error, Module, PerfMap};
 
 #[derive(Debug)]
 pub enum LoaderError {
@@ -29,23 +29,20 @@ pub enum LoaderError {
 
 /// High level API to load bpf programs.
 pub struct Loader {
-    xdp: XdpConfig
+    xdp: XdpConfig,
 }
 
 impl Loader {
     /// Creates a new loader.
     pub fn new() -> Self {
         Loader {
-            xdp: XdpConfig::default()
+            xdp: XdpConfig::default(),
         }
     }
 
     /// Sets the network interface and flags for XDP programs.
     pub fn xdp(&mut self, interface: Option<String>, flags: xdp::Flags) -> &mut Self {
-        self.xdp = XdpConfig {
-            interface,
-            flags
-        };
+        self.xdp = XdpConfig { interface, flags };
         self
     }
 
@@ -96,14 +93,14 @@ impl Loader {
         Ok(Loaded {
             module,
             xdp: self.xdp.clone(),
-            events: receiver
+            events: receiver,
         })
     }
 
     /// Loads the BPF programs included in `file`.
     ///
     /// See `load()`.
-    pub async fn load_file(&self, file: &PathBuf) -> Result<Loaded, LoaderError> {
+    pub async fn load_file(&self, file: &Path) -> Result<Loaded, LoaderError> {
         self.load(&fs::read(file).map_err(|e| LoaderError::FileError(e))?)
             .await
     }
@@ -117,14 +114,18 @@ pub struct Loaded {
     ///
     /// # Example
     ///
-    /// ```
-    /// 
+    /// ```no_run
+    /// use std::path::Path;
+    /// use futures::stream::StreamExt;
+    /// use redbpf::load::Loader;
+    /// # async {
+    /// let mut loader = Loader::new().load_file(&Path::new("probe.elf")).await.unwrap();
     /// while let Some((map_name, events)) = loader.events.next().await {
     ///     for event in events {
-    ///         println!("-- Event: {} --", map_name);
-    ///         hexdump(&event);
+    ///         // ...
     ///     }
     /// }
+    /// # };
     /// ```
     pub events: mpsc::UnboundedReceiver<(String, <PerfMessageStream as Stream>::Item)>,
 }
@@ -141,14 +142,14 @@ impl Drop for Loaded {
 #[derive(Debug, Clone)]
 pub struct XdpConfig {
     interface: Option<String>,
-    flags: xdp::Flags
+    flags: xdp::Flags,
 }
 
 impl Default for XdpConfig {
     fn default() -> XdpConfig {
         XdpConfig {
             interface: None,
-            flags: xdp::Flags::default()
+            flags: xdp::Flags::default(),
         }
     }
 }

@@ -98,10 +98,11 @@ pub struct Module {
 
 /// You can load an eBPF module, and all the programs in it like so:
 ///
-/// ```rust
+/// ```no_run
 /// use redbpf::Module;
 ///
-/// let mut module = Module::parse(&vec![]).unwrap();
+/// let code = std::fs::read("bpf.elf").unwrap();
+/// let mut module = Module::parse(&code).unwrap();
 /// for prog in module.programs.iter_mut() {
 ///     prog.load(module.version, module.license.clone()).unwrap();
 /// }
@@ -112,7 +113,7 @@ pub struct Module {
 ///
 /// You can attach kprobes like very easily:
 ///
-/// ```rust
+/// ```no_run
 /// use redbpf::Module;
 /// use redbpf::ProgramKind::*;
 ///
@@ -131,7 +132,7 @@ pub struct Module {
 /// Note that in case of XDP, the driver needs to support XDP probes, so, for
 /// example, network bridges may not work out of the box.
 ///
-/// ```rust
+/// ```no_run
 /// use redbpf::Module;
 /// use redbpf::ProgramKind::*;
 /// use redbpf::xdp;
@@ -143,7 +144,7 @@ pub struct Module {
 ///     .iter_mut()
 ///     .filter(|p| p.kind == XDP)
 /// {
-///     prog.attach_xdp("eth0", xdp::Flags::Unset).unwrap();
+///     prog.attach_xdp("eth0", xdp::Flags::default()).unwrap();
 /// }
 /// ```
 pub struct Program {

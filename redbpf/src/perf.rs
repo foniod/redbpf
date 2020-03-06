@@ -13,7 +13,7 @@
 //! The resulting event contains a sample that is a raw pointer, and will
 //! require unsafe code to transform into a data structure.
 //!
-//! ```rust
+//! ```no_run
 //! use std::slice;
 //! use redbpf::{Map, Event, PerfMap};
 //!
