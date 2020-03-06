@@ -28,7 +28,7 @@ a cargo subcommand to simplify creating and building eBPF programs.
 
 This is what `redbpf_probes` and `redbpf_macros` look like in action:
 
-```
+```no_run
 #![no_std]
 #![no_main]
 use redbpf_probes::xdp::prelude::*;

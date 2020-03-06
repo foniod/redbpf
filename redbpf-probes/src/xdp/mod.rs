@@ -16,10 +16,9 @@ For an overview of XDP and how it works, see
 
 Block all traffic directed to port 80:
 
-```
+```no_run
 #![no_std]
 #![no_main]
-use redbpf_probes::bindings::*;
 use redbpf_probes::xdp::prelude::*;
 
 program!(0xFFFFFFFE, "GPL");

@@ -21,7 +21,6 @@ In the following example, all TCP traffic is forwarded to userspace.
 use core::mem;
 use memoffset::offset_of;
 use redbpf_probes::socket_filter::prelude::*;
-use redbpf_probes::bindings::*;
 
 #[socket_filter]
 fn forward_tcp(skb: SkBuff) -> SkBuffResult {
@@ -97,11 +96,10 @@ impl SkBuff {
     /// forward them to userspace or not.
     ///
     /// # Example
-    /// ```
+    /// ```no_run
     /// use core::mem;
     /// use memoffset::offset_of;
     /// use redbpf_probes::socket_filter::prelude::*;
-    /// use redbpf_probes::bindings::*;
     ///
     /// #[socket_filter]
     /// fn forward_tcp(skb: SkBuff) -> SkBuffResult {

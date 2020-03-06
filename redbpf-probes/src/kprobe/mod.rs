@@ -16,12 +16,10 @@ For an overview of KProbes and how they work, see
 
 Do something when `execve` is called.
 
-```
+```no_run
 #![no_std]
 #![no_main]
-use redbpf_probes::bindings::*;
 use redbpf_probes::kprobe::prelude::*;
-use redbpf_macros::{program, kprobe};
 
 program!(0xFFFFFFFE, "GPL");
 
