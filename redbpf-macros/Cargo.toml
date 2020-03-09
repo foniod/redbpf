@@ -16,3 +16,7 @@ proc-macro = true
 proc-macro2 = "1.0"
 syn = {version = "1.0", features = ["full"] }
 quote = "1.0"
+
+[dev-dependencies]
+# redbpf-probes is needed by doctests
+redbpf-probes = { version = "^0.9.12", path = "../redbpf-probes" }

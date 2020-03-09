@@ -23,7 +23,7 @@ to simplify creating and building eBPF programs.
 
 # Example
 
-```
+```no_run
 #![no_std]
 #![no_main]
 use redbpf_probes::xdp::prelude::*;
@@ -86,14 +86,14 @@ impl Parse for Args {
 /// and the license. The special version code `0xFFFFFFFE` can be used to signify
 /// any kernel version.
 ///
-/// #Example
+/// # Example
 ///
-/// ```
-/// #![no_std]
-/// #![no_main]
-/// use redbpf_probes::xdp::prelude::*;
-///
+/// ```no_run
+/// # #![no_std]
+/// # #![no_main]
+/// # use redbpf_macros::program;
 /// program!(0xFFFFFFFE, "GPL");
+/// # fn main() {}
 /// ```
 ///
 #[proc_macro]
@@ -151,9 +151,14 @@ pub fn impl_network_buffer_array(_: TokenStream) -> TokenStream {
 /// maps](https://ingraind.org/api/redbpf_probes/maps/index.html).
 ///
 /// # Example
-/// ```
+/// ```no_run
+/// # use redbpf_probes::kprobe::prelude::*;
 /// #[map("dns_queries")]
-/// static mut queries: PerfMap<Query> = PerfMap::new();
+/// static mut queries: PerfMap<Query> = PerfMap::with_max_entries(1024);
+///
+/// struct Query {
+/// // ...
+/// }
 /// ```
 #[proc_macro_attribute]
 pub fn map(attrs: TokenStream, item: TokenStream) -> TokenStream {
@@ -213,13 +218,12 @@ fn wrap_kprobe(item: ItemFn) -> ItemFn {
 /// Attribute macro that must be used to define [`kprobes`](https://www.kernel.org/doc/Documentation/kprobes.txt).
 ///
 /// # Example
-/// ```
+/// ```no_run
 /// use redbpf_probes::kprobe::prelude::*;
 ///
 /// #[kprobe("__x64_sys_clone")]
-/// fn clone_enter(registers: Registers) {
+/// fn clone_enter(regs: Registers) {
 ///     // this is executed when clone() is invoked
-///     ...
 /// }
 /// ```
 #[proc_macro_attribute]
@@ -233,7 +237,7 @@ pub fn kprobe(attrs: TokenStream, item: TokenStream) -> TokenStream {
 /// Attribute macro that must be used to define [`kretprobes`](https://www.kernel.org/doc/Documentation/kprobes.txt).
 ///
 /// # Example
-/// ```
+/// ```no_run
 /// use redbpf_probes::kprobe::prelude::*;
 ///
 /// #[kretprobe("__x64_sys_clone")]
@@ -255,12 +259,11 @@ pub fn kretprobe(attrs: TokenStream, item: TokenStream) -> TokenStream {
 /// `redbpf-probes`](https://ingraind.org/api/redbpf_probes/xdp/index.html).
 ///
 /// # Example
-/// ```
+/// ```no_run
 /// use redbpf_probes::xdp::prelude::*;
 ///
 /// #[xdp]
-/// fn example_xdp_probe(ctx: XdpContext) -> XdpResult {
-///
+/// fn probe(ctx: XdpContext) -> XdpResult {
 ///     // do something with the packet
 ///
 ///     Ok(XdpAction::Pass)
@@ -294,12 +297,11 @@ pub fn xdp(attrs: TokenStream, item: TokenStream) -> TokenStream {
 /// `redbpf-probes`](https://ingraind.org/api/redbpf_probes/socket_filter/index.html).
 ///
 /// # Example
-/// ```
+/// ```no_run
 /// use redbpf_probes::socket_filter::prelude::*;
 ///
 /// #[socket_filter]
-/// fn example_socket_filter(skb: SkBuff) -> SkBuffResult {
-///     ...
+/// fn probe(skb: SkBuff) -> SkBuffResult {
 ///     Ok(SkBuffAction::SendToUserspace)
 /// }
 /// ```
