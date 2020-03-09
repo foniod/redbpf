@@ -1,62 +1,12 @@
-image: &default_image quay.io/redsift/ingraind-build:latest
+image: &default_image quay.io/redsift/ingraind-build:19.10
 
 version: 2.1
 commands:
-  install_rust:
-    steps:
-      - run:
-          name: Install rust
-          command: |
-            curl --proto '=https' --tlsv1.2 -sSf -o rustup.sh https://sh.rustup.rs
-            chmod 755 rustup.sh
-            ./rustup.sh -y
-            . /root/.cargo/env
-            cat /root/.cargo/env >> $BASH_ENV
-            rustup default nightly
-            rustup target add x86_64-unknown-linux-musl
-            rustup component add rustfmt
-
   setup_ubuntu_env:
-    parameters:
-      tag:
-        type: string
-        default: "latest"
-      kernel_version:
-        type: string
-        default: "$(uname -r)"
     steps:
-      - run:
-          name: Install some deps
-          command: |
-            apt-get update
-            apt-get install -y curl wget gnupg2 software-properties-common lsb-release git
-            echo "export DEBIAN_FRONTEND=noninteractive" >> $BASH_ENV
-
       - checkout
       - run: git submodule sync
       - run: git submodule update --init
-
-      - run:
-          name: Configure llvm 9 repo
-          command: |
-            curl https://apt.llvm.org/llvm-snapshot.gpg.key | apt-key add -
-            add-apt-repository 'deb http://apt.llvm.org/bionic/   llvm-toolchain-bionic-9  main'
-
-      - run:
-          name: Install more deps
-          command: |
-            apt-get update
-            apt-get install -y clang llvm-9 libelf-dev linux-headers-<< parameters.kernel_version >> ca-certificates{,-java} libssl-dev pkg-config s3cmd
-
-      - install_rust
-
-      - run:
-          name: Set env vars
-          command: |
-            cargo install sccache
-            echo "export KERNEL_VERSION=<< parameters.kernel_version >>" >> $BASH_ENV
-            echo "export RUSTC_WRAPPER=/root/.cargo/bin/sccache" >> $BASH_ENV
-            echo "export SCCACHE_BUCKET=ingrain-sccache" >> $BASH_ENV
 
 jobs:
   build_ubuntu:
@@ -64,16 +14,11 @@ jobs:
       tag:
         type: string
         default: "latest"
-      kernel_version:
-        type: string
-        default: "$(uname -r)"
     working_directory: /build
     docker:
-      - image: ubuntu:<< parameters.tag >>
+      - image: quay.io/redsift/ingraind-build:<< parameters.tag >>
     steps:
-      - setup_ubuntu_env:
-          tag: << parameters.tag >>
-          kernel_version: << parameters.kernel_version >>
+      - setup_ubuntu_env
       - run:
           name: Build
           command: |
@@ -86,9 +31,7 @@ jobs:
     docker:
       - image: *default_image
     steps:
-      - checkout
-      - run: git submodule sync
-      - run: git submodule update --init
+      - setup_ubuntu_env
       - run:
           name: Publish package
           command: |
@@ -128,9 +71,8 @@ workflows:
               only: /.*/
       - build_ubuntu:
           context: org-global
-          name: "ubuntu 19.04"
-          tag: "19.04"
-          kernel_version: "5.0.0-38-generic"
+          name: "ubuntu 19.10"
+          tag: "19.10"
           filters:
             tags:
               only: /.*/
@@ -138,7 +80,7 @@ workflows:
           context: org-global
           requires:
             - "ubuntu 18.04"
-            - "ubuntu 19.04"
+            - "ubuntu 19.10"
           filters:
             tags:
               only: /^v.*/
