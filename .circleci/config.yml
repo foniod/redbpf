@@ -76,9 +76,6 @@ jobs:
             RUSTDOCFLAGS="-C panic=abort" cargo test --doc --workspace src
             cargo doc --no-deps
 
-            cd redbpf-tools
-            cargo build
-
   publish:
     docker:
       - image: *default_image
