@@ -13,8 +13,3 @@ redbpf = {  version = "^0.9.12", path = "../redbpf", features = ["build", "load"
 tokio = { version = "0.2.4", features = ["rt-core", "io-driver", "macros", "signal", "time"] }
 futures = "0.3"
 getopts = "0.2"
-
-[[bin]]
-name = "knock"
-path = "src/knock/main.rs"
-required-features = ["probes"]
