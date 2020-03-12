@@ -9,8 +9,11 @@ mod accessors;
 pub mod bindgen;
 mod build;
 mod llvm;
+#[cfg(feature = "command-line")]
 mod load;
+#[cfg(feature = "command-line")]
 mod new;
+#[cfg(feature = "command-line")]
 mod new_program;
 
 pub struct CommandError(pub String);
@@ -22,6 +25,9 @@ impl std::convert::From<std::io::Error> for CommandError {
 }
 
 pub use build::*;
+#[cfg(feature = "command-line")]
 pub use load::load;
+#[cfg(feature = "command-line")]
 pub use new::new;
+#[cfg(feature = "command-line")]
 pub use new_program::new_program;

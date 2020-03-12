@@ -30,7 +30,6 @@ impl<'ast> Visit<'ast> for CollectItems {
             .insert(node.ident.clone(), Item::Union(node.clone()));
     }
 }
-#[derive(Debug)]
 struct Accessor {
     prefix: Vec<String>,
     field: Field,
