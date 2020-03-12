@@ -68,18 +68,18 @@ impl From<Error> for CommandError {
     }
 }
 
-pub fn build_probe(cargo: &Path, package: &Path, out_dir: &Path, probe: &str) -> Result<(), Error> {
+fn build_probe(cargo: &Path, package: &Path, target_dir: &Path, probe: &str) -> Result<(), Error> {
     let llc_args = ["-march=bpf", "-filetype=obj", "-o"];
-    let elf_target = out_dir.join(format!("{}.elf", probe));
-
-    let current_dir = env::current_dir().unwrap();
-    let out_dir = current_dir.join(out_dir);
-    let _ = fs::remove_dir_all(&out_dir); // ignore error
-    fs::create_dir_all(&out_dir)?;
+    let target_dir = target_dir.join("bpf");
+    let artifacts_dir = target_dir.join("programs").join(probe);
+    let _ = fs::remove_dir_all(&artifacts_dir);
+    fs::create_dir_all(&artifacts_dir)?;
 
     if !Command::new(cargo)
         .current_dir(package)
         .args("rustc --release --features=probes".split(" "))
+        .arg("--target-dir")
+        .arg(target_dir.to_str().unwrap())
         .arg("--bin")
         .arg(probe)
         .arg("--")
@@ -87,14 +87,15 @@ pub fn build_probe(cargo: &Path, package: &Path, out_dir: &Path, probe: &str) ->
             "--emit=llvm-bc -C panic=abort -C lto -C link-arg=-nostartfiles -C opt-level=3"
                 .split(" "),
         )
-        .args(format!("-o {}/{}", out_dir.to_str().unwrap(), probe).split(" "))
+        .arg("-o")
+        .arg(artifacts_dir.join(probe).to_str().unwrap())
         .status()?
         .success()
     {
         return Err(Error::Compile(probe.to_string(), None));
     }
 
-    let mut bc_files: Vec<PathBuf> = fs::read_dir(out_dir)?
+    let mut bc_files: Vec<PathBuf> = fs::read_dir(artifacts_dir.clone())?
         .filter(|e| {
             e.as_ref()
                 .unwrap()
@@ -145,6 +146,7 @@ pub fn build_probe(cargo: &Path, package: &Path, out_dir: &Path, probe: &str) ->
     }
     println!("IR optimised: {:?}", opt_bc_file);
 
+    let elf_target = artifacts_dir.join(format!("{}.elf", probe));
     let llc = get_llc_executable()?;
     if !Command::new(llc)
         .args(&llc_args)
@@ -162,7 +164,7 @@ pub fn build_probe(cargo: &Path, package: &Path, out_dir: &Path, probe: &str) ->
 pub fn build(
     cargo: &Path,
     package: &Path,
-    out_dir: &Path,
+    target_dir: &Path,
     mut probes: Vec<String>,
 ) -> Result<(), Error> {
     let path = package.join("Cargo.toml");
@@ -176,7 +178,7 @@ pub fn build(
     };
 
     for probe in probes {
-        build_probe(cargo, package, &out_dir.join(probe.clone()), &probe)?;
+        build_probe(cargo, package, &target_dir, &probe)?;
     }
 
     Ok(())
@@ -184,9 +186,12 @@ pub fn build(
 
 pub fn cmd_build(programs: Vec<String>) -> Result<(), CommandError> {
     let current_dir = std::env::current_dir().unwrap();
-    // FIXME: parse --target-dir etc
-    let out_dir = PathBuf::from("target/release/bpf-programs");
-    let ret = build(Path::new("cargo"), &current_dir, &out_dir, programs)?;
+    let ret = build(
+        Path::new("cargo"),
+        &current_dir,
+        &current_dir.join("target"),
+        programs,
+    )?;
     Ok(ret)
 }
 
