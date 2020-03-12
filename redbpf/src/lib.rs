@@ -49,9 +49,6 @@
 #[cfg(feature = "build")]
 #[macro_use]
 extern crate lazy_static;
-#[cfg(feature = "build")]
-#[macro_use]
-extern crate serde_derive;
 
 #[cfg(feature = "build")]
 pub mod build;

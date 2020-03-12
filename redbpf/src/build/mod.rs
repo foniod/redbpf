@@ -24,7 +24,7 @@
 //! A full working example of the build process might look like this:
 //!
 //! ```no_run
-//! use redbpf::build::{build, generate_bindings, cache::BuildCache, headers::kernel_headers};
+//! use redbpf::build::{build, generate_bindings, headers::kernel_headers};
 //! use std::{env, error::Error, path::{Path, PathBuf}};
 //!
 //! fn main() -> Result<(), Box<dyn Error>> {
@@ -40,23 +40,16 @@
 //!               .iter()
 //!               .map(|f| f.to_string()));
 //!
-//!     let mut cache = BuildCache::new(&out_dir);
-//!
 //!     for file in &[Path::new("./bpf/tool1.c"), Path::new("./bpf/tool2.c")] {
-//!         if cache.file_changed(file) {
-//!             build(&bindgen_flags[..], &out_dir, file)
-//!                 .expect("Failed building BPF plugin!");
-//!         }
+//!         build(&bindgen_flags[..], &out_dir, file)
+//!             .expect("Failed building BPF plugin!");
 //!     }
 //!
 //!     for file in &[Path::new("./bpf/tool1.h"), Path::new("./bpf/tool2.h")] {
-//!         if cache.file_changed(file) {
-//!             generate_bindings(&bindgen_flags[..], &out_dir, file)
-//!                 .expect("Failed generating data bindings!");
-//!         }
+//!         generate_bindings(&bindgen_flags[..], &out_dir, file)
+//!             .expect("Failed generating data bindings!");
 //!     }
 //!
-//!     cache.save();
 //!     Ok(())
 //! }
 //!
@@ -69,7 +62,9 @@ use std::fs::File;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+#[cfg(feature = "build_cache")]
 pub mod cache;
+
 pub mod headers;
 
 #[cfg(target_arch = "x86_64")]
