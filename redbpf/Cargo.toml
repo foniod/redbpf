@@ -16,7 +16,7 @@ maintenance = { status = "actively-developed" }
 
 [dependencies]
 bpf-sys = { path = "../bpf-sys", version = "^0.9.13" }
-goblin = "^0.0.20"
+goblin = "0.2"
 zero = "0.1"
 libc = "0.2"
 bindgen = "0.51"
