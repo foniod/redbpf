@@ -9,7 +9,6 @@ use getopts::Options;
 use redbpf::{load::Loader, xdp, HashMap};
 use std::env;
 use std::net::Ipv4Addr;
-use std::path::PathBuf;
 use std::process;
 use std::ptr;
 use tokio;
@@ -179,7 +178,7 @@ fn print_usage(program: &str, opts: Options) {
 
 fn probe_code() -> &'static [u8] {
     include_bytes!(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/probes/target/release/bpf-programs/knock/knock.elf"
+        env!("OUT_DIR"),
+        "/target/bpf/programs/knock/knock.elf"
     ))
 }

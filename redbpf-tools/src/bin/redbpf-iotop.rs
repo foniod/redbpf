@@ -10,7 +10,6 @@ use std::ffi::CStr;
 use std::fs::File;
 use std::io::{self, BufRead, BufReader};
 use std::os::raw::c_char;
-use std::path::PathBuf;
 use std::time::Duration;
 use tokio;
 use tokio::runtime::Runtime;
@@ -95,7 +94,7 @@ fn parse_diskstats() -> io::Result<HashMap<(i32, i32), String>> {
 
 fn probe_code() -> &'static [u8] {
     include_bytes!(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/probes/target/release/bpf-programs/iotop/iotop.elf"
+        env!("OUT_DIR"),
+        "/target/bpf/programs/iotop/iotop.elf"
     ))
 }
