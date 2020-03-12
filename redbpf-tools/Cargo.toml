@@ -5,7 +5,7 @@ authors = ["Alessandro Decina <alessandro.d@gmail.com>"]
 edition = "2018"
 
 [build-dependencies]
-cargo-bpf = { version = "^0.9.13", path = "../cargo-bpf" }
+cargo-bpf = { version = "^0.9.13", path = "../cargo-bpf", default-features = false, features = ["build"] }
 
 [dependencies]
 probes = { path = "./probes" }

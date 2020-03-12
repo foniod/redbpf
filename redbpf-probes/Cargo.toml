@@ -15,7 +15,7 @@ redbpf-macros = { version = "^0.9.13", path = "../redbpf-macros" }
 ufmt = { version = "0.1.0", default-features = false }
 
 [build-dependencies]
-cargo-bpf = { version = "^0.9.13", path = "../cargo-bpf" }
+cargo-bpf = { version = "^0.9.13", path = "../cargo-bpf", default-features = false, features = ["build"] }
 syn = {version = "1.0", default-features = false, features = ["parsing", "visit"] }
 quote = "1.0"
 
