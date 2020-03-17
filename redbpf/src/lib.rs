@@ -45,6 +45,7 @@
 //! loading it is replaced with the currently running kernel's internal version,
 //! as returned by `uname()`.
 #![deny(clippy::all)]
+#![allow(non_upper_case_globals)]
 
 #[cfg(feature = "build")]
 #[macro_use]
@@ -61,11 +62,15 @@ pub mod sys;
 pub mod xdp;
 pub use bpf_sys::uname;
 
-use bpf_sys::{bpf_insn, bpf_map_def};
+use bpf_sys::{
+    bpf_insn, bpf_map_def, bpf_probe_attach_type, bpf_probe_attach_type_BPF_PROBE_ENTRY,
+    bpf_probe_attach_type_BPF_PROBE_RETURN, bpf_prog_type,
+};
 use goblin::elf::{reloc::RelocSection, section_header as hdr, Elf, SectionHeader, Sym};
 
 use std::collections::HashMap as RSHashMap;
 use std::ffi::CString;
+use std::fs;
 use std::io;
 use std::marker::PhantomData;
 use std::mem;
@@ -92,74 +97,39 @@ pub struct Module {
     pub license: String,
     pub version: u32,
 }
-
-/// You can load an eBPF module, and all the programs in it like so:
-///
-/// ```no_run
-/// use redbpf::Module;
-///
-/// let code = std::fs::read("bpf.elf").unwrap();
-/// let mut module = Module::parse(&code).unwrap();
-/// for prog in module.programs.iter_mut() {
-///     prog.load(module.version, module.license.clone()).unwrap();
-/// }
-/// ```
-///
-/// Note that during the parsing the ELF file all BPF maps are automatically
-/// initialised.
-///
-/// You can attach kprobes like very easily:
-///
-/// ```no_run
-/// use redbpf::Module;
-/// use redbpf::ProgramKind::*;
-///
-/// let code = std::fs::read("bpf.elf").unwrap();
-/// let mut module = Module::parse(&code).unwrap();
-/// for prog in module
-///     .programs
-///     .iter_mut()
-///     .filter(|p| p.kind == Kprobe || p.kind == Kretprobe)
-/// {
-///     prog.attach_probe().unwrap();
-/// }
-/// ```
-///
-/// XDP and socket filters additionally require an interface to attach to.
-/// Note that in case of XDP, the driver needs to support XDP probes, so, for
-/// example, network bridges may not work out of the box.
-///
-/// ```no_run
-/// use redbpf::Module;
-/// use redbpf::ProgramKind::*;
-/// use redbpf::xdp;
-///
-/// let code = std::fs::read("bpf.elf").unwrap();
-/// let mut module = Module::parse(&code).unwrap();
-/// for prog in module
-///     .programs
-///     .iter_mut()
-///     .filter(|p| p.kind == XDP)
-/// {
-///     prog.attach_xdp("eth0", xdp::Flags::default()).unwrap();
-/// }
-/// ```
-pub struct Program {
-    pfd: Option<RawFd>,
-    fd: Option<RawFd>,
-    pub kind: ProgramKind,
-    pub name: String,
-    code: Vec<bpf_insn>,
-    code_bytes: i32,
+/// A BPF program defined in a [Module](struct.Module.html).
+pub enum Program {
+    KProbe(KProbe),
+    KRetProbe(KProbe),
+    SocketFilter(SocketFilter),
+    TracePoint(TracePoint),
+    XDP(XDP),
 }
 
-#[derive(Debug, PartialEq, Eq)]
-pub enum ProgramKind {
-    Kprobe,
-    Kretprobe,
-    XDP,
-    SocketFilter,
-    Tracepoint,
+struct ProgramData {
+    pub name: String,
+    code: Vec<bpf_insn>,
+    fd: Option<RawFd>,
+}
+
+/// Type to work with `kprobes` or `kretprobes`.
+pub struct KProbe {
+    common: ProgramData,
+    attach_type: bpf_probe_attach_type,
+}
+
+/// Type to work with `socket filters`.
+pub struct SocketFilter {
+    common: ProgramData,
+}
+
+pub struct TracePoint {
+    common: ProgramData,
+}
+/// Type to work with `XDP` programs.
+pub struct XDP {
+    common: ProgramData,
+    interface: Option<String>,
 }
 
 pub struct Map {
@@ -183,79 +153,105 @@ pub struct Rel {
     sym: usize,
 }
 
-impl ProgramKind {
-    pub fn to_prog_type(&self) -> bpf_sys::bpf_prog_type {
-        use crate::ProgramKind::*;
-        match self {
-            Kprobe | Kretprobe => bpf_sys::bpf_prog_type_BPF_PROG_TYPE_KPROBE,
-            XDP => bpf_sys::bpf_prog_type_BPF_PROG_TYPE_XDP,
-            SocketFilter => bpf_sys::bpf_prog_type_BPF_PROG_TYPE_SOCKET_FILTER,
-            Tracepoint => bpf_sys::bpf_prog_type_BPF_PROG_TYPE_TRACEPOINT,
-        }
-    }
-
-    pub fn to_attach_type(&self) -> bpf_sys::bpf_probe_attach_type {
-        use crate::ProgramKind::*;
-        match self {
-            Kprobe => bpf_sys::bpf_probe_attach_type_BPF_PROBE_ENTRY,
-            Kretprobe => bpf_sys::bpf_probe_attach_type_BPF_PROBE_RETURN,
-            a @ Tracepoint => panic!("Program type cannot be used with attach(): {:?}", a),
-            a @ SocketFilter => panic!("Program type cannot be used with attach(): {:?}", a),
-            a @ XDP => panic!("Program type cannot be used with attach(): {:?}", a),
-        }
-    }
-
-    pub fn from_section(section: &str) -> Result<ProgramKind> {
-        use crate::ProgramKind::*;
-        match section {
-            "kretprobe" => Ok(Kretprobe),
-            "kprobe" => Ok(Kprobe),
-            "xdp" => Ok(XDP),
-            "socketfilter" => Ok(SocketFilter),
-            "tracepoint" => Ok(Tracepoint),
-            sec => Err(Error::Section(sec.to_string())),
-        }
-    }
-}
-
 impl Program {
-    pub fn new(kind: &str, name: &str, code: &[u8]) -> Result<Program> {
-        let code_bytes = code.len() as i32;
+    fn new(kind: &str, name: &str, code: &[u8]) -> Result<Program> {
         let code = zero::read_array(code).to_vec();
         let name = name.to_string();
-        let kind = ProgramKind::from_section(kind)?;
 
-        Ok(Program {
-            pfd: None,
-            fd: None,
-            kind,
+        let common = ProgramData {
             name,
             code,
-            code_bytes,
+            fd: None,
+        };
+
+        Ok(match kind {
+            "kprobe" => Program::KProbe(KProbe {
+                common,
+                attach_type: bpf_probe_attach_type_BPF_PROBE_ENTRY,
+            }),
+            "kretprobe" => Program::KProbe(KProbe {
+                common,
+                attach_type: bpf_probe_attach_type_BPF_PROBE_RETURN,
+            }),
+            "tracepoint" => Program::TracePoint(TracePoint { common }),
+            "socketfilter" => Program::SocketFilter(SocketFilter { common }),
+            "xdp" => Program::XDP(XDP {
+                common,
+                interface: None,
+            }),
+            _ => return Err(Error::Section(kind.to_string())),
         })
     }
 
-    pub fn is_loaded(&self) -> bool {
-        self.fd.is_some()
+    fn to_prog_type(&self) -> bpf_prog_type {
+        use Program::*;
+
+        match self {
+            KProbe(_) | KRetProbe(_) => {
+                bpf_sys::bpf_prog_type_BPF_PROG_TYPE_KPROBE
+            }
+            XDP(_) => bpf_sys::bpf_prog_type_BPF_PROG_TYPE_XDP,
+            SocketFilter(_) => bpf_sys::bpf_prog_type_BPF_PROG_TYPE_SOCKET_FILTER,
+            TracePoint(_) => bpf_sys::bpf_prog_type_BPF_PROG_TYPE_TRACEPOINT,
+        }
     }
 
-    pub fn is_attached(&self) -> bool {
-        self.pfd.is_some()
+    fn data(&self) -> &ProgramData {
+        use Program::*;
+
+        match self {
+            KProbe(p) | KRetProbe(p)  => &p.common,
+            XDP(p) => &p.common,
+            SocketFilter(p) => &p.common,
+            TracePoint(p) => &p.common,
+        }
     }
 
-    pub fn load(&mut self, kernel_version: u32, license: String) -> Result<RawFd> {
+    fn data_mut(&mut self) -> &mut ProgramData {
+        use Program::*;
+
+        match self {
+            KProbe(p) | KRetProbe(p) => &mut p.common,
+            XDP(p) => &mut p.common,
+            SocketFilter(p) => &mut p.common,
+            TracePoint(p) => &mut p.common,
+        }
+    }
+
+    pub fn name(&self) -> &str {
+        &self.data().name
+    }
+
+    /// Load the BPF program.
+    ///
+    /// BPF programs need to be loaded before they can be attached. Loading will fail if the BPF verifier rejects the code.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use redbpf::Module;
+    /// let mut module = Module::parse(&std::fs::read("file.elf").unwrap()).unwrap();
+    /// for program in module.programs.iter_mut() {
+    ///     program
+    ///         .load(module.version, module.license.clone()).unwrap()
+    /// }
+    /// ```
+    pub fn load(&mut self, kernel_version: u32, license: String) -> Result<()> {
+        if let Some(_) = self.data().fd {
+            return Err(Error::ProgramAlreadyLoaded);
+        }
         let clicense = CString::new(license)?;
-        let cname = CString::new(self.name.clone())?;
+        let cname = CString::new(self.data_mut().name.clone())?;
         let log_buffer: MutDataPtr =
             unsafe { libc::malloc(mem::size_of::<i8>() * 16 * 65535) as MutDataPtr };
         let buf_size = 64 * 65535 as u32;
 
         let fd = unsafe {
             bpf_sys::bcc_prog_load(
-                self.kind.to_prog_type(),
+                self.to_prog_type(),
                 cname.as_ptr() as DataPtr,
-                self.code.as_ptr(),
-                self.code_bytes,
+                self.data_mut().code.as_ptr(),
+                (self.data_mut().code.len() * mem::size_of::<bpf_insn>()) as i32,
                 clicense.as_ptr() as DataPtr,
                 kernel_version as u32,
                 0 as i32,
@@ -267,25 +263,38 @@ impl Program {
         if fd < 0 {
             Err(Error::BPF)
         } else {
-            self.fd = Some(fd);
-            Ok(fd)
+            self.data_mut().fd = Some(fd);
+            Ok(())
         }
     }
+}
 
-    pub fn attach_probe(&mut self) -> Result<RawFd> {
-        self.attach_probe_to_name(&self.name.clone())
-    }
-
-    pub fn attach_probe_to_name(&mut self, name: &str) -> Result<RawFd> {
-        let ev_name = CString::new(format!("{}{}", name, self.kind.to_attach_type())).unwrap();
-        let cname = CString::new(name).unwrap();
+impl KProbe {
+    /// Attach the `kprobe` or `kretprobe`.
+    ///
+    /// Attach the probe to the function `fn_name` inside the kernel. If `offset`
+    /// is given, the probe will be attached at that byte offset inside the
+    /// function.
+    ///
+    /// # Example
+    /// ```no_run
+    /// use redbpf::Module;
+    /// let mut module = Module::parse(&std::fs::read("file.elf").unwrap()).unwrap();
+    /// for kprobe in module.kprobes_mut() {
+    ///     kprobe.attach_kprobe(&kprobe.name(), 0).unwrap();
+    /// }
+    /// ```
+    pub fn attach_kprobe(&mut self, fn_name: &str, offset: u64) -> Result<()> {
+        let fd = self.common.fd.ok_or(Error::ProgramNotLoaded)?;
+        let ev_name = CString::new(format!("{}{}", fn_name, self.attach_type)).unwrap();
+        let cname = CString::new(fn_name).unwrap();
         let pfd = unsafe {
             bpf_sys::bpf_attach_kprobe(
-                self.fd.unwrap(),
-                self.kind.to_attach_type(),
+                fd,
+                self.attach_type,
                 ev_name.as_ptr(),
                 cname.as_ptr(),
-                0,
+                offset,
                 0,
             )
         };
@@ -293,17 +302,23 @@ impl Program {
         if pfd < 0 {
             Err(Error::BPF)
         } else {
-            self.pfd = Some(pfd);
-            Ok(pfd)
+            Ok(())
         }
     }
 
-    pub fn attach_tracepoint(&mut self, category: &str, name: &str) -> Result<RawFd> {
+    pub fn name(&self) -> String {
+        self.common.name.to_string()
+    }
+}
+
+impl TracePoint {
+    pub fn attach_trace_point(&mut self, category: &str, name: &str) -> Result<()> {
+        let fd = self.common.fd.ok_or(Error::ProgramNotLoaded)?;
         let category = CString::new(category)?;
         let name = CString::new(name)?;
         let res = unsafe {
             bpf_sys::bpf_attach_tracepoint(
-                self.fd.unwrap(),
+                fd,
                 category.as_c_str().as_ptr(),
                 name.as_c_str().as_ptr(),
             )
@@ -312,14 +327,29 @@ impl Program {
         if res < 0 {
             Err(Error::BPF)
         } else {
-            Ok(res)
+            Ok(())
         }
     }
+}
 
-    pub fn attach_xdp(&mut self, iface: &str, flags: xdp::Flags) -> Result<()> {
-        let ciface = CString::new(iface).unwrap();
-        let res =
-            unsafe { bpf_sys::bpf_attach_xdp(ciface.as_ptr(), self.fd.unwrap(), flags as u32) };
+impl XDP {
+    /// Attach the XDP program.
+    ///
+    /// Attach the XDP program to the given network interface.
+    ///
+    /// # Example
+    /// ```no_run
+    /// # use redbpf::{Module, xdp};
+    /// # let mut module = Module::parse(&std::fs::read("file.elf").unwrap()).unwrap();
+    /// # for uprobe in module.xdps_mut() {
+    /// uprobe.attach_xdp("eth0", xdp::Flags::default()).unwrap();
+    /// # }
+    /// ```
+    pub fn attach_xdp(&mut self, interface: &str, flags: xdp::Flags) -> Result<()> {
+        let fd = self.common.fd.ok_or(Error::ProgramNotLoaded)?;
+        self.interface = Some(interface.to_string());
+        let ciface = CString::new(interface).unwrap();
+        let res = unsafe { bpf_sys::bpf_attach_xdp(ciface.as_ptr(), fd, flags as u32) };
 
         if res < 0 {
             Err(Error::BPF)
@@ -327,22 +357,47 @@ impl Program {
             Ok(())
         }
     }
+}
 
-    pub fn attach_socketfilter(&mut self, iface: &str) -> Result<RawFd> {
-        let ciface = CString::new(iface).unwrap();
+impl Drop for XDP {
+    fn drop(&mut self) {
+        if let Some(interface) = &self.interface {
+            let ciface = CString::new(interface.as_bytes()).unwrap();
+            let _ = unsafe { bpf_sys::bpf_attach_xdp(ciface.as_ptr(), -1, 0) };
+        }
+    }
+}
+
+impl SocketFilter {
+    /// Attach the socket filter program.
+    ///
+    /// Attach the socket filter program to the given network interface.
+    ///
+    /// # Example
+    /// ```no_run
+    /// use redbpf::Module;
+    /// let mut module = Module::parse(&std::fs::read("file.elf").unwrap()).unwrap();
+    /// for sf in module.socket_filters_mut() {
+    ///     sf.attach_socket_filter("eth0").unwrap();
+    /// }
+    /// ```
+    pub fn attach_socket_filter(&mut self, interface: &str) -> Result<RawFd> {
+        let fd = self.common.fd.ok_or(Error::ProgramNotLoaded)?;
+        let ciface = CString::new(interface).unwrap();
         let sfd = unsafe { bpf_sys::bpf_open_raw_sock(ciface.as_ptr()) };
 
         if sfd < 0 {
             return Err(Error::IO(io::Error::last_os_error()));
         }
 
-        match unsafe { bpf_sys::bpf_attach_socket(sfd, self.fd.ok_or(Error::BPF)?) } {
-            0 => {
-                self.pfd = Some(sfd);
-                Ok(sfd)
-            }
+        match unsafe { bpf_sys::bpf_attach_socket(sfd, fd) } {
+            0 => Ok(sfd),
             _ => Err(Error::IO(io::Error::last_os_error())),
         }
+    }
+
+    pub fn name(&self) -> String {
+        self.common.name.to_string()
     }
 }
 
@@ -401,6 +456,86 @@ impl Module {
             version,
         })
     }
+
+    pub fn kprobes(&self) -> impl Iterator<Item = &KProbe> {
+        use Program::*;
+        self.programs.iter().filter_map(|prog| match prog {
+            KProbe(p) | KRetProbe(p) => Some(p),
+            _ => None,
+        })
+    }
+
+    pub fn kprobes_mut(&mut self) -> impl Iterator<Item = &mut KProbe> {
+        use Program::*;
+        self.programs.iter_mut().filter_map(|prog| match prog {
+            KProbe(p) | KRetProbe(p) => Some(p),
+            _ => None,
+        })
+    }
+
+    pub fn uprobes(&self) -> impl Iterator<Item = &UProbe> {
+        use Program::*;
+        self.programs.iter().filter_map(|prog| match prog {
+            UProbe(p) | URetProbe(p) => Some(p),
+            _ => None,
+        })
+    }
+
+    pub fn uprobes_mut(&mut self) -> impl Iterator<Item = &mut UProbe> {
+        use Program::*;
+        self.programs.iter_mut().filter_map(|prog| match prog {
+            UProbe(p) | URetProbe(p) => Some(p),
+            _ => None,
+        })
+    }
+
+    pub fn xdps(&self) -> impl Iterator<Item = &XDP> {
+        use Program::*;
+        self.programs.iter().filter_map(|prog| match prog {
+            XDP(p) => Some(p),
+            _ => None,
+        })
+    }
+
+    pub fn xdps_mut(&mut self) -> impl Iterator<Item = &mut XDP> {
+        use Program::*;
+        self.programs.iter_mut().filter_map(|prog| match prog {
+            XDP(p) => Some(p),
+            _ => None,
+        })
+    }
+
+    pub fn socket_filters(&self) -> impl Iterator<Item = &SocketFilter> {
+        use Program::*;
+        self.programs.iter().filter_map(|prog| match prog {
+            SocketFilter(p) => Some(p),
+            _ => None,
+        })
+    }
+
+    pub fn socket_filters_mut(&mut self) -> impl Iterator<Item = &mut SocketFilter> {
+        use Program::*;
+        self.programs.iter_mut().filter_map(|prog| match prog {
+            SocketFilter(p) => Some(p),
+            _ => None,
+        })
+    }
+
+    pub fn trace_points(&self) -> impl Iterator<Item = &TracePoint> {
+        use Program::*;
+        self.programs.iter().filter_map(|prog| match prog {
+            TracePoint(p) => Some(p),
+            _ => None,
+        })
+    }
+
+    pub fn trace_points_mut(&mut self) -> impl Iterator<Item = &mut TracePoint> {
+        use Program::*;
+        self.programs.iter_mut().filter_map(|prog| match prog {
+            TracePoint(p) => Some(p),
+            _ => None,
+        })
+    }
 }
 
 #[inline]
@@ -431,13 +566,12 @@ impl Rel {
         symtab: &[Sym],
     ) -> Result<()> {
         let prog = programs.get_mut(&self.target).ok_or(Error::Reloc)?;
-        let map = maps
-            .get(&symtab[self.sym].st_shndx)
-            .ok_or(Error::Reloc)?;
+        let map = maps.get(&symtab[self.sym].st_shndx).ok_or(Error::Reloc)?;
         let insn_idx = (self.offset / std::mem::size_of::<bpf_insn>() as u64) as usize;
 
-        prog.code[insn_idx].set_src_reg(bpf_sys::BPF_PSEUDO_MAP_FD as u8);
-        prog.code[insn_idx].imm = map.fd;
+        let code = &mut prog.data_mut().code;
+        code[insn_idx].set_src_reg(bpf_sys::BPF_PSEUDO_MAP_FD as u8);
+        code[insn_idx].imm = map.fd;
 
         Ok(())
     }
