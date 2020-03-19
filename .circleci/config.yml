@@ -53,6 +53,7 @@ jobs:
             rm -rf publish/api/
             mkdir -p publish/api/
             cp -r target/doc/* publish/api/
+            >publish/api/index.html echo '<meta http-equiv="refresh" content="0; url=https://ingraind.org/api/redbpf/" />'
             cd publish
             git add *
             git commit -a -m '[CI] Update redbpf docs'
