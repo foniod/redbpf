@@ -101,6 +101,8 @@ pub struct Module {
 pub enum Program {
     KProbe(KProbe),
     KRetProbe(KProbe),
+    UProbe(UProbe),
+    URetProbe(UProbe),
     SocketFilter(SocketFilter),
     TracePoint(TracePoint),
     XDP(XDP),
@@ -114,6 +116,12 @@ struct ProgramData {
 
 /// Type to work with `kprobes` or `kretprobes`.
 pub struct KProbe {
+    common: ProgramData,
+    attach_type: bpf_probe_attach_type,
+}
+
+/// Type to work with `uprobes` or `uretprobes`.
+pub struct UProbe {
     common: ProgramData,
     attach_type: bpf_probe_attach_type,
 }
@@ -173,6 +181,14 @@ impl Program {
                 common,
                 attach_type: bpf_probe_attach_type_BPF_PROBE_RETURN,
             }),
+            "uprobe" => Program::UProbe(UProbe {
+                common,
+                attach_type: bpf_probe_attach_type_BPF_PROBE_ENTRY,
+            }),
+            "uretprobe" => Program::UProbe(UProbe {
+                common,
+                attach_type: bpf_probe_attach_type_BPF_PROBE_RETURN,
+            }),
             "tracepoint" => Program::TracePoint(TracePoint { common }),
             "socketfilter" => Program::SocketFilter(SocketFilter { common }),
             "xdp" => Program::XDP(XDP {
@@ -187,7 +203,7 @@ impl Program {
         use Program::*;
 
         match self {
-            KProbe(_) | KRetProbe(_) => {
+            KProbe(_) | KRetProbe(_) | UProbe(_) | URetProbe(_) => {
                 bpf_sys::bpf_prog_type_BPF_PROG_TYPE_KPROBE
             }
             XDP(_) => bpf_sys::bpf_prog_type_BPF_PROG_TYPE_XDP,
@@ -200,7 +216,8 @@ impl Program {
         use Program::*;
 
         match self {
-            KProbe(p) | KRetProbe(p)  => &p.common,
+            KProbe(p) | KRetProbe(p) => &p.common,
+            UProbe(p) | URetProbe(p) => &p.common,
             XDP(p) => &p.common,
             SocketFilter(p) => &p.common,
             TracePoint(p) => &p.common,
@@ -212,6 +229,7 @@ impl Program {
 
         match self {
             KProbe(p) | KRetProbe(p) => &mut p.common,
+            UProbe(p) | URetProbe(p) => &mut p.common,
             XDP(p) => &mut p.common,
             SocketFilter(p) => &mut p.common,
             TracePoint(p) => &mut p.common,
@@ -309,6 +327,72 @@ impl KProbe {
     pub fn name(&self) -> String {
         self.common.name.to_string()
     }
+
+    pub fn attach_type_str(&self) -> &'static str {
+        match self.attach_type {
+            bpf_probe_attach_type_BPF_PROBE_ENTRY => "Kprobe",
+            bpf_probe_attach_type_BPF_PROBE_RETURN => "Kretprobe",
+            _ => unreachable!(),
+        }
+    }
+}
+
+impl UProbe {
+    /// Attach the `uprobe` or `uretprobe`.
+    ///
+    /// Attach the probe to the function `fn_name` defined in the library or
+    /// binary at `path`. If `offset` is given, the probe will be attached at
+    /// that byte offset inside the function. If a `pid` is passed, only the
+    /// corresponding process is traced.
+    ///
+    /// # Example
+    /// ```no_run
+    /// use redbpf::Module;
+    /// let mut module = Module::parse(&std::fs::read("file.elf").unwrap()).unwrap();
+    /// for uprobe in module.uprobes_mut() {
+    ///     uprobe.attach_uprobe(&uprobe.name(), 0, "/lib/x86_64-linux-gnu/libc-2.30.so", None).unwrap();
+    /// }
+    /// ```
+    pub fn attach_uprobe(
+        &mut self,
+        fn_name: &str,
+        offset: u64,
+        path: &str,
+        pid: Option<i32>,
+    ) -> Result<()> {
+        let fd = self.common.fd.ok_or(Error::ProgramNotLoaded)?;
+        let data = fs::read(path)?;
+        let parser = ElfSymbols::parse(&data)?;
+        let sym_offset = parser
+            .resolve(fn_name)
+            .ok_or_else(|| Error::SymbolNotFound(fn_name.to_string()))?
+            .st_value;
+
+        let pid = pid.unwrap_or(-1);
+        let ev_name =
+            CString::new(format!("{}{}{}{}", path, fn_name, self.attach_type, pid)).unwrap();
+        let path = CString::new(path.to_owned()).unwrap();
+        let pfd = unsafe {
+            bpf_sys::bpf_attach_uprobe(
+                fd,
+                self.attach_type,
+                ev_name.as_ptr(),
+                path.as_ptr(),
+                sym_offset + offset,
+                pid,
+            )
+        };
+
+        if pfd < 0 {
+            Err(Error::BPF)
+        } else {
+            Ok(())
+        }
+    }
+
+    pub fn name(&self) -> String {
+        self.common.name.to_string()
+    }
 }
 
 impl TracePoint {
@@ -329,6 +413,10 @@ impl TracePoint {
         } else {
             Ok(())
         }
+    }
+
+    pub fn name(&self) -> String {
+        self.common.name.to_string()
     }
 }
 
@@ -356,6 +444,10 @@ impl XDP {
         } else {
             Ok(())
         }
+    }
+
+    pub fn name(&self) -> String {
+        self.common.name.to_string()
     }
 }
 
@@ -432,6 +524,8 @@ impl Module {
                 }
                 (hdr::SHT_PROGBITS, Some(kind @ "kprobe"), Some(name))
                 | (hdr::SHT_PROGBITS, Some(kind @ "kretprobe"), Some(name))
+                | (hdr::SHT_PROGBITS, Some(kind @ "uprobe"), Some(name))
+                | (hdr::SHT_PROGBITS, Some(kind @ "uretprobe"), Some(name))
                 | (hdr::SHT_PROGBITS, Some(kind @ "xdp"), Some(name))
                 | (hdr::SHT_PROGBITS, Some(kind @ "socketfilter"), Some(name)) => {
                     programs.insert(shndx, Program::new(kind, name, &content)?);
@@ -743,4 +837,42 @@ fn data<'d>(bytes: &'d [u8], shdr: &SectionHeader) -> &'d [u8] {
     let end = (shdr.sh_offset + shdr.sh_size) as usize;
 
     &bytes[offset..end]
+}
+
+struct ElfSymbols<'a> {
+    elf: Elf<'a>,
+}
+
+impl<'a> ElfSymbols<'a> {
+    pub fn parse(data: &[u8]) -> goblin::error::Result<ElfSymbols> {
+        let elf = Elf::parse(&data)?;
+        Ok(ElfSymbols { elf })
+    }
+
+    fn resolve_dyn_syms(&self, sym_name: &str) -> Option<Sym> {
+        self.elf.dynsyms.iter().find(|sym| {
+            self.elf
+                .dynstrtab
+                .get(sym.st_name)
+                .and_then(|n| n.ok())
+                .map(|n| n == sym_name)
+                .unwrap_or(false)
+        })
+    }
+
+    fn resolve_syms(&self, sym_name: &str) -> Option<Sym> {
+        self.elf.syms.iter().find(|sym| {
+            self.elf
+                .strtab
+                .get(sym.st_name)
+                .and_then(|n| n.ok())
+                .map(|n| n == sym_name)
+                .unwrap_or(false)
+        })
+    }
+
+    fn resolve(&self, sym_name: &str) -> Option<Sym> {
+        self.resolve_dyn_syms(sym_name)
+            .or_else(|| self.resolve_syms(sym_name))
+    }
 }

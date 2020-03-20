@@ -19,6 +19,8 @@ use tokio::signal;
 pub fn load(
     program: &PathBuf,
     interface: Option<&str>,
+    uprobe_path: Option<&str>,
+    pid: Option<i32>,
 ) -> Result<(), CommandError> {
     let mut runtime = Runtime::new().unwrap();
     runtime.block_on(async {
@@ -41,6 +43,17 @@ pub fn load(
                     prog.attach_xdp(&iface, xdp::Flags::default())
                 }
                 KProbe(prog) | KRetProbe(prog) => prog.attach_kprobe(&name, 0),
+                UProbe(prog) | URetProbe(prog) => {
+                    let path = match uprobe_path {
+                        Some(p) => p,
+                        None => {
+                            return Err(CommandError(
+                                "uprobe program found, but no path specified".to_string(),
+                            ))
+                        }
+                    };
+                    prog.attach_uprobe(&prog.name(), 0, path, pid)
+                }
                 _ => Ok(()),
             };
             if let Err(e) = ret {
