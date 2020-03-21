@@ -16,6 +16,9 @@ pub enum Error {
     IO(::std::io::Error),
     Uname,
     Reloc,
+    SymbolNotFound(String),
+    ProgramAlreadyLoaded,
+    ProgramNotLoaded
 }
 
 pub type Result<T> = ::std::result::Result<T, Error>;

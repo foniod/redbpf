@@ -21,18 +21,19 @@ use probes::iotop::{Counter, CounterKey};
 fn main() {
     let mut runtime = Runtime::new().unwrap();
     let _ = runtime.block_on(async {
-        let loader = Loader::new()
-            .load(probe_code())
-            .await
-            .expect("error loading probe");
+        // load the BPF programs and maps
+        let mut loader = Loader::load(probe_code()).expect("error loading probe");
+
+        // attach the kprobes
+        for kprobe in loader.kprobes_mut() {
+            kprobe
+                .attach_kprobe(&kprobe.name(), 0)
+                .expect(&format!("error attaching program {}", kprobe.name()));
+        }
+
         tokio::spawn(async move {
-            let counts = loader
-                .module
-                .maps
-                .iter()
-                .find(|m| m.name == "counts")
-                .unwrap();
-            let counts = BPFHashMap::<CounterKey, Counter>::new(counts).unwrap();
+            let counts =
+                BPFHashMap::<CounterKey, Counter>::new(loader.map("counts").unwrap()).unwrap();
             let disks = parse_diskstats().unwrap();
 
             loop {

@@ -253,6 +253,44 @@ pub fn kretprobe(attrs: TokenStream, item: TokenStream) -> TokenStream {
     probe_impl("kretprobe", attrs, wrapper, name).into()
 }
 
+/// Attribute macro that must be used to define [`uprobes`](https://www.kernel.org/doc/Documentation/trace/uprobetracer.txt).
+///
+/// # Example
+/// ```no_run
+/// use redbpf_probes::uprobe::prelude::*;
+///
+/// #[uprobe]
+/// fn getaddrinfo(regs: Registers) {
+///     // this is executed when getaddrinfo() is invoked
+/// }
+/// ```
+#[proc_macro_attribute]
+pub fn uprobe(attrs: TokenStream, item: TokenStream) -> TokenStream {
+    let item = parse_macro_input!(item as ItemFn);
+    let name = item.sig.ident.to_string();
+    let wrapper = wrap_kprobe(item);
+    probe_impl("uprobe", attrs, wrapper, name).into()
+}
+
+/// Attribute macro that must be used to define [`uretprobes`](https://www.kernel.org/doc/Documentation/trace/uprobetracer.txt).
+///
+/// # Example
+/// ```no_run
+/// use redbpf_probes::uprobe::prelude::*;
+///
+/// #[uretprobe]
+/// fn getaddrinfo(regs: Registers) {
+///     // this is executed when getaddrinfo() returns
+/// }
+/// ```
+#[proc_macro_attribute]
+pub fn uretprobe(attrs: TokenStream, item: TokenStream) -> TokenStream {
+    let item = parse_macro_input!(item as ItemFn);
+    let name = item.sig.ident.to_string();
+    let wrapper = wrap_kprobe(item);
+    probe_impl("uretprobe", attrs, wrapper, name).into()
+}
+
 /// Attribute macro that must be used to define [`XDP` probes](https://www.iovisor.org/technology/xdp).
 ///
 /// See also the [`XDP` API provided by

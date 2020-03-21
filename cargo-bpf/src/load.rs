@@ -7,23 +7,64 @@
 
 use crate::CommandError;
 
-use hexdump::hexdump;
-use redbpf::load::Loader;
-use redbpf::xdp;
-use std::path::PathBuf;
 use futures::stream::StreamExt;
+use hexdump::hexdump;
+use redbpf::xdp;
+use redbpf::{load::Loader, Program::*};
+use std::path::PathBuf;
 use tokio;
 use tokio::runtime::Runtime;
 use tokio::signal;
 
-pub fn load(program: &PathBuf, interface: Option<&str>) -> Result<(), CommandError> {
+pub fn load(
+    program: &PathBuf,
+    interface: Option<&str>,
+    uprobe_path: Option<&str>,
+    pid: Option<i32>,
+) -> Result<(), CommandError> {
     let mut runtime = Runtime::new().unwrap();
-    let _ = runtime.block_on(async {
-        let mut loader = Loader::new()
-            .xdp(interface.map(String::from), xdp::Flags::default())
-            .load_file(&program)
-            .await
-            .expect("error loading file");
+    runtime.block_on(async {
+        // Load all the programs and maps included in the program
+        let mut loader = Loader::load_file(&program).expect("error loading file");
+
+        // attach the programs
+        for program in loader.module.programs.iter_mut() {
+            let name = program.name().to_string();
+            let ret = match program {
+                XDP(prog) => {
+                    let iface = match interface {
+                        Some(i) => i,
+                        None => {
+                            return Err(CommandError(
+                                "XDP program found, but no interface specified".to_string(),
+                            ))
+                        }
+                    };
+                    prog.attach_xdp(&iface, xdp::Flags::default())
+                }
+                KProbe(prog) | KRetProbe(prog) => prog.attach_kprobe(&name, 0),
+                UProbe(prog) | URetProbe(prog) => {
+                    let path = match uprobe_path {
+                        Some(p) => p,
+                        None => {
+                            return Err(CommandError(
+                                "uprobe program found, but no path specified".to_string(),
+                            ))
+                        }
+                    };
+                    prog.attach_uprobe(&prog.name(), 0, path, pid)
+                }
+                _ => Ok(()),
+            };
+            if let Err(e) = ret {
+                return Err(CommandError(format!(
+                    "failed to attach program {}: {:?}",
+                    name, e
+                )));
+            }
+        }
+
+        // dump all the generated events on stdout
         tokio::spawn(async move {
             while let Some((name, events)) = loader.events.next().await {
                 for event in events {
@@ -33,10 +74,9 @@ pub fn load(program: &PathBuf, interface: Option<&str>) -> Result<(), CommandErr
             }
         });
 
-        signal::ctrl_c().await
-    });
-
-    println!("exiting");
-
-    Ok(())
+        // quit on SIGINT
+        let _ = signal::ctrl_c().await;
+        println!("exiting");
+        Ok(())
+    })
 }

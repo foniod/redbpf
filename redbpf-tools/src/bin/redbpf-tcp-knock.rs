@@ -25,12 +25,13 @@ fn main() {
 
     let mut runtime = Runtime::new().unwrap();
     let _ = runtime.block_on(async {
-        let interface = Some(opts.interface);
-        let mut loader = Loader::new()
-            .xdp(interface.map(String::from), xdp::Flags::default())
-            .load(probe_code())
-            .await
-            .expect("error loading probe");
+        let mut loader = Loader::load(probe_code()).expect("error loading probe");
+
+        // attach the xdp program
+        for prog in loader.xdps_mut() {
+            prog.attach_xdp(&opts.interface, xdp::Flags::default())
+                .expect("error attaching XDP program")
+        }
 
         // configure the knock sequence
         let mut sequence = PortSequence {
@@ -41,13 +42,7 @@ fn main() {
         sequence.ports[..opts.knock.len()].copy_from_slice(&opts.knock);
 
         // store the sequence in the `sequence` BPF map so the XDP program can retrieve it
-        let seq_map = loader
-            .module
-            .maps
-            .iter()
-            .find(|m| m.name == "sequence")
-            .unwrap();
-        let seq_map = HashMap::<u8, PortSequence>::new(seq_map).unwrap();
+        let seq_map = HashMap::<u8, PortSequence>::new(loader.map("sequence").unwrap()).unwrap();
         seq_map.set(0u8, sequence);
 
         tokio::spawn(async move {

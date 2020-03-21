@@ -195,6 +195,12 @@ fn main() {
                             .arg(Arg::with_name("INTERFACE").value_name("INTERFACE").short("i").long("interface").help(
                                 "Binds XDP programs to the given interface"
                             ))
+                            .arg(Arg::with_name("UPROBE_PATH").value_name("PATH").short("u").long("uprobe-path").help(
+                                "Attach uprobes to the given library/binary"
+                            ))
+                            .arg(Arg::with_name("PID").value_name("PID").short("p").long("pid").help(
+                                "Attach uprobes to the given PID"
+                            ))
                             .arg(Arg::with_name("PROGRAM").required(true).help(
                                 "Loads the specified eBPF program and outputs all the events generated",
                             ))
@@ -236,7 +242,9 @@ fn main() {
     if let Some(m) = matches.subcommand_matches("load") {
         let program = m.value_of("PROGRAM").map(PathBuf::from).unwrap();
         let interface = m.value_of("INTERFACE");
-        if let Err(e) = cargo_bpf::load(&program, interface) {
+        let uprobe_path = m.value_of("UPROBE_PATH");
+        let uprobe_pid = m.value_of("PID").map(|p| p.parse::<i32>().unwrap());
+        if let Err(e) = cargo_bpf::load(&program, interface, uprobe_path, uprobe_pid) {
             clap::Error::with_description(&e.0, clap::ErrorKind::InvalidValue).exit()
         }
     }
