@@ -47,7 +47,6 @@
 #![deny(clippy::all)]
 #![allow(non_upper_case_globals)]
 
-#[cfg(feature = "build")]
 #[macro_use]
 extern crate lazy_static;
 
@@ -58,10 +57,11 @@ mod error;
 #[cfg(feature = "load")]
 pub mod load;
 mod perf;
+mod symbols;
 pub mod sys;
 pub mod xdp;
-pub use bpf_sys::uname;
 
+pub use bpf_sys::uname;
 use bpf_sys::{
     bpf_insn, bpf_map_def, bpf_probe_attach_type, bpf_probe_attach_type_BPF_PROBE_ENTRY,
     bpf_probe_attach_type_BPF_PROBE_RETURN, bpf_prog_type,
@@ -79,6 +79,7 @@ use std::os::unix::io::RawFd;
 
 pub use crate::error::{Error, Result};
 pub use crate::perf::*;
+use crate::symbols::*;
 use crate::uname::get_kernel_internal_version;
 
 #[cfg(target_arch = "aarch64")]
@@ -357,21 +358,26 @@ impl UProbe {
         &mut self,
         fn_name: &str,
         offset: u64,
-        path: &str,
+        target: &str,
         pid: Option<i32>,
     ) -> Result<()> {
         let fd = self.common.fd.ok_or(Error::ProgramNotLoaded)?;
-        let data = fs::read(path)?;
+
+        let pid = pid.unwrap_or(-1);
+        let path = match (target.starts_with("/"), LD_SO_CACHE.as_ref()) {
+            (false, Ok(cache)) => cache.resolve(target).unwrap_or(target).to_string(),
+            _ => target.to_owned(),
+        };
+        let data = fs::read(&path)?;
         let parser = ElfSymbols::parse(&data)?;
         let sym_offset = parser
             .resolve(fn_name)
             .ok_or_else(|| Error::SymbolNotFound(fn_name.to_string()))?
             .st_value;
 
-        let pid = pid.unwrap_or(-1);
         let ev_name =
-            CString::new(format!("{}{}{}{}", path, fn_name, self.attach_type, pid)).unwrap();
-        let path = CString::new(path.to_owned()).unwrap();
+            CString::new(format!("{}{}{}{}", &path, fn_name, self.attach_type, pid)).unwrap();
+        let path = CString::new(path).unwrap();
         let pfd = unsafe {
             bpf_sys::bpf_attach_uprobe(
                 fd,
@@ -837,42 +843,4 @@ fn data<'d>(bytes: &'d [u8], shdr: &SectionHeader) -> &'d [u8] {
     let end = (shdr.sh_offset + shdr.sh_size) as usize;
 
     &bytes[offset..end]
-}
-
-struct ElfSymbols<'a> {
-    elf: Elf<'a>,
-}
-
-impl<'a> ElfSymbols<'a> {
-    pub fn parse(data: &[u8]) -> goblin::error::Result<ElfSymbols> {
-        let elf = Elf::parse(&data)?;
-        Ok(ElfSymbols { elf })
-    }
-
-    fn resolve_dyn_syms(&self, sym_name: &str) -> Option<Sym> {
-        self.elf.dynsyms.iter().find(|sym| {
-            self.elf
-                .dynstrtab
-                .get(sym.st_name)
-                .and_then(|n| n.ok())
-                .map(|n| n == sym_name)
-                .unwrap_or(false)
-        })
-    }
-
-    fn resolve_syms(&self, sym_name: &str) -> Option<Sym> {
-        self.elf.syms.iter().find(|sym| {
-            self.elf
-                .strtab
-                .get(sym.st_name)
-                .and_then(|n| n.ok())
-                .map(|n| n == sym_name)
-                .unwrap_or(false)
-        })
-    }
-
-    fn resolve(&self, sym_name: &str) -> Option<Sym> {
-        self.resolve_dyn_syms(sym_name)
-            .or_else(|| self.resolve_syms(sym_name))
-    }
 }

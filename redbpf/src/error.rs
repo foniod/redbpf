@@ -16,6 +16,7 @@ pub enum Error {
     IO(::std::io::Error),
     Uname,
     Reloc,
+    LibraryNotFound(String),
     SymbolNotFound(String),
     ProgramAlreadyLoaded,
     ProgramNotLoaded
