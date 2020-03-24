@@ -70,6 +70,7 @@ impl From<Error> for CommandError {
 
 fn build_probe(cargo: &Path, package: &Path, target_dir: &Path, probe: &str) -> Result<(), Error> {
     let llc_args = ["-march=bpf", "-filetype=obj", "-o"];
+    fs::create_dir_all(&target_dir)?;
     let target_dir = target_dir.canonicalize().unwrap().join("bpf");
     let artifacts_dir = target_dir.join("programs").join(probe);
     let _ = fs::remove_dir_all(&artifacts_dir);
