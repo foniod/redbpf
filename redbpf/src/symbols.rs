@@ -7,11 +7,13 @@
 
 use byteorder::{NativeEndian, ReadBytesExt};
 use goblin::elf::{Elf, Sym};
+use libc::pid_t;
 use std::ffi::CStr;
-use std::fs;
+use std::fs::{self, File};
 use std::io::{self, BufRead, Cursor, Read};
 use std::mem;
 use std::os::raw::c_char;
+use std::path::PathBuf;
 use std::str;
 
 lazy_static! {
@@ -133,9 +135,45 @@ impl LdSoCache {
         };
         self.entries
             .iter()
-            .find(|entry| {
-                entry.key.starts_with(&lib)
-            })
+            .find(|entry| entry.key.starts_with(&lib))
             .map(|entry| entry.value.as_str())
     }
+}
+
+fn proc_maps_libs(pid: pid_t) -> io::Result<Vec<(String, String)>> {
+    let maps_file = format!("/proc/{}/maps", pid);
+    let mut file = File::open(maps_file)?;
+    let mut contents = String::new();
+    file.read_to_string(&mut contents)?;
+
+    Ok(contents
+        .lines()
+        .filter_map(|line| {
+            let line = line.split_whitespace().last()?;
+            if line.starts_with("/") {
+                let path = PathBuf::from(line);
+                let key = path.file_name().unwrap().to_string_lossy().into_owned();
+                let value = path.to_string_lossy().into_owned();
+                Some((key, value))
+            } else {
+                None
+            }
+        })
+        .collect())
+}
+
+pub(crate) fn resolve_proc_maps_lib(pid: pid_t, lib: &str) -> Option<String> {
+    let libs = proc_maps_libs(pid).ok()?;
+
+    let ret = if lib.contains(".so") {
+        libs.iter().find(|(k, _)| k.as_str().starts_with(lib))
+    } else {
+        let lib = lib.to_string();
+        let lib1 = lib.clone() + ".so";
+        let lib2 = lib + "-";
+        libs.iter()
+            .find(|(k, _)| k.starts_with(&lib1) || k.starts_with(&lib2))
+    };
+
+    ret.map(|(_, v)| v.clone())
 }

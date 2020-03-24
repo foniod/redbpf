@@ -68,6 +68,7 @@ use bpf_sys::{
 };
 use goblin::elf::{reloc::RelocSection, section_header as hdr, Elf, SectionHeader, Sym};
 
+use libc::pid_t;
 use std::collections::HashMap as RSHashMap;
 use std::ffi::CString;
 use std::fs;
@@ -76,7 +77,6 @@ use std::marker::PhantomData;
 use std::mem;
 use std::mem::MaybeUninit;
 use std::os::unix::io::RawFd;
-use libc::pid_t;
 
 pub use crate::error::{Error, Result};
 pub use crate::perf::*;
@@ -364,11 +364,15 @@ impl UProbe {
     ) -> Result<()> {
         let fd = self.common.fd.ok_or(Error::ProgramNotLoaded)?;
 
-        let pid = pid.unwrap_or(-1);
-        let path = match (target.starts_with("/"), LD_SO_CACHE.as_ref()) {
-            (false, Ok(cache)) => cache.resolve(target).unwrap_or(target).to_string(),
-            _ => target.to_owned(),
+        let path = if let Some(pid) = pid {
+            resolve_proc_maps_lib(pid, target).unwrap_or_else(|| target.to_string())
+        } else {
+            match (target.starts_with("/"), LD_SO_CACHE.as_ref()) {
+                (false, Ok(cache)) => cache.resolve(target).unwrap_or(target).to_string(),
+                _ => target.to_owned(),
+            }
         };
+        let pid = pid.unwrap_or(-1);
         let data = fs::read(&path)?;
         let parser = ElfSymbols::parse(&data)?;
         let sym_offset = parser
