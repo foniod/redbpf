@@ -76,6 +76,7 @@ use std::marker::PhantomData;
 use std::mem;
 use std::mem::MaybeUninit;
 use std::os::unix::io::RawFd;
+use libc::pid_t;
 
 pub use crate::error::{Error, Result};
 pub use crate::perf::*;
@@ -359,7 +360,7 @@ impl UProbe {
         fn_name: &str,
         offset: u64,
         target: &str,
-        pid: Option<i32>,
+        pid: Option<pid_t>,
     ) -> Result<()> {
         let fd = self.common.fd.ok_or(Error::ProgramNotLoaded)?;
 
