@@ -70,7 +70,7 @@ impl From<Error> for CommandError {
 
 fn build_probe(cargo: &Path, package: &Path, target_dir: &Path, probe: &str) -> Result<(), Error> {
     let llc_args = ["-march=bpf", "-filetype=obj", "-o"];
-    let target_dir = target_dir.join("bpf");
+    let target_dir = target_dir.canonicalize().unwrap().join("bpf");
     let artifacts_dir = target_dir.join("programs").join(probe);
     let _ = fs::remove_dir_all(&artifacts_dir);
     fs::create_dir_all(&artifacts_dir)?;
@@ -184,12 +184,12 @@ pub fn build(
     Ok(())
 }
 
-pub fn cmd_build(programs: Vec<String>) -> Result<(), CommandError> {
+pub fn cmd_build(programs: Vec<String>, target_dir: PathBuf) -> Result<(), CommandError> {
     let current_dir = std::env::current_dir().unwrap();
     let ret = build(
         Path::new("cargo"),
         &current_dir,
-        &current_dir.join("target"),
+        &target_dir,
         programs,
     )?;
     Ok(ret)

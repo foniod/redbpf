@@ -185,6 +185,9 @@ fn main() {
                     .subcommand(
                         SubCommand::with_name("build")
                             .about("Compiles the eBPF programs in the package")
+                            .arg(Arg::with_name("TARGET_DIR").value_name("DIRECTORY").long("target-dir").help(
+                                "Directory for all generated artifacts"
+                            ))
                             .arg(Arg::with_name("NAME").required(false).multiple(true).help(
                                 "The names of the programs to compile. When no names are specified, all the programs are built",
                             ))
@@ -231,11 +234,16 @@ fn main() {
         }
     }
     if let Some(m) = matches.subcommand_matches("build") {
+        let current_dir = std::env::current_dir().unwrap();
+        let target_dir = m
+            .value_of("TARGET_DIR")
+            .map(PathBuf::from)
+            .unwrap_or(current_dir.join("target"));
         let programs = m
             .values_of("NAME")
             .map(|i| i.map(|s| String::from(s)).collect())
             .unwrap_or_else(Vec::new);
-        if let Err(e) = cargo_bpf::cmd_build(programs) {
+        if let Err(e) = cargo_bpf::cmd_build(programs, target_dir) {
             clap::Error::with_description(&e.0, clap::ErrorKind::InvalidValue).exit()
         }
     }
