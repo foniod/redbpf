@@ -7,6 +7,7 @@ fn main() {
     let cargo = PathBuf::from(env::var("CARGO").unwrap());
     let target = PathBuf::from(env::var("OUT_DIR").unwrap());
     let probes = Path::new("probes");
+
     cargo_bpf::build(
         &cargo,
         &probes,

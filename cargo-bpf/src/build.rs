@@ -5,6 +5,8 @@
 // http://opensource.org/licenses/MIT>, at your option. This file may not be
 // copied, modified, or distributed except according to those terms.
 
+use bpf_sys::headers::prefix_kernel_headers;
+use lazy_static::lazy_static;
 use std::convert::From;
 use std::env;
 use std::fmt::{self, Display};
@@ -28,6 +30,63 @@ pub enum Error {
     MissingBitcode(String),
     Link(String),
     IOError(io::Error),
+}
+
+#[cfg(target_arch = "x86_64")]
+const KERNEL_HEADERS: [&str; 7] = [
+    "arch/x86/include",
+    "arch/x86/include/generated",
+    "include",
+    "include/generated",
+    "arch/include/generated/uapi",
+    "arch/x86/include/uapi",
+    "include/uapi",
+];
+
+#[cfg(target_arch = "aarch64")]
+const KERNEL_HEADERS: [&str; 8] = [
+    "arch/arm64/include",
+    "arch/arm64/include/generated",
+    "include",
+    "include/generated",
+    "arch/include/generated/uapi",
+    "arch/arm64/include/uapi",
+    "arch/arm64/include/generated/uapi",
+    "include/uapi",
+];
+
+lazy_static! {
+    pub(crate) static ref BUILD_FLAGS: Vec<&'static str> = {
+        let mut flags = vec![
+            "-D__BPF_TRACING__",
+            "-D__KERNEL__",
+            "-Wall",
+            "-Werror",
+            "-Wunused",
+            "-Wno-unused-value",
+            "-Wno-pointer-sign",
+            "-Wno-compare-distinct-pointer-types",
+            "-Wno-unused-parameter",
+            "-Wno-missing-field-initializers",
+            "-Wno-initializer-overrides",
+            "-Wno-unknown-pragmas",
+            "-fno-stack-protector",
+            "-Wno-unused-label",
+            "-Wno-unused-variable",
+            "-Wno-unused-function",
+            "-Wno-address-of-packed-member",
+            "-Wno-gnu-variable-sized-type-not-at-end",
+        ];
+
+        if cfg!(x86_64) {
+            flags.push("-D__ASM_SYSREG_H");
+        } else if cfg!(aarch64) {
+            flags.push("-target");
+            flags.push("aarch64");
+        }
+
+        flags
+    };
 }
 
 impl std::error::Error for Error {
@@ -187,12 +246,7 @@ pub fn build(
 
 pub fn cmd_build(programs: Vec<String>, target_dir: PathBuf) -> Result<(), CommandError> {
     let current_dir = std::env::current_dir().unwrap();
-    let ret = build(
-        Path::new("cargo"),
-        &current_dir,
-        &target_dir,
-        programs,
-    )?;
+    let ret = build(Path::new("cargo"), &current_dir, &target_dir, programs)?;
     Ok(ret)
 }
 
@@ -249,7 +303,7 @@ fn get_opt_executable() -> Result<String, Error> {
     return Err(Error::NoOPT);
 }
 
-fn get_llc_executable() -> Result<String, Error> {
+pub(crate) fn get_llc_executable() -> Result<String, Error> {
     for llc in vec!["llc".into(), env::var("LLC").unwrap_or("llc-9".into())].drain(..) {
         if let Ok(out) = Command::new(&llc).arg("--version").output() {
             match String::from_utf8(out.stdout) {
@@ -264,4 +318,8 @@ fn get_llc_executable() -> Result<String, Error> {
     }
 
     return Err(Error::NoLLC);
+}
+
+pub(crate) fn kernel_headers() -> Result<Vec<String>, ()> {
+    prefix_kernel_headers(&KERNEL_HEADERS).ok_or(())
 }

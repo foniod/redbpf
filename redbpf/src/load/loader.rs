@@ -7,6 +7,7 @@
 
 use futures::channel::mpsc;
 use futures::prelude::*;
+use std::convert::AsRef;
 use std::fs;
 use std::io;
 use std::path::Path;
@@ -63,7 +64,7 @@ impl Loader {
     /// Loads the BPF programs included in `file`.
     ///
     /// See `load()`.
-    pub fn load_file(file: &Path) -> Result<Loaded, LoaderError> {
+    pub fn load_file<P: AsRef<Path>>(file: P) -> Result<Loaded, LoaderError> {
         Loader::load(&fs::read(file).map_err(|e| LoaderError::FileError(e))?)
     }
 }

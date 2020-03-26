@@ -4,54 +4,46 @@
 // http://apache.org/licenses/LICENSE-2.0> or the MIT license <LICENSE-MIT or
 // http://opensource.org/licenses/MIT>, at your option. This file may not be
 // copied, modified, or distributed except according to those terms.
+/*!
+Rust API to load BPF programs.
 
-//! # RedBPF
-//!
-//! This crate provides a build-load-run workflow for eBPF modules. If the
-//! `build` cargo feature is enabled, build-specific functionality is available.
-//! You may want to use the `redbpf` crate like so:
-//!
-//! ```toml
-//! [build-dependencies]
-//! redbpf = { version = "0.9", features = ["build"] }
-//!
-//! [dependencies]
-//! redbpf = "0.9"
-//! ````
-//!
-//! For more information about build-specific examples, look at the
-//! documentation for the `build` module.
-//!
-//! ## ELF object expectations
-//!
-//! The ELF sections loaded by RedBPF should follow the following naming convention:
-//!  * `maps/name` for maps
-//!  * `kprobe/function_name` for entry probes for `function_name`
-//!  * `kretprobe/function_name` for return probes for `function_name`
-//!  * `xdp/name` for XDP probes. Names can be anything.
-//!  * `socketfilter/name` for socket filters. Names can be anything.
-//!
-//! Additionally, as per convention, the following sections should be present in
-//! the ELF object:
-//!
-//! ```c
-//! __u32 _version SEC("version") = 0xFFFFFFFE;
-//! char _license[] SEC("license") = "GPL";
-//! ```
-//!
-//! If the license is not GPL, some in-kernel functionality is not available for eBPF modules.
-//!
-//! The magic version number is compatible with GoBPF's convention: during
-//! loading it is replaced with the currently running kernel's internal version,
-//! as returned by `uname()`.
+# Overview
+
+The redbpf crate provides an idiomatic Rust API to load and interact with BPF
+programs. It is part of the larger [redbpf
+project](https://github.com/redsift/redbpf).
+
+BPF programs used with `redbpf` are typically created and built with
+[`cargo-bpf`](https://ingraind.org/api/cargo_bpf/), and use the
+[`redbpf-probes`](https://ingraind.org/api/redbpf_probes/) and
+[`redbpf-macros`](https://ingraind.org/api/redbpf_macros/) APIs.
+
+For full featured examples on how to use redbpf see
+https://github.com/redsift/redbpf/tree/master/redbpf-tools.
+
+# Example
+
+The following example loads all the `kprobes` defined in the file `iotop.elf`.
+
+```no_run
+use redbpf::load::Loader;
+
+let mut loader = Loader::load_file("iotop.elf").expect("error loading probe");
+
+// attach all the kprobes defined in iotop.elf
+for kprobe in loader.kprobes_mut() {
+    kprobe
+        .attach_kprobe(&kprobe.name(), 0)
+        .expect(&format!("error attaching program {}", kprobe.name()));
+}
+```
+*/
 #![deny(clippy::all)]
 #![allow(non_upper_case_globals)]
 
 #[macro_use]
 extern crate lazy_static;
 
-#[cfg(feature = "build")]
-pub mod build;
 pub mod cpus;
 mod error;
 #[cfg(feature = "load")]

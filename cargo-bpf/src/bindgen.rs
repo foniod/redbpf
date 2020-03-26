@@ -5,8 +5,8 @@
 // http://opensource.org/licenses/MIT>, at your option. This file may not be
 // copied, modified, or distributed except according to those terms.
 
-use bindgen::{self, callbacks::ParseCallbacks};
 pub use bindgen::Builder;
+use bindgen::{self, callbacks::ParseCallbacks};
 use std::io::{self, Write};
 use std::path::Path;
 use std::process::Command;
@@ -14,9 +14,8 @@ use std::str;
 use tempfile;
 
 pub use crate::accessors::generate_read_accessors;
+use crate::build::{kernel_headers, BUILD_FLAGS};
 use crate::CommandError;
-
-use redbpf::{self, build::headers::kernel_headers};
 
 pub fn builder() -> Builder {
     let kernel_headers = kernel_headers().expect("couldn't find kernel headers");
@@ -24,11 +23,7 @@ pub fn builder() -> Builder {
         .iter()
         .map(|dir| format!("-I{}", dir))
         .collect();
-    flags.extend(redbpf::build::BUILD_FLAGS.iter().map(|f| f.to_string()));
-    flags.push("-Wno-unused-function".to_string());
-    flags.push("-Wno-unused-variable".to_string());
-    flags.push("-Wno-address-of-packed-member".to_string());
-    flags.push("-Wno-gnu-variable-sized-type-not-at-end".to_string());
+    flags.extend(BUILD_FLAGS.iter().map(|f| f.to_string()));
 
     bindgen::builder()
         .clang_args(&flags)
@@ -64,11 +59,15 @@ pub fn cmd_bindgen(header: &Path, extra_args: &[&str]) -> Result<(), CommandErro
         // try to find find the file in the kernel include path
         let path = header.to_str().unwrap();
         let mut file = tempfile::Builder::new().suffix(".h").tempfile().unwrap();
-        write!(&mut file, r#"
+        write!(
+            &mut file,
+            r#"
 #define KBUILD_MODNAME "cargo_bpf_bindings"
 #include <linux/kconfig.h>
 #include <{}>
-        "#, path)
+        "#,
+            path
+        )
         .unwrap();
         let header = file.path().to_owned();
         (Some(file), header)
@@ -103,11 +102,8 @@ struct Callbacks;
 impl ParseCallbacks for Callbacks {
     fn item_name(&self, name: &str) -> Option<String> {
         match name {
-            "u8"
-            | "u16"
-            | "u32"
-            | "u64" => Some(format!("_cargo_bpf_{}", name)),
-            _ => None
+            "u8" | "u16" | "u32" | "u64" => Some(format!("_cargo_bpf_{}", name)),
+            _ => None,
         }
     }
 }
