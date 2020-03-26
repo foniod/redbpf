@@ -27,6 +27,10 @@ pub use {name}::*;
 }
 
 fn main() {
+    if env::var("CARGO_FEATURE_PROBES").is_err() {
+        return;
+    }
+
     let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
 
     let mut builder = bpf_bindgen::builder().header("include/bindings.h");
