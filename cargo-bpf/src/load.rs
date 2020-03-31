@@ -52,7 +52,7 @@ pub fn load(
                             ))
                         }
                     };
-                    prog.attach_uprobe(&prog.name(), 0, path, pid)
+                    prog.attach_uprobe(Some(&prog.name()), 0, path, pid)
                 }
                 _ => Ok(()),
             };

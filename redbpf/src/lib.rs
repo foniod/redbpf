@@ -335,21 +335,23 @@ impl UProbe {
     /// Attach the `uprobe` or `uretprobe`.
     ///
     /// Attach the probe to the function `fn_name` defined in the library or
-    /// binary at `path`. If `offset` is given, the probe will be attached at
-    /// that byte offset inside the function. If a `pid` is passed, only the
-    /// corresponding process is traced.
+    /// binary at `path`. If an `offset` is given, the probe will be attached at
+    /// that byte offset inside the function. If `fn_name` is `None`, then
+    /// `offset` is treated as an absolute address.
+    ///
+    /// If a `pid` is passed, only the corresponding process is traced.
     ///
     /// # Example
     /// ```no_run
     /// use redbpf::Module;
     /// let mut module = Module::parse(&std::fs::read("file.elf").unwrap()).unwrap();
     /// for uprobe in module.uprobes_mut() {
-    ///     uprobe.attach_uprobe(&uprobe.name(), 0, "/lib/x86_64-linux-gnu/libc-2.30.so", None).unwrap();
+    ///     uprobe.attach_uprobe(Some(&uprobe.name()), 0, "/lib/x86_64-linux-gnu/libc-2.30.so", None).unwrap();
     /// }
     /// ```
     pub fn attach_uprobe(
         &mut self,
-        fn_name: &str,
+        fn_name: Option<&str>,
         offset: u64,
         target: &str,
         pid: Option<pid_t>,
@@ -364,16 +366,26 @@ impl UProbe {
                 _ => target.to_owned(),
             }
         };
+        let sym_offset = if let Some(fn_name) = fn_name {
+            let data = fs::read(&path)?;
+            let parser = ElfSymbols::parse(&data)?;
+            parser
+                .resolve(fn_name)
+                .ok_or_else(|| Error::SymbolNotFound(fn_name.to_string()))?
+                .st_value
+        } else {
+            0
+        };
         let pid = pid.unwrap_or(-1);
-        let data = fs::read(&path)?;
-        let parser = ElfSymbols::parse(&data)?;
-        let sym_offset = parser
-            .resolve(fn_name)
-            .ok_or_else(|| Error::SymbolNotFound(fn_name.to_string()))?
-            .st_value;
-
-        let ev_name =
-            CString::new(format!("{}{}{}{}", &path, fn_name, self.attach_type, pid)).unwrap();
+        let ev_name = CString::new(format!(
+            "{}-{}-{}-{}-{}",
+            &path,
+            fn_name.unwrap_or("<unnamed>"),
+            sym_offset + offset,
+            self.attach_type,
+            pid
+        ))
+        .unwrap();
         let path = CString::new(path).unwrap();
         let pfd = unsafe {
             bpf_sys::bpf_attach_uprobe(
