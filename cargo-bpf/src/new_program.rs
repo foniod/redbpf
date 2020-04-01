@@ -15,6 +15,7 @@ use crate::CommandError;
 pub fn new_program(name: &str) -> Result<(), CommandError> {
     use toml_edit::{value, Array, ArrayOfTables, Document, Item, Table};
 
+    let ident = name_to_ident(name);
     let current_dir = std::env::current_dir().unwrap();
     let path = Path::new("Cargo.toml");
     if !path.exists() {
@@ -65,7 +66,7 @@ pub fn new_program(name: &str) -> Result<(), CommandError> {
     let lib_rs = src.join("lib.rs");
     let mut file = OpenOptions::new().write(true).open(lib_rs)?;
     file.seek(SeekFrom::End(0))?;
-    write!(&mut file, "pub mod {};\n", name)?;
+    write!(&mut file, "pub mod {};\n", ident)?;
 
     let probe_dir = src.join(name);
     fs::create_dir_all(probe_dir.clone())?;
@@ -128,4 +129,8 @@ program!(0xFFFFFFFE, "GPL");
     )?;
 
     Ok(())
+}
+
+fn name_to_ident(name: &str) -> String {
+    name.replace("-", "_")
 }
