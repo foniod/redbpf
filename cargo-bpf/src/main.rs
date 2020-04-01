@@ -88,25 +88,22 @@ crate. This new target will contain the eBPF program code.
 Say that you're building an XDP program to block all traffic directed to port 80, and have therefore modified
 `src/block_http/main.rs` to include the following code:
 
-```
+```no_run
 #![no_std]
 #![no_main]
-use redbpf_probes::bindings::*;
-use redbpf_probes::xdp::{XdpAction, XdpContext};
-use redbpf_probes::net::NetworkBuffer;
-use redbpf_macros::{program, xdp};
+use redbpf_probes::xdp::prelude::*;
 
 program!(0xFFFFFFFE, "GPL");
 
 #[xdp]
-pub extern "C" fn block_port_80(ctx: XdpContext) -> XdpAction {
-    if let Some(transport) = ctx.transport() {
+pub fn block_port_80(ctx: XdpContext) -> XdpResult {
+    if let Ok(transport) = ctx.transport() {
         if transport.dest() == 80 {
-            return XdpAction::Drop;
+            return Ok(XdpAction::Drop);
         }
     }
 
-    XdpAction::Pass
+    Ok(XdpAction::Pass)
 }
 ```
 
