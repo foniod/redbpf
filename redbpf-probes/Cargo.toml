@@ -4,18 +4,18 @@ description = "eBPF probe-related types for redbpf"
 repository = "https://github.com/redsift/redbpf"
 documentation = "https://ingraind.org/api//redbpf_probes/"
 authors = ["Alessandro Decina <alessandro.d@gmail.com>", "Peter Parkanyi <peter@redsift.io>"]
-version = "0.9.13"
+version = "1.0.0"
 edition = '2018'
 keywords = ["bpf", "ebpf", "redbpf"]
 license = "MIT OR Apache-2.0"
 
 [dependencies]
 cty = "0.2"
-redbpf-macros = { version = "^0.9.13", path = "../redbpf-macros" }
+redbpf-macros = { version = "^1.0.0", path = "../redbpf-macros" }
 ufmt = { version = "0.1.0", default-features = false }
 
 [build-dependencies]
-cargo-bpf = { version = "^0.9.13", path = "../cargo-bpf", default-features = false, features = ["build"] }
+cargo-bpf = { version = "^1.0.0", path = "../cargo-bpf", default-features = false, features = ["build"] }
 syn = {version = "1.0", default-features = false, features = ["parsing", "visit"] }
 quote = "1.0"
 

@@ -1,6 +1,6 @@
 [package]
 name = "redbpf"
-version = "0.9.13"
+version = "1.0.0"
 description = "eBPF build and runtime library"
 repository = "https://github.com/redsift/redbpf"
 documentation = "https://ingraind.org/api//redbpf/"
@@ -15,7 +15,7 @@ circle-ci = { repository = "redsift/redbpf", branch = "master" }
 maintenance = { status = "actively-developed" }
 
 [dependencies]
-bpf-sys = { path = "../bpf-sys", version = "^0.9.13" }
+bpf-sys = { path = "../bpf-sys", version = "^1.0.0" }
 goblin = "0.2"
 zero = "0.1"
 libc = "0.2"
