@@ -52,6 +52,9 @@ fn main() {
         "__sk_.*",
         "sk_.*",
         "inet_sock",
+        "sockaddr",
+        "sockaddr_in",
+        "in_addr",
     ];
     let xdp_vars = ["ETH_.*", "IPPROTO_.*", "SOCK_.*", "SK_FL_.*", "AF_.*"];
 
@@ -72,7 +75,17 @@ fn main() {
         .to_string();
     let accessors = bpf_bindgen::generate_read_accessors(
         &bindings,
-        &["sock", "file", "inode", "path", "dentry", "qstr"],
+        &[
+            "sock",
+            "sockaddr",
+            "sockaddr_in",
+            "in_addr",
+            "file",
+            "inode",
+            "path",
+            "dentry",
+            "qstr",
+        ],
     );
     bindings.push_str("use crate::helpers::bpf_probe_read;");
     bindings.push_str(&accessors);
