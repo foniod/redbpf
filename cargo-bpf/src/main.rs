@@ -115,7 +115,7 @@ $ cargo bpf build block_http
 
 `cargo bpf build` will produce eBPF code compatibile with the format expected
 by `redbpf::Module` and will place it in
-`target/release/bpf-programs/http_block.elf`.
+`target/bpf/programs/block_http.elf`.
 
 # Loading a program during development
 
@@ -127,7 +127,7 @@ Loading eBPF programs requires admin priviledges, so you'll have to run
 `load` as root or with sudo:
 
 ```
-$ sudo cargo bpf load -i eth0 target/release/bpf-programs/http_block.elf
+$ sudo cargo bpf load -i eth0 target/bpf/programs/block_http.elf
 ```
 
 */
