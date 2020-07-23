@@ -287,12 +287,12 @@ fn probe_names(doc: &Document) -> Result<Vec<String>, Error> {
 }
 
 fn get_opt_executable() -> Result<String, Error> {
-    for llc in vec!["opt".into(), env::var("OPT").unwrap_or("opt-9".into())].drain(..) {
-        if let Ok(out) = Command::new(&llc).arg("--version").output() {
+    for opt in vec!["opt".into(), env::var("OPT").unwrap_or("opt-10".into())].drain(..) {
+        if let Ok(out) = Command::new(&opt).arg("--version").output() {
             match String::from_utf8(out.stdout) {
                 Ok(out) => {
-                    if out.contains("LLVM version 9.") {
-                        return Ok(llc);
+                    if out.contains("LLVM version 10.") {
+                        return Ok(opt);
                     }
                 }
                 Err(_) => continue,
@@ -304,11 +304,11 @@ fn get_opt_executable() -> Result<String, Error> {
 }
 
 pub(crate) fn get_llc_executable() -> Result<String, Error> {
-    for llc in vec!["llc".into(), env::var("LLC").unwrap_or("llc-9".into())].drain(..) {
+    for llc in vec!["llc".into(), env::var("LLC").unwrap_or("llc-10".into())].drain(..) {
         if let Ok(out) = Command::new(&llc).arg("--version").output() {
             match String::from_utf8(out.stdout) {
                 Ok(out) => {
-                    if out.contains("LLVM version 9.") {
+                    if out.contains("LLVM version 10.") {
                         return Ok(llc);
                     }
                 }
