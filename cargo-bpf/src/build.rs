@@ -135,8 +135,15 @@ fn build_probe(cargo: &Path, package: &Path, target_dir: &Path, probe: &str) -> 
     let _ = fs::remove_dir_all(&artifacts_dir);
     fs::create_dir_all(&artifacts_dir)?;
 
+    let mut flags = String::new();
+    if let Ok(rf) = std::env::var("RUSTFLAGS") {
+        flags.push_str(&rf);
+    }
+    flags.push_str(" -C embed-bitcode=yes");
+
     if !Command::new(cargo)
         .current_dir(package)
+        .env("RUSTFLAGS", flags)
         .args("rustc --release --features=probes".split(" "))
         .arg("--target-dir")
         .arg(target_dir.to_str().unwrap())
