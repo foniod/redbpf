@@ -7,7 +7,7 @@
 
 use crate::CommandError;
 
-use futures::stream::StreamExt;
+use futures::{future, stream::StreamExt};
 use hexdump::hexdump;
 use redbpf::xdp;
 use redbpf::{load::Loader, Program::*};
@@ -72,6 +72,11 @@ pub fn load(
                     hexdump(&event);
                 }
             }
+
+            // If the program doesn't have any maps and therefore doesn't fire any events, we still
+            // need to keep `loader` alive here so that BPF programs are not dropped. The future
+            // below will never complete, meaning that the programs will keep running until Ctrl-C
+            future::pending::<()>().await;
         });
 
         // quit on SIGINT
