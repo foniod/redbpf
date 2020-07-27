@@ -52,7 +52,7 @@ project](https://github.com/redsift/ingraind/tree/v1.0).
 In order to build some of the code here, you will need the following:
 
  * Linux 4.19+, with a build tree. The build tree is picked up from standard locations, or the `KERNEL_SOURCE` environment variable.
- * LLVM 9, or an LLVM version compatible with the Rust release you're using to build
+ * LLVM 10
  * The latest stable Rust compiler. We only promise to build with the latest stable and nightly compilers.
 
 # Getting started
@@ -70,7 +70,6 @@ sure you sync the git submodules necessary to build redbpf:
 
 Then install the dependencies for your distro before running the usual ritual.
 
-	cargo build --release
     cargo install --path cargo-bpf
 
 ## Ubuntu
@@ -82,19 +81,20 @@ Install the following dependencies:
 		gnupg2 \
 		software-properties-common \
 		build-essential \
-		clang-9 \
-		llvm-9 \
+		clang-10 \
+		llvm-10 \
 		libelf-dev \
-		linux-headers \
-		ca-certificates{,-java}
+		linux-headers-$(uname -r) \
+		zlib1g \
+		ca-certificates
 
 ## Fedora
 
-	yum install -y clang-9.0.0 \
-		llvm-9.0.0 \
-		llvm-libs-9.0.0 \
-		llvm-devel-9.0.0 \
-		llvm-static-9.0.0 \
+	yum install -y clang-10.0.0 \
+		llvm-10.0.0 \
+		llvm-libs-10.0.0 \
+		llvm-devel-10.0.0 \
+		llvm-static-10.0.0 \
 		kernel \
 		kernel-devel \
 		elfutils-libelf-devel \
