@@ -131,7 +131,7 @@ pub struct TracePoint {
 /// Type to work with `XDP` programs.
 pub struct XDP {
     common: ProgramData,
-    interface: Option<String>,
+    interfaces: Vec<String>,
 }
 
 pub struct Map {
@@ -187,7 +187,7 @@ impl Program {
             "socketfilter" => Program::SocketFilter(SocketFilter { common }),
             "xdp" => Program::XDP(XDP {
                 common,
-                interface: None,
+                interfaces: Vec::new(),
             }),
             _ => return Err(Error::Section(kind.to_string())),
         })
@@ -450,7 +450,7 @@ impl XDP {
     /// ```
     pub fn attach_xdp(&mut self, interface: &str, flags: xdp::Flags) -> Result<()> {
         let fd = self.common.fd.ok_or(Error::ProgramNotLoaded)?;
-        self.interface = Some(interface.to_string());
+        self.interfaces.push(interface.to_string());
         let ciface = CString::new(interface).unwrap();
         let res = unsafe { bpf_sys::bpf_attach_xdp(ciface.as_ptr(), fd, flags as u32) };
 
@@ -468,7 +468,7 @@ impl XDP {
 
 impl Drop for XDP {
     fn drop(&mut self) {
-        if let Some(interface) = &self.interface {
+        for interface in self.interfaces.iter() {
             let ciface = CString::new(interface.as_bytes()).unwrap();
             let _ = unsafe { bpf_sys::bpf_attach_xdp(ciface.as_ptr(), -1, 0) };
         }
