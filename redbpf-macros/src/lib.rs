@@ -206,7 +206,7 @@ fn wrap_kprobe(item: ItemFn) -> ItemFn {
     let outer_ident = Ident::new(&format!("outer_{}", ident), Span::call_site());
     parse_quote! {
         fn #outer_ident(ctx: *mut c_void) -> i32 {
-            let regs = ::redbpf_probes::kprobe::Registers::from(ctx);
+            let regs = ::redbpf_probes::registers::Registers::from(ctx);
             let _ = #ident(regs);
             return 0;
 
