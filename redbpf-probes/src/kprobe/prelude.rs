@@ -4,6 +4,7 @@
 // http://apache.org/licenses/LICENSE-2.0> or the MIT license <LICENSE-MIT or
 // http://opensource.org/licenses/MIT>, at your option. This file may not be
 // copied, modified, or distributed except according to those terms.
+
 //! The Kprobe Prelude
 //!
 //! The purpose of this module is to alleviate imports of the common kprobe types
@@ -17,4 +18,4 @@ pub use redbpf_macros::{kprobe, kretprobe, map, program};
 pub use crate::bindings::*;
 pub use crate::helpers::*;
 pub use crate::maps::*;
-pub use crate::kprobe::*;
+pub use crate::registers::*;

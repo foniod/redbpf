@@ -17,4 +17,4 @@ pub use redbpf_macros::{uprobe, uretprobe, map, program};
 pub use crate::bindings::*;
 pub use crate::helpers::*;
 pub use crate::maps::*;
-pub use crate::kprobe::*;
+pub use crate::registers::*;
