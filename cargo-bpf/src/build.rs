@@ -5,7 +5,7 @@
 // http://opensource.org/licenses/MIT>, at your option. This file may not be
 // copied, modified, or distributed except according to those terms.
 
-use bpf_sys::headers::prefix_kernel_headers;
+use bpf_sys::headers::{prefix_kernel_headers, build_kernel_version};
 use lazy_static::lazy_static;
 use std::convert::From;
 use std::env;
@@ -141,6 +141,16 @@ fn build_probe(cargo: &Path, package: &Path, target_dir: &Path, probe: &str) -> 
     }
     flags.push_str(" -C embed-bitcode=yes");
 
+    let version = build_kernel_version()
+	.map(|mut v| if v.version >= 5 && v.patchlevel >= 7 {
+	    v.patchlevel = 7;
+	    v
+	} else {
+	    v
+	})
+	.map(|v| format!(r#"kernel_version="{}.{}""#, v.version, v.patchlevel))
+	.unwrap_or(r#"kernel_version="unknown""#.to_string());
+
     if !Command::new(cargo)
         .current_dir(package)
         .env("RUSTFLAGS", flags)
@@ -150,6 +160,8 @@ fn build_probe(cargo: &Path, package: &Path, target_dir: &Path, probe: &str) -> 
         .arg("--bin")
         .arg(probe)
         .arg("--")
+	.arg("--cfg")
+	.arg(version)
         .args(
             "--emit=llvm-bc -C panic=abort -C lto -C link-arg=-nostartfiles -C opt-level=3"
                 .split(" "),
