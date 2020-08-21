@@ -1,4 +1,7 @@
+#ifndef KBUILD_MODNAME
 #define KBUILD_MODNAME "redbpf_xdp"
+#endif
+
 #include <linux/kconfig.h>
 #include <linux/types.h>
 #include <asm/byteorder.h>

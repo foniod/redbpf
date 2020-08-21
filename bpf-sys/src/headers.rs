@@ -5,18 +5,40 @@
 // http://opensource.org/licenses/MIT>, at your option. This file may not be
 // copied, modified, or distributed except according to those terms.
 
-use std::env;
-use std::path::{Path, PathBuf};
-
 use crate::uname;
+
+use std::{env,
+	  fmt::{Display, self},
+	  error::Error,
+	  path::{Path, PathBuf},
+	  fs::File,
+	  io::{BufReader, BufRead, self},
+	  str::FromStr};
+
+#[derive(Debug)]
+pub enum HeadersError {
+    NotFound,
+}
+impl Display for HeadersError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "No headers found")
+    }
+}
+impl Error for HeadersError {}
 
 struct KernelHeaders {
     source: PathBuf,
     build: PathBuf
 }
 
+pub struct KernelVersion {
+    pub version: u8,
+    pub patchlevel: u8,
+    pub sublevel: u8
+}
+
 pub fn prefix_kernel_headers(headers: &[&str]) -> Option<Vec<String>> {
-    let KernelHeaders { source, build } = kernel_headers_path()?;
+    let KernelHeaders { source, build } = kernel_headers_path().ok()?;
     let mut ret: Vec<String> = Vec::new();
     for header in headers {
         if header.contains("generated") {
@@ -32,7 +54,46 @@ pub fn prefix_kernel_headers(headers: &[&str]) -> Option<Vec<String>> {
     Some(ret)
 }
 
-fn kernel_headers_path() -> Option<KernelHeaders> {
+pub fn running_kernel_version() -> Option<String> {
+    env::var("KERNEL_VERSION").ok().or_else(|| {
+	uname::uname().ok().map(|u| {
+            uname::to_str(&u.release).to_string()
+	})
+    })
+}
+
+pub fn build_kernel_version() -> Result<KernelVersion, Box<dyn Error>> {
+    let KernelHeaders { source: _, build } = kernel_headers_path()?;
+    let makefile = File::open(build.join("Makefile"))?;
+    let reader = BufReader::new(makefile);
+
+    let mut version = None::<u8>;
+    let mut patchlevel = None::<u8>;
+    let mut sublevel = None::<u8>;
+	
+    for line in reader.lines() {
+	let line = line.ok().ok_or_else(|| io::Error::new(io::ErrorKind::UnexpectedEof, "Broken Makefile"))?;
+	let mut var = line.split(" = ");
+	match var.next() {
+	    Some("VERSION") => version = var.next().map(u8::from_str).transpose()?,
+	    Some("PATCHLEVEL") => patchlevel = var.next().map(u8::from_str).transpose()?,
+	    Some("SUBLEVEL") => sublevel = var.next().map(u8::from_str).transpose()?,
+	    _ => continue
+	}
+
+	if version.is_some() && patchlevel.is_some() && sublevel.is_some() {
+	    break;
+	}
+    }
+
+    Ok(KernelVersion {
+	version: version.unwrap(),
+	patchlevel: patchlevel.unwrap(),
+	sublevel: sublevel.unwrap()
+    })
+}
+
+fn kernel_headers_path() -> Result<KernelHeaders, HeadersError> {
     env::var("KERNEL_SOURCE")
     .ok()
     .map(|s| {
@@ -43,10 +104,11 @@ fn kernel_headers_path() -> Option<KernelHeaders> {
         }
     })
     .or_else(lib_modules_kernel_headers)
+    .ok_or(HeadersError::NotFound)
 }
 
 fn lib_modules_kernel_headers() -> Option<KernelHeaders> {
-    if let Some(version) = kernel_version() {
+    if let Some(version) = running_kernel_version() {
         let path = Path::new("/lib/modules").join(version);
         let mut build = path.join("build");
         let source = path.join("source");
@@ -67,12 +129,4 @@ fn lib_modules_kernel_headers() -> Option<KernelHeaders> {
     }
 
     None
-}
-
-fn kernel_version() -> Option<String> {
-    env::var("KERNEL_VERSION").ok().or_else(|| {
-        uname::uname().ok().map(|u| {
-            uname::to_str(&u.release).to_string()
-        })
-    })
 }
