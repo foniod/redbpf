@@ -1,6 +1,6 @@
 [package]
 name = "cargo-bpf"
-version = "1.1.0"
+version = "1.1.1"
 description = "Cargo plugin to manage eBPF probes using redbpf"
 repository = "https://github.com/redsift/redbpf"
 documentation = "https://ingraind.org/api//cargo_bpf/"
@@ -17,7 +17,7 @@ name = "cargo_bpf_lib"
 clap = { version = "2.33", optional = true }
 bindgen = "0.51.1"
 toml_edit = "0.1.5"
-bpf-sys = { version = "^1.1.0", path = "../bpf-sys" }
+bpf-sys = { version = "^1.1.1", path = "../bpf-sys" }
 redbpf = { version = "^1.1.0", path = "../redbpf", default-features = false, optional = true }
 futures = { version = "0.3", optional = true }
 tokio = { version = "0.2.4", features = ["rt-core", "io-driver", "macros", "signal"], optional = true }
