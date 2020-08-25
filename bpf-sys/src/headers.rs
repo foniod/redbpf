@@ -11,9 +11,8 @@ use std::{env,
 	  fmt::{Display, self},
 	  error::Error,
 	  path::{Path, PathBuf},
-	  fs::File,
-	  io::{BufReader, BufRead, self},
-	  str::FromStr};
+	  str::FromStr,
+	  process::Command};
 
 #[derive(Debug)]
 pub enum HeadersError {
@@ -64,15 +63,18 @@ pub fn running_kernel_version() -> Option<String> {
 
 pub fn build_kernel_version() -> Result<KernelVersion, Box<dyn Error>> {
     let KernelHeaders { source: _, build } = kernel_headers_path()?;
-    let makefile = File::open(build.join("Makefile"))?;
-    let reader = BufReader::new(makefile);
+    let make_db = Command::new("make")
+                          .arg("-qp")
+                          .arg("-f")
+                          .arg(build.join("Makefile"))
+                          .output()?;
+    let reader = String::from_utf8(make_db.stdout)?;
 
     let mut version = None::<u8>;
     let mut patchlevel = None::<u8>;
     let mut sublevel = None::<u8>;
 	
     for line in reader.lines() {
-	let line = line.ok().ok_or_else(|| io::Error::new(io::ErrorKind::UnexpectedEof, "Broken Makefile"))?;
 	let mut var = line.split(" = ");
 	match var.next() {
 	    Some("VERSION") => version = var.next().map(u8::from_str).transpose()?,
