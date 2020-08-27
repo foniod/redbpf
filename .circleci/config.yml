@@ -1,4 +1,4 @@
-image: &default_image quay.io/redsift/ingraind-build:19.10
+image: &default_image quay.io/redsift/ingraind-build:20.04
 
 version: 2.1
 commands:
@@ -9,12 +9,13 @@ commands:
       - run: git submodule update --init
 
 jobs:
-  build_ubuntu:
+  build_doc_and_bin:
     parameters:
       tag:
         type: string
         default: "latest"
     working_directory: /build
+    resource_class: large
     docker:
       - image: quay.io/redsift/ingraind-build:<< parameters.tag >>
     steps:
@@ -22,6 +23,10 @@ jobs:
       - run:
           name: Build
           command: |
+            export KERNEL_SOURCE=/usr/src/kernels/$(rpm -qa kernel-devel |cut -d- -f3- || true)/
+            if [ "x$KERNEL_SOURCE" = "x/usr/src/kernels//" ]; then
+                export KERNEL_SOURCE=/lib/modules/$(ls /lib/modules |head -n1)/build/
+            fi
             cargo build
             cargo test --bins --tests
             RUSTDOCFLAGS="-C panic=abort" cargo test --doc --workspace src
@@ -63,17 +68,24 @@ workflows:
   version: 2
   build_publish:
     jobs:
-      - build_ubuntu:
+      - build_doc_and_bin:
           context: org-global
           name: "ubuntu 18.04"
           tag: "18.04"
           filters:
             tags:
               only: /.*/
-      - build_ubuntu:
+      - build_doc_and_bin:
           context: org-global
-          name: "ubuntu 19.10"
-          tag: "19.10"
+          name: "ubuntu 20.04"
+          tag: "20.04"
+          filters:
+            tags:
+              only: /.*/
+      - build_doc_and_bin:
+          context: org-global
+          name: "fedora 32"
+          tag: "fedora"
           filters:
             tags:
               only: /.*/
@@ -81,7 +93,8 @@ workflows:
           context: org-global
           requires:
             - "ubuntu 18.04"
-            - "ubuntu 19.10"
+            - "ubuntu 20.04"
+            - "fedora 32"
           filters:
             tags:
               only: /^v.*/
