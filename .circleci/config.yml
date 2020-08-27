@@ -22,7 +22,7 @@ jobs:
       - run:
           name: Configure env vars
           command: |
-            export KERNEL_SOURCE=/usr/src/kernels/$(rpm -qa kernel-devel |cut -d- -f3-)/ 
+            export KERNEL_SOURCE=/usr/src/kernels/$(rpm -qa kernel-devel || true |cut -d- -f3-)/
             if [ -z "$KERNEL_SOURCE" ]; then
                 export KERNEL_SOURCE=/lib/modules/$(ls /lib/modules |head -n1)
             fi
