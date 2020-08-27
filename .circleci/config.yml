@@ -23,7 +23,7 @@ jobs:
       - run:
           name: Build
           command: |
-            export KERNEL_SOURCE=/usr/src/kernels/$(rpm -qa kernel-devel || true |cut -d- -f3-)/
+            export KERNEL_SOURCE=/usr/src/kernels/$(rpm -qa kernel-devel |cut -d- -f3- || true)/
             if [ "x$KERNEL_SOURCE" = "x/usr/src/kernels//" ]; then
                 export KERNEL_SOURCE=/lib/modules/$(ls /lib/modules |head -n1)/build/
             fi
