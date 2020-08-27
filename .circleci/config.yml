@@ -23,7 +23,7 @@ jobs:
           name: Configure env vars
           command: |
             export KERNEL_SOURCE=/usr/src/kernels/$(rpm -qa kernel-devel || true |cut -d- -f3-)/
-            if [ -z "$KERNEL_SOURCE" ]; then
+            if [ "x$KERNEL_SOURCE" = "x/usr/src/kernels//" ]; then
                 export KERNEL_SOURCE=/lib/modules/$(ls /lib/modules |head -n1)
             fi
             echo export KERNEL_SOURCE="$KERNEL_SOURCE" |tee $BASH_ENV
