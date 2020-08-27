@@ -26,9 +26,8 @@ jobs:
             if [ -z "$KERNEL_SOURCE" ]; then
                 export KERNEL_SOURCE=/lib/modules/$(ls /lib/modules |head -n1)
             fi
-            echo export KERNEL_SOURCE="$KERNEL_SOURCE">> $BASH_ENV
-            echo export LLC=llc >> $BASH_ENV
-            echo unset RUSTC_WRAPPER >> $BASH_ENV
+            echo export KERNEL_SOURCE="$KERNEL_SOURCE" |tee $BASH_ENV
+            echo export LLC=llc |tee $BASH_ENV
       - run:
           name: Build
           command: |
