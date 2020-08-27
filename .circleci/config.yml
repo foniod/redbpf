@@ -15,22 +15,18 @@ jobs:
         type: string
         default: "latest"
     working_directory: /build
+    resource_class: large
     docker:
       - image: quay.io/redsift/ingraind-build:<< parameters.tag >>
     steps:
       - setup_ubuntu_env
       - run:
-          name: Configure env vars
+          name: Build
           command: |
             export KERNEL_SOURCE=/usr/src/kernels/$(rpm -qa kernel-devel || true |cut -d- -f3-)/
             if [ "x$KERNEL_SOURCE" = "x/usr/src/kernels//" ]; then
-                export KERNEL_SOURCE=/lib/modules/$(ls /lib/modules |head -n1)
+                export KERNEL_SOURCE=/lib/modules/$(ls /lib/modules |head -n1)/build/
             fi
-            echo export KERNEL_SOURCE="$KERNEL_SOURCE" |tee $BASH_ENV
-            echo export LLC=llc |tee $BASH_ENV
-      - run:
-          name: Build
-          command: |
             cargo build
             cargo test --bins --tests
             RUSTDOCFLAGS="-C panic=abort" cargo test --doc --workspace src
