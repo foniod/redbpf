@@ -56,6 +56,8 @@ pub mod kprobe;
 pub mod maps;
 pub mod net;
 pub mod registers;
+pub mod socket;
 pub mod socket_filter;
+pub mod tc;
 pub mod uprobe;
 pub mod xdp;

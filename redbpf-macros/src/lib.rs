@@ -363,3 +363,29 @@ pub fn socket_filter(attrs: TokenStream, item: TokenStream) -> TokenStream {
 
     probe_impl("socketfilter", attrs, wrapper, name).into()
 }
+
+/// Define [tc action BPF programs](https://man7.org/linux/man-pages/man8/tc-bpf.8.html)
+#[proc_macro_attribute]
+pub fn tc_action(attrs: TokenStream, item: TokenStream) -> TokenStream {
+    let item = parse_macro_input!(item as ItemFn);
+    let name = item.sig.ident.to_string();
+    let ident = item.sig.ident.clone();
+    let outer_ident = Ident::new(&format!("outer_{}", ident), Span::call_site());
+    let wrapper = parse_quote! {
+        fn #outer_ident(skb: *const ::redbpf_probes::bindings::__sk_buff) -> i32 {
+            let skb = ::redbpf_probes::socket::SkBuff { skb };
+            return match #ident(skb) {
+                Ok(::redbpf_probes::tc::TcAction::Ok) => 0,
+                Ok(::redbpf_probes::tc::TcAction::Shot) => 2,
+                Ok(::redbpf_probes::tc::TcAction::Unspec) => -1,
+                Ok(::redbpf_probes::tc::TcAction::Pipe) => 3,
+                Ok(::redbpf_probes::tc::TcAction::Reclassify) => 1,
+                _ => 0
+            };
+
+            #item
+        }
+    };
+
+    probe_impl("tc_action", attrs, wrapper, name).into()
+}
