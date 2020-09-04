@@ -191,7 +191,7 @@ fn main() {
                     )
                     .subcommand(
                         SubCommand::with_name("load")
-                            .about("Loads the specifeid eBPF program")
+                            .about("Loads the specified eBPF program")
                             .arg(Arg::with_name("INTERFACE").value_name("INTERFACE").short("i").long("interface").help(
                                 "Binds XDP programs to the given interface"
                             ))
