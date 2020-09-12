@@ -45,7 +45,7 @@ The
 directory also contains examples of using redbpf in real life.
 
 To see how and what RedBPF can be used for, check out the [ingraind
-project](https://github.com/redsift/ingraind/tree/v1.0).
+project](https://github.com/redsift/ingraind/tree/v1.0.0).
 
 # Requirements
 
