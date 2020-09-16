@@ -16,5 +16,5 @@ libc = "0.2"
 
 [build-dependencies]
 cc = "1.0"
-bindgen = "0.51"
+bindgen = "0.55"
 libc = "0.2"
