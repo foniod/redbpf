@@ -157,32 +157,43 @@ pub fn generate_read_accessors(bindings: &str, whitelist: &[&str]) -> String {
         .type_accessors
         .iter()
         .map(|(item_id, item_accessors)| {
-            let accessors = item_accessors.iter().map(|acc| {
-                let ident = acc.field.ident.clone().unwrap();
-                let ty = &acc.field.ty;
-                let prefix = acc.prefix.iter().map(|p| Ident::new(p, Span::call_site()));
-                match ty {
-                    Type::Ptr(_) => {
-                        quote! {
-                            pub fn #ident(&self) -> Option<#ty> {
-                                let v = unsafe { bpf_probe_read(&#(#prefix).*.#ident) }.ok()?;
-                                if v.is_null() {
-                                    None
-                                } else {
-                                    Some(v)
+            // first generate a hashmap (`cache`), to ensure every
+            // entry is unique. turns out certain distro kernel macros
+            // will interfere with this logic, and we generate
+            // multiple definitions for accessors
+            let functions = item_accessors
+                .iter()
+                .fold(HashMap::new(), |mut cache, acc| {
+                    let ident = acc.field.ident.clone().unwrap();
+                    let ty = &acc.field.ty;
+                    let prefix = acc.prefix.iter().map(|p| Ident::new(p, Span::call_site()));
+
+                    let _ = cache.entry(ident.to_string()).or_insert_with(|| match ty {
+                        Type::Ptr(_) => {
+                            quote! {
+                                pub fn #ident(&self) -> Option<#ty> {
+                                    let v = unsafe { bpf_probe_read(&#(#prefix).*.#ident) }.ok()?;
+                                    if v.is_null() {
+                                        None
+                                    } else {
+                                        Some(v)
+                                    }
                                 }
                             }
                         }
-                    }
-                    _ => {
-                        quote! {
-                            pub fn #ident(&self) -> Option<#ty> {
-                                unsafe { bpf_probe_read(&#(#prefix).*.#ident) }.ok()
+                        _ => {
+                            quote! {
+                                pub fn #ident(&self) -> Option<#ty> {
+                                    unsafe { bpf_probe_read(&#(#prefix).*.#ident) }.ok()
+                                }
                             }
                         }
-                    }
-                }
-            });
+                    });
+
+                    cache
+                });
+
+            let accessors = functions.values();
             let ident = Ident::new(item_id, Span::call_site());
             let item = quote! {
                 impl #ident {
