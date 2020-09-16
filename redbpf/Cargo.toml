@@ -1,6 +1,6 @@
 [package]
 name = "redbpf"
-version = "1.1.0"
+version = "1.1.2"
 description = "eBPF build and runtime library"
 repository = "https://github.com/redsift/redbpf"
 documentation = "https://ingraind.org/api//redbpf/"
@@ -19,7 +19,7 @@ bpf-sys = { path = "../bpf-sys", version = "^1.1.0" }
 goblin = "0.2"
 zero = "0.1"
 libc = "0.2"
-bindgen = "0.51"
+bindgen = "0.55"
 regex = "1.0"
 lazy_static = "1.0"
 byteorder = "1"
@@ -30,7 +30,7 @@ ring = { version = "0.16", optional = true }
 
 futures = { version = "0.3", optional = true }
 mio = { version = "0.6", optional = true }
-tokio = { version = "0.2.4", features = ["rt-core", "io-driver", "macros", "signal"], optional = true }
+tokio = { version = "^0.2.4", features = ["rt-core", "io-driver", "macros", "signal"], optional = true }
 
 [features]
 default = []
