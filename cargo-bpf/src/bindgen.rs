@@ -14,7 +14,7 @@ use std::str;
 use tempfile;
 
 pub use crate::accessors::generate_read_accessors;
-use crate::build::{kernel_headers, BUILD_FLAGS};
+use crate::build_constants::{kernel_headers, BUILD_FLAGS};
 use crate::CommandError;
 
 pub fn builder() -> Builder {

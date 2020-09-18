@@ -35,7 +35,7 @@ redbpf-macros = "1.0"
 redbpf-probes = "1.0"
 
 [build-dependencies]
-cargo-bpf = "1.0"
+cargo-bpf = {{ version = "1.0", default-features = false }}
 
 [features]
 default = []

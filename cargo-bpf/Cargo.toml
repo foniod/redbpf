@@ -13,25 +13,30 @@ license = "MIT OR Apache-2.0"
 [lib]
 name = "cargo_bpf_lib"
 
+[[bin]]
+name = "cargo-bpf"
+required-features = ["command-line"]
+
 [dependencies]
-clap = { version = "^2.33", optional = true }
-bindgen = "0.55"
-toml_edit = "0.2"
-bpf-sys = { version = "^1.1.2", path = "../bpf-sys" }
+clap = { version = "2.33", optional = true }
+bindgen = { version = "0.55", optional = true }
+toml_edit = { version = "0.2", optional = true }
+bpf-sys = { version = "^1.1.2", path = "../bpf-sys", optional = true }
 redbpf = { version = "^1.1.2", path = "../redbpf", default-features = false, optional = true }
 futures = { version = "0.3", optional = true }
 tokio = { version = "^0.2.4", features = ["rt-core", "io-driver", "macros", "signal"], optional = true }
 hexdump = { version = "0.1", optional = true }
-libc = "^0.2.66"
-llvm-sys = "100"
-syn = { version = "1.0", features = ["full", "visit"] }
-quote = "1.0"
-proc-macro2 = "1.0"
-tempfile = "3.1"
+libc = {version = "0.2.66", optional = true}
+llvm-sys = { version = "100", optional = true}
+syn = { version = "1.0", features = ["full", "visit"], optional = true }
+quote = { version = "1.0", optional = true }
+proc-macro2 = {version = "1.0", optional = true}
+tempfile = { version = "3.1", optional = true}
 lazy_static = "1.0"
 
 [features]
 default = ["command-line"]
-build = []
+bindings = ["bpf-sys", "bindgen", "syn", "quote", "proc-macro2", "tempfile"]
+build = ["bindings", "libc", "toml_edit", "llvm-sys"]
 build-c = []
-command-line = ["clap", "redbpf/load", "futures", "tokio", "hexdump"]
+command-line = ["build", "clap", "redbpf/load", "futures", "tokio", "hexdump"]
