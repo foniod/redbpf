@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = '2018'
 
 [build-dependencies]
-cargo-bpf = { version = "^1.1.0", path = "../../cargo-bpf", default-features = false, features = ["build"] }
+cargo-bpf = { version = "^1.1.0", path = "../../cargo-bpf", default-features = false, features = ["bindings"] }
 
 [dependencies]
 cty = "0.2"
