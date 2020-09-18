@@ -4,13 +4,20 @@
 // http://apache.org/licenses/LICENSE-2.0> or the MIT license <LICENSE-MIT or
 // http://opensource.org/licenses/MIT>, at your option. This file may not be
 // copied, modified, or distributed except according to those terms.
+mod build_constants;
 
+#[cfg(feature = "bindings")]
 mod accessors;
+#[cfg(feature = "bindings")]
 pub mod bindgen;
+
+#[cfg(feature = "build")]
 mod build;
+#[cfg(feature = "build")]
+mod llvm;
 #[cfg(feature = "build-c")]
 mod build_c;
-mod llvm;
+
 #[cfg(feature = "command-line")]
 mod load;
 #[cfg(feature = "command-line")]
@@ -26,6 +33,7 @@ impl std::convert::From<std::io::Error> for CommandError {
     }
 }
 
+#[cfg(feature = "build")]
 pub use build::*;
 #[cfg(feature = "build-c")]
 pub use build_c::*;
