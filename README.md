@@ -55,6 +55,8 @@ In order to build some of the code here, you will need the following:
  * LLVM 10
  * The latest stable Rust compiler. We only promise to build with the latest stable and nightly compilers.
 
+NOTE: the latest `nightly` compilers will use LLVM 11, which doesn't ship with most distributions. Use a stable compiler for the time being.
+
 # Getting started
 
 It's easiest to get started by installing `cargo-bpf` using cargo.
