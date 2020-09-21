@@ -10,6 +10,7 @@ use std::ffi::CStr;
 use std::fs::File;
 use std::io::{self, BufRead, BufReader};
 use std::os::raw::c_char;
+use std::process;
 use std::time::Duration;
 use tokio;
 use tokio::runtime::Runtime;
@@ -19,6 +20,11 @@ use tokio::time::delay_for;
 use probes::iotop::{Counter, CounterKey};
 
 fn main() {
+    if unsafe { libc::getuid() } != 0 {
+        println!("redbpf-iotop: You must be root to use eBPF!");
+        process::exit(-1);
+    }
+
     let mut runtime = Runtime::new().unwrap();
     let _ = runtime.block_on(async {
         // load the BPF programs and maps
