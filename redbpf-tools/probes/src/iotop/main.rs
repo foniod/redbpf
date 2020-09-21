@@ -32,11 +32,6 @@ fn start_request(regs: Registers) {
 }
 
 #[kprobe]
-fn blk_start_request(regs: Registers) {
-    start_request(regs)
-}
-
-#[kprobe]
 fn blk_mq_start_request(regs: Registers) {
     start_request(regs)
 }
