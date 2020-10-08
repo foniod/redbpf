@@ -12,6 +12,13 @@ use toml_edit;
 
 use crate::CommandError;
 
+
+impl From<toml_edit::Value> for CommandError {
+    fn from(error: toml_edit::Value) -> CommandError {
+        CommandError(error.to_string())
+    }
+}
+
 pub fn new_program(name: &str) -> Result<(), CommandError> {
     use toml_edit::{value, Array, ArrayOfTables, Document, Item, Table};
 
@@ -54,7 +61,7 @@ pub fn new_program(name: &str) -> Result<(), CommandError> {
         .entry("path")
         .or_insert(value(format!("src/{}/main.rs", name)));
     let mut features = Array::default();
-    features.push("probes");
+    features.push("probes")?;
     target.entry("required-features").or_insert(value(features));
 
     targets.append(target);
