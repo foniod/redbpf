@@ -225,7 +225,7 @@ struct BpfStackFrames {
 }
 
 impl StackTrace {
-    pub const fn with_capacity(cap: u32) -> Self {
+    pub const fn with_max_entries(cap: u32) -> Self {
         StackTrace {
             def: bpf_map_def {
                 type_: bpf_map_type_BPF_MAP_TYPE_STACK_TRACE,

@@ -839,13 +839,13 @@ impl StackTrace<'_> {
         }
     }
 
-    pub fn get(&mut self, id: libc::c_int) -> Option<BpfStackFrames> {
+    pub fn get(&mut self, mut id: libc::c_int) -> Option<BpfStackFrames> {
         unsafe {
             let mut value = MaybeUninit::uninit();
 
             let ret = bpf_sys::bpf_lookup_elem(
                 self.base.fd,
-                &id as *const libc::c_int as *mut libc::c_int as _,
+                &mut id as *mut libc::c_int as _,
                 value.as_mut_ptr() as *mut _
             );
 
@@ -857,14 +857,18 @@ impl StackTrace<'_> {
         }
     }
 
-    pub fn remove(&mut self, id: libc::c_int) -> bool {
+    pub fn delete(&mut self, id: libc::c_int) -> Result<()> {
         unsafe {
             let ret = bpf_sys::bpf_delete_elem(
                 self.base.fd,
                 &id as *const libc::c_int as *mut libc::c_int as _,
             );
 
-            ret == 0
+            if ret == 0 {
+                Ok(())
+            } else {
+                Err(Error::Map)
+            }
         }
     }
 }
