@@ -6,6 +6,7 @@
 // copied, modified, or distributed except according to those terms.
 
 use bpf_sys::headers::build_kernel_version;
+use glob::{glob, PatternError};
 use std::convert::From;
 use std::env;
 use std::fmt::{self, Display};
@@ -29,6 +30,7 @@ pub enum Error {
     MissingBitcode(String),
     Link(String),
     IOError(io::Error),
+    PatternError(PatternError),
 }
 
 impl std::error::Error for Error {
@@ -59,6 +61,7 @@ impl Display for Error {
             NoOPT => write!(f, "no usable opt executable found, expecting version 9"),
             NoLLC => write!(f, "no usable llc executable found, expecting version 9"),
             IOError(e) => write!(f, "{}", e),
+            PatternError(e) => write!(f, "couldn't list probe files: {}", e),
         }
     }
 }
@@ -214,19 +217,12 @@ pub fn cmd_build(programs: Vec<String>, target_dir: PathBuf) -> Result<(), Comma
 }
 
 pub fn probe_files(package: &Path) -> Result<Vec<String>, Error> {
-    let doc = load_package(package)?;
-    let probes = probe_names(&doc)?;
-    Ok(probes
-        .iter()
-        .map(|probe| {
-            package
-                .join("src")
-                .join(probe)
-                .join("main.rs")
-                .to_string_lossy()
-                .into()
+    glob(&format!("{}/src/**/*.rs", &package.to_string_lossy()))
+        .map_err(|e| Error::PatternError(e))
+        .map(|iter| {
+            iter.filter_map(|entry| entry.ok().map(|path| path.to_string_lossy().into_owned()))
+                .collect()
         })
-        .collect())
 }
 
 fn load_package(package: &Path) -> Result<Document, Error> {
