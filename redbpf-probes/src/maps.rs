@@ -247,3 +247,61 @@ impl StackTrace {
         }
     }
 }
+
+/// Program array map.
+///
+/// An array of eBPF programs that can be used as a jump table.
+///
+/// To configure the map use
+/// [`redbpf::ProgramArray`](../../redbpf/struct.ProgramArray.html)
+/// from user-space.
+///
+/// To jump to a program, see the `tail_call` method.
+#[repr(transparent)]
+pub struct ProgramArray {
+    def: bpf_map_def,
+}
+
+impl ProgramArray {
+    /// Creates a program map with the specified maximum number of programs.
+    pub const fn with_max_entries(max_entries: u32) -> Self {
+        Self {
+            def: bpf_map_def {
+                type_: bpf_map_type_BPF_MAP_TYPE_PROG_ARRAY,
+                key_size: mem::size_of::<u32>() as u32,
+                value_size: mem::size_of::<u32>() as u32,
+                max_entries,
+                map_flags: 0,
+            },
+        }
+    }
+
+    /// Jump to the eBPF program referenced at `index`, passing `ctx` as context.
+    ///
+    /// This special method is used to trigger a "tail call", or in other words,
+    /// to jump into another eBPF program.  The same stack frame is used (but
+    /// values on stack and in registers for the caller are not accessible to
+    /// the callee). This mechanism allows for program chaining, either for
+    /// raising the maximum number of available eBPF instructions, or to execute
+    /// given programs in conditional blocks. For security reasons, there is an
+    /// upper limit to the number of successive tail calls that can be
+    /// performed.
+    ///
+    /// If the call succeeds the kernel immediately runs the first instruction
+    /// of the new program. This is not a function call, and it never returns to
+    /// the previous program. If the call fails, then the helper has no effect,
+    /// and the caller continues to run its subsequent instructions.
+    ///
+    /// A call can fail if the destination program for the jump does not exist
+    /// (i.e. index is superior to the number of entries in the array), or
+    /// if the maximum number of tail calls has been reached for this chain of
+    /// programs.
+    pub unsafe fn tail_call<C>(&mut self, ctx: *mut C, index: u32) -> Result<(), i32> {
+        let ret = bpf_tail_call(ctx as *mut _, &mut self.def as *mut _ as *mut c_void, index);
+        if ret < 0 {
+            return Err(ret);
+        }
+
+        Ok(())
+    }
+}

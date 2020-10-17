@@ -159,6 +159,16 @@ pub struct BpfStackFrames {
     pub ip: [u64; BPF_MAX_STACK_DEPTH]
 }
 
+/// Program array map.
+///
+/// An array of eBPF programs that can be used as a jump table.
+///
+/// To use this from eBPF code, see
+/// [`redbpf_probes::maps::ProgramArray`](../../redbpf_probes/maps/struct.ProgramArray.html).
+pub struct ProgramArray<'a> {
+    base: &'a Map,
+}
+
 #[allow(dead_code)]
 pub struct Rel {
     shndx: usize,
@@ -785,6 +795,64 @@ impl<'base, K: Clone, V: Clone> HashMap<'base, K, V> {
             map: self,
             key: None,
         }
+    }
+}
+
+impl<'base> ProgramArray<'base> {
+    pub fn new<'a>(base: &'a Map) -> Result<ProgramArray<'a>> {
+        if mem::size_of::<u32>() != base.config.key_size as usize
+            || mem::size_of::<RawFd>() != base.config.value_size as usize
+        {
+            return Err(Error::Map);
+        }
+
+        Ok(ProgramArray { base })
+    }
+
+    /// Get the `fd` of the eBPF program at `index`.
+    pub fn get(&self, mut index: u32) -> Result<RawFd> {
+        let mut fd: RawFd = 0;
+        if unsafe {
+            bpf_sys::bpf_lookup_elem(
+                self.base.fd,
+                &mut index as *mut _ as *mut _,
+                &mut fd as *mut _ as *mut _,
+            )
+        } < 0
+        {
+            return Err(Error::Map);
+        }
+        Ok(fd)
+    }
+
+    /// Set the `index` entry to the given eBPF program `fd`.
+    ///
+    /// To jump to a program from eBPF, see
+    /// [`redbpf_probes::maps::ProgramArray::tail_call`](../../redbpf_probes/maps/struct.ProgramArray.html#method.tail_call).
+    ///
+    /// # Example
+    /// ```no_run
+    /// pub const PROGRAM_PARSE_HTTP: u32 = 0;
+    /// ...
+    /// programs.set(
+    ///     PROGRAM_PARSE_HTTP,
+    ///     loader.program("parse_http").unwrap().fd().unwrap(),
+    /// );
+    /// ```
+    pub fn set(&mut self, mut index: u32, mut fd: RawFd) -> Result<()> {
+        let ret = unsafe {
+            bpf_sys::bpf_update_elem(
+                self.base.fd,
+                &mut index as *mut _ as *mut _,
+                &mut fd as *mut _ as *mut _,
+                0,
+            )
+        };
+        if ret < 0 {
+            return Err(Error::Map);
+        }
+
+        Ok(())
     }
 }
 
