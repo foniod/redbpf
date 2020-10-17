@@ -246,6 +246,10 @@ impl Program {
         &self.data().name
     }
 
+    pub fn fd(&self) -> &Option<RawFd> {
+        &self.data().fd
+    }
+
     /// Load the BPF program.
     ///
     /// BPF programs need to be loaded before they can be attached. Loading will fail if the BPF verifier rejects the code.
@@ -576,6 +580,10 @@ impl Module {
             license,
             version,
         })
+    }
+
+    pub fn program(&self, name: &str) -> Option<&Program> {
+        self.programs.iter().find(|p| p.name() == name)
     }
 
     pub fn kprobes(&self) -> impl Iterator<Item = &KProbe> {
