@@ -12,9 +12,9 @@ Maps are a generic data structure for storage of different types of data.
 They allow sharing of data between eBPF kernel programs, and also between
 kernel and user-space code.
  */
+use core::convert::TryInto;
 use core::default::Default;
 use core::marker::PhantomData;
-use core::convert::TryInto;
 use core::mem;
 use cty::*;
 
@@ -154,7 +154,8 @@ impl PerfMapFlags {
 impl From<PerfMapFlags> for u64 {
     #[inline]
     fn from(flags: PerfMapFlags) -> u64 {
-        (flags.xdp_size as u64) << 32 | (flags.index.unwrap_or(BPF_F_CURRENT_CPU.try_into().unwrap()) as u64)
+        (flags.xdp_size as u64) << 32
+            | (flags.index.unwrap_or(BPF_F_CURRENT_CPU.try_into().unwrap()) as u64)
     }
 }
 
