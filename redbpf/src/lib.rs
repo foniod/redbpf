@@ -147,6 +147,18 @@ pub struct HashMap<'a, K: Clone, V: Clone> {
     _v: PhantomData<V>,
 }
 
+pub struct StackTrace<'a> {
+    base: &'a Map
+}
+
+// TODO Use PERF_MAX_STACK_DEPTH
+const BPF_MAX_STACK_DEPTH: usize = 127;
+
+#[repr(C)]
+pub struct BpfStackFrames {
+    pub ip: [u64; BPF_MAX_STACK_DEPTH]
+}
+
 #[allow(dead_code)]
 pub struct Rel {
     shndx: usize,
@@ -817,6 +829,47 @@ impl<K: Clone, V: Clone> Iterator for MapIter<'_, '_, K, V> {
 
         let key = self.key.clone().unwrap();
         Some((key.clone(), self.map.get(key).unwrap()))
+    }
+}
+
+impl StackTrace<'_> {
+    pub fn new(map: &Map) -> StackTrace<'_> {
+        StackTrace {
+            base: map
+        }
+    }
+
+    pub fn get(&mut self, mut id: libc::c_int) -> Option<BpfStackFrames> {
+        unsafe {
+            let mut value = MaybeUninit::uninit();
+
+            let ret = bpf_sys::bpf_lookup_elem(
+                self.base.fd,
+                &mut id as *mut libc::c_int as _,
+                value.as_mut_ptr() as *mut _
+            );
+
+            if ret == 0 {
+                Some(value.assume_init())
+            } else {
+                None
+            }
+        }
+    }
+
+    pub fn delete(&mut self, id: libc::c_int) -> Result<()> {
+        unsafe {
+            let ret = bpf_sys::bpf_delete_elem(
+                self.base.fd,
+                &id as *const libc::c_int as *mut libc::c_int as _,
+            );
+
+            if ret == 0 {
+                Ok(())
+            } else {
+                Err(Error::Map)
+            }
+        }
     }
 }
 

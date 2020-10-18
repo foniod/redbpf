@@ -210,3 +210,39 @@ impl<T> PerfMap<T> {
         );
     }
 }
+
+// TODO Use PERF_MAX_STACK_DEPTH
+const BPF_MAX_STACK_DEPTH: usize = 127;
+
+#[repr(transparent)]
+pub struct StackTrace {
+    def: bpf_map_def
+}
+
+#[repr(C)]
+struct BpfStackFrames {
+    ip: [u64; BPF_MAX_STACK_DEPTH]
+}
+
+impl StackTrace {
+    pub const fn with_max_entries(cap: u32) -> Self {
+        StackTrace {
+            def: bpf_map_def {
+                type_: bpf_map_type_BPF_MAP_TYPE_STACK_TRACE,
+                key_size: mem::size_of::<u32>() as u32,
+                value_size: mem::size_of::<BpfStackFrames>() as u32,
+                max_entries: cap,
+                map_flags: 0
+            }
+        }
+    }
+
+    pub unsafe fn stack_id(&mut self, ctx: *mut pt_regs, flag: u64) -> Result<c_int, c_int> {
+        let ret = bpf_get_stackid(ctx as _, &mut self.def as *mut _ as _, flag);
+        if ret >= 0 {
+            Ok(ret)
+        } else {
+            Err(ret)
+        }
+    }
+}
