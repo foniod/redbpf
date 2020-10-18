@@ -237,7 +237,7 @@ impl StackTrace {
         }
     }
 
-    pub unsafe fn stackid(&mut self, ctx: *mut pt_regs, flag: u64) -> Result<c_int, c_int> {
+    pub unsafe fn stack_id(&mut self, ctx: *mut pt_regs, flag: u64) -> Result<c_int, c_int> {
         let ret = bpf_get_stackid(ctx as _, &mut self.def as *mut _ as _, flag);
         if ret >= 0 {
             Ok(ret)
