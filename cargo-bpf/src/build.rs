@@ -8,7 +8,6 @@
 use bpf_sys::headers::build_kernel_version;
 use glob::{glob, PatternError};
 use std::convert::From;
-use std::env;
 use std::fmt::{self, Display};
 use std::fs;
 use std::io;
@@ -17,7 +16,7 @@ use std::process::Command;
 use std::str;
 use toml_edit::{Document, Item};
 
-use crate::llvm::process_ir;
+use crate::llvm;
 use crate::CommandError;
 
 #[derive(Debug)]
@@ -73,7 +72,6 @@ impl From<Error> for CommandError {
 }
 
 fn build_probe(cargo: &Path, package: &Path, target_dir: &Path, probe: &str) -> Result<(), Error> {
-    let llc_args = ["-march=bpf", "-filetype=obj", "-o"];
     fs::create_dir_all(&target_dir)?;
     let target_dir = target_dir.canonicalize().unwrap().join("bpf");
     let artifacts_dir = target_dir.join("programs").join(probe);
@@ -137,52 +135,14 @@ fn build_probe(cargo: &Path, package: &Path, target_dir: &Path, probe: &str) -> 
     }
 
     let bc_file = bc_files.drain(..).next().unwrap();
-    let processed_bc_file = bc_file.with_extension("bc.proc");
     let opt_bc_file = bc_file.with_extension("bc.opt");
-
-    process_ir(&bc_file, &processed_bc_file).map_err(|msg| {
+    let target = artifacts_dir.join(format!("{}.elf", probe));
+    unsafe { llvm::compile(&bc_file, &target, Some(&opt_bc_file)) }.map_err(|msg| {
         Error::Compile(
             probe.into(),
             Some(format!("couldn't process IR file: {}", msg)),
         )
     })?;
-    println!(
-        "IR processed before: {:?}, after: {:?}",
-        bc_file, processed_bc_file
-    );
-
-    let opt = get_opt_executable()?;
-    if !Command::new(opt)
-        .args(&[
-            "-march=bpf",
-            "-O3",
-            "--loop-unroll",
-            &format!("--unroll-threshold={}", std::u32::MAX), // unroll at any cost
-            "--unroll-max-upperbound=500", // the max loop iteration count to unroll
-            // enable upperbound unrolling when the exact trip count can't be computed
-            "--passes=always-inline,function(unroll<upperbound>)",
-            "-o",
-            opt_bc_file.to_str().unwrap(),
-        ])
-        .arg(processed_bc_file.to_str().unwrap())
-        .status()?
-        .success()
-    {
-        return Err(Error::Link(probe.to_string()));
-    }
-    println!("IR optimised: {:?}", opt_bc_file);
-
-    let elf_target = artifacts_dir.join(format!("{}.elf", probe));
-    let llc = get_llc_executable()?;
-    if !Command::new(llc)
-        .args(&llc_args)
-        .arg(&elf_target)
-        .arg(opt_bc_file.to_str().unwrap())
-        .status()?
-        .success()
-    {
-        return Err(Error::Link(probe.to_string()));
-    }
 
     Ok(())
 }
@@ -202,6 +162,8 @@ pub fn build(
         let doc = load_package(package)?;
         probes = probe_names(&doc)?
     };
+
+    unsafe { llvm::init() };
 
     for probe in probes {
         build_probe(cargo, package, &target_dir, &probe)?;
@@ -243,38 +205,4 @@ fn probe_names(doc: &Document) -> Result<Vec<String>, Error> {
             .collect()),
         _ => return Err(Error::NoPrograms),
     }
-}
-
-fn get_opt_executable() -> Result<String, Error> {
-    for opt in vec!["opt".into(), env::var("OPT").unwrap_or("opt-10".into())].drain(..) {
-        if let Ok(out) = Command::new(&opt).arg("--version").output() {
-            match String::from_utf8(out.stdout) {
-                Ok(out) => {
-                    if out.contains("LLVM version 10.") {
-                        return Ok(opt);
-                    }
-                }
-                Err(_) => continue,
-            }
-        }
-    }
-
-    return Err(Error::NoOPT);
-}
-
-pub(crate) fn get_llc_executable() -> Result<String, Error> {
-    for llc in vec!["llc".into(), env::var("LLC").unwrap_or("llc-10".into())].drain(..) {
-        if let Ok(out) = Command::new(&llc).arg("--version").output() {
-            match String::from_utf8(out.stdout) {
-                Ok(out) => {
-                    if out.contains("LLVM version 10.") {
-                        return Ok(llc);
-                    }
-                }
-                Err(_) => continue,
-            }
-        }
-    }
-
-    return Err(Error::NoLLC);
 }

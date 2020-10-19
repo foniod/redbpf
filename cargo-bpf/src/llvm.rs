@@ -1,34 +1,28 @@
-use llvm_sys::analysis::{LLVMVerifierFailureAction::*, LLVMVerifyModule};
+use anyhow::{anyhow, Result};
+use llvm_sys::bit_writer::LLVMWriteBitcodeToFile;
 use llvm_sys::core::*;
 use llvm_sys::debuginfo::LLVMStripModuleDebugInfo;
-use llvm_sys::initialization::*;
 use llvm_sys::ir_reader::LLVMParseIRInContext;
 use llvm_sys::prelude::*;
 use llvm_sys::target::*;
+use llvm_sys::target_machine::*;
+use llvm_sys::transforms::ipo::LLVMAddAlwaysInlinerPass;
+use llvm_sys::transforms::pass_manager_builder::*;
 use llvm_sys::{LLVMAttributeFunctionIndex, LLVMInlineAsmDialect::*};
 use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
 use std::path::Path;
 use std::ptr;
 
-unsafe fn init_context() -> LLVMContextRef {
-    let context = LLVMGetGlobalContext();
-
+pub unsafe fn init() {
     LLVM_InitializeAllTargets();
+    LLVM_InitializeAllTargetInfos();
     LLVM_InitializeAllTargetMCs();
     LLVM_InitializeAllAsmPrinters();
     LLVM_InitializeAllAsmParsers();
-
-    let registry = LLVMGetGlobalPassRegistry();
-    LLVMInitializeCore(registry);
-    LLVMInitializeCodeGen(registry);
-    LLVMInitializeScalarOpts(registry);
-    LLVMInitializeVectorization(registry);
-
-    context
 }
 
-unsafe fn load_module(context: LLVMContextRef, input: &Path) -> Result<LLVMModuleRef, String> {
+unsafe fn load_module(context: LLVMContextRef, input: &Path) -> Result<LLVMModuleRef> {
     let mut message: *mut c_char = ptr::null_mut();
     let filename = CString::new(input.to_str().unwrap()).unwrap();
     let mut buf: LLVMMemoryBufferRef = ptr::null_mut();
@@ -38,8 +32,10 @@ unsafe fn load_module(context: LLVMContextRef, input: &Path) -> Result<LLVMModul
         &mut message as *mut *mut c_char,
     );
     if !message.is_null() {
-        let message = CStr::from_ptr(message);
-        return Err(message.to_string_lossy().into_owned());
+        return Err(anyhow!(
+            "LLVMCreateMemoryBufferWithContentsOfFile failed: {}",
+            error_str(message)
+        ));
     }
 
     let mut module: LLVMModuleRef = ptr::null_mut();
@@ -51,33 +47,13 @@ unsafe fn load_module(context: LLVMContextRef, input: &Path) -> Result<LLVMModul
         &mut message as *mut *mut c_char,
     );
     if !message.is_null() {
-        let message = CStr::from_ptr(message);
-        return Err(message.to_string_lossy().into_owned());
-    }
-
-    Ok(module)
-}
-
-unsafe fn write_module(module: LLVMModuleRef, path: &Path) -> Result<(), String> {
-    let mut message: *mut c_char = ptr::null_mut();
-    let ret = LLVMVerifyModule(module, LLVMPrintMessageAction, &mut message as *mut *mut _);
-    if ret == 1 && !message.is_null() {
-        let message = CStr::from_ptr(message);
-        return Err(format!(
-            "verification failed: {}",
-            message.to_string_lossy().into_owned()
+        return Err(anyhow!(
+            "LLVMParseIRInContext failed: {}",
+            error_str(message)
         ));
     }
 
-    let mut message: *mut c_char = ptr::null_mut();
-    let out = CString::new(path.to_str().unwrap()).unwrap();
-    LLVMPrintModuleToFile(module, out.as_ptr(), &mut message as *mut *mut _);
-    if !message.is_null() {
-        let message = CStr::from_ptr(message);
-        return Err(message.to_string_lossy().into_owned());
-    }
-
-    Ok(())
+    Ok(module)
 }
 
 unsafe fn inject_exit_call(context: LLVMContextRef, func: LLVMValueRef, builder: LLVMBuilderRef) {
@@ -106,43 +82,175 @@ unsafe fn inject_exit_call(context: LLVMContextRef, func: LLVMValueRef, builder:
     );
 }
 
-pub fn process_ir(input: &Path, output: &Path) -> Result<(), String> {
-    unsafe {
-        let context = init_context();
-        let module = load_module(context, input)?;
-        let builder = LLVMCreateBuilderInContext(context);
+pub unsafe fn compile(input: &Path, output: &Path, bc_output: Option<&Path>) -> Result<()> {
+    let context = LLVMGetGlobalContext();
+    let module = load_module(context, input)?;
+    process_ir(context, module)?;
+    let ret = compile_module(module, output, bc_output);
+    LLVMDisposeModule(module);
 
-        let no_inline = CString::new("noinline").unwrap();
-        let no_inline_kind = LLVMGetEnumAttributeKindForName(no_inline.as_ptr(), "noinline".len());
-        let always_inline = CString::new("alwaysinline").unwrap();
-        let always_inline_kind =
-            LLVMGetEnumAttributeKindForName(always_inline.as_ptr(), "alwaysinline".len());
-        let always_inline_attr = LLVMCreateEnumAttribute(context, always_inline_kind, 0);
+    ret
+}
 
-        let mut func = LLVMGetFirstFunction(module);
-        while func != ptr::null_mut() {
-            let mut size: libc::size_t = 0;
-            let name = CStr::from_ptr(LLVMGetValueName2(func, &mut size as *mut _))
-                .to_str()
-                .unwrap();
-            if !name.starts_with("llvm.") {
-                // make sure everything gets inlined as BPF can't do calls to
-                // things other than helpers
-                LLVMRemoveEnumAttributeAtIndex(func, LLVMAttributeFunctionIndex, no_inline_kind);
-                LLVMAddAttributeAtIndex(func, LLVMAttributeFunctionIndex, always_inline_attr);
+pub unsafe fn process_ir(context: LLVMContextRef, module: LLVMModuleRef) -> Result<()> {
+    let builder = LLVMCreateBuilderInContext(context);
 
-                if name == "rust_begin_unwind" {
-                    // inject a BPF exit call in the panic handler to make the program terminate
-                    inject_exit_call(context, func, builder);
-                }
+    let no_inline = CString::new("noinline").unwrap();
+    let no_inline_kind = LLVMGetEnumAttributeKindForName(no_inline.as_ptr(), "noinline".len());
+    let always_inline = CString::new("alwaysinline").unwrap();
+    let always_inline_kind =
+        LLVMGetEnumAttributeKindForName(always_inline.as_ptr(), "alwaysinline".len());
+    let always_inline_attr = LLVMCreateEnumAttribute(context, always_inline_kind, 0);
+
+    let mut func = LLVMGetFirstFunction(module);
+    while func != ptr::null_mut() {
+        let mut size: libc::size_t = 0;
+        let name = CStr::from_ptr(LLVMGetValueName2(func, &mut size as *mut _))
+            .to_str()
+            .unwrap();
+        if !name.starts_with("llvm.") {
+            // make sure everything gets inlined as BPF can't do calls to
+            // things other than helpers
+            LLVMRemoveEnumAttributeAtIndex(func, LLVMAttributeFunctionIndex, no_inline_kind);
+            LLVMAddAttributeAtIndex(func, LLVMAttributeFunctionIndex, always_inline_attr);
+
+            if name == "rust_begin_unwind" {
+                // inject a BPF exit call in the panic handler to make the program terminate
+                inject_exit_call(context, func, builder);
             }
-            func = LLVMGetNextFunction(func);
         }
+        func = LLVMGetNextFunction(func);
+    }
 
-        // the debug info generated by rustc seems to trigger a segfault in the
-        // BTF code in llvm, so strip it until that is fixed
-        LLVMStripModuleDebugInfo(module);
+    // the debug info generated by rustc seems to trigger a segfault in the
+    // BTF code in llvm, so strip it until that is fixed
+    LLVMStripModuleDebugInfo(module);
 
-        write_module(module, output)
+    Ok(())
+}
+
+unsafe fn create_target_machine() -> Result<LLVMTargetMachineRef> {
+    let mut error = ptr::null_mut();
+    let triple = CString::new("bpf").unwrap();
+    let cpu = CString::new("generic").unwrap(); // see llc -march=bpf -mcpu=help
+    let features = CString::new("").unwrap(); // see llc -march=bpf -mcpu=help
+
+    let mut target = ptr::null_mut();
+    let ret = LLVMGetTargetFromTriple(triple.as_ptr(), &mut target, &mut error);
+    if ret == 1 {
+        return Err(anyhow!(
+            "LLVMGetTargetFromTriple failed: {}",
+            error_str(error)
+        ));
+    }
+
+    let tm = LLVMCreateTargetMachine(
+        target,
+        triple.as_ptr(),
+        cpu.as_ptr(),
+        features.as_ptr(),
+        LLVMCodeGenOptLevel::LLVMCodeGenLevelAggressive,
+        LLVMRelocMode::LLVMRelocDefault,
+        LLVMCodeModel::LLVMCodeModelDefault,
+    );
+    if tm.is_null() {
+        return Err(anyhow!("Couldn't create target machine"));
+    }
+
+    Ok(tm)
+}
+
+unsafe fn compile_module(
+    module: LLVMModuleRef,
+    output: &Path,
+    bc_output: Option<&Path>,
+) -> Result<()> {
+    let tm = create_target_machine()?;
+    let data_layout = LLVMCreateTargetDataLayout(tm);
+    LLVMSetModuleDataLayout(module, data_layout);
+
+    let fpm = LLVMCreateFunctionPassManagerForModule(module);
+    let mpm = LLVMCreatePassManager();
+
+    LLVMAddAnalysisPasses(tm, fpm);
+    LLVMAddAnalysisPasses(tm, mpm);
+
+    // we annotate all functions as always-inline so that we can force-inline
+    // them with the always inliner pass
+    LLVMAddAlwaysInlinerPass(mpm);
+
+    // NOTE: we should call LLVMAddTargetLibraryInfo() here but there's no way
+    // to retrieve the library info for the BPF target using the C API
+
+    // add all the other passes
+    let pmb = LLVMPassManagerBuilderCreate();
+    LLVMPassManagerBuilderSetOptLevel(pmb, 3);
+    LLVMPassManagerBuilderSetSizeLevel(pmb, 0);
+
+    // We already added the AlwaysInliner pass. Ideally we want to set
+    // PMB->Inliner = AlwaysInliner but that's not possible with the C API. So
+    // here we add _another_ inliner pass that won't actually inline anything,
+    // but will cause the PMB to add extra optimization passes that are only
+    // turned on if inlining is configured.
+    LLVMPassManagerBuilderUseInlinerWithThreshold(pmb, 275);
+
+    // populate the pass managers
+    LLVMPassManagerBuilderPopulateFunctionPassManager(pmb, fpm);
+    LLVMPassManagerBuilderPopulateModulePassManager(pmb, mpm);
+
+    // run function passes
+    LLVMInitializeFunctionPassManager(fpm);
+    let mut func = LLVMGetFirstFunction(module);
+    while func != ptr::null_mut() {
+        if LLVMIsDeclaration(func) == 0 {
+            LLVMRunFunctionPassManager(fpm, func);
+        }
+        func = LLVMGetNextFunction(func);
+    }
+    LLVMFinalizeFunctionPassManager(fpm);
+
+    // run module passes
+    LLVMRunPassManager(mpm, module);
+
+    if let Some(output) = bc_output {
+        let file_ptr = CString::new(output.to_str().unwrap()).unwrap().into_raw();
+        let ret = LLVMWriteBitcodeToFile(module, file_ptr);
+        let _ = CString::from_raw(file_ptr);
+        if ret == 1 {
+            return Err(anyhow!("LLVMWriteBitcodeToFile failed"));
+        }
+    }
+
+    // emit the code
+    let mut error = ptr::null_mut();
+    let file_ptr = CString::new(output.to_str().unwrap()).unwrap().into_raw();
+    let ret = LLVMTargetMachineEmitToFile(
+        tm,
+        module,
+        file_ptr,
+        LLVMCodeGenFileType::LLVMObjectFile,
+        &mut error,
+    );
+    let _ = CString::from_raw(file_ptr);
+    if ret == 1 {
+        return Err(anyhow!(
+            "LLVMTargetMachineEmitToFile failed: {}",
+            error_str(error)
+        ));
+    }
+
+    LLVMPassManagerBuilderDispose(pmb);
+    LLVMDisposePassManager(fpm);
+    LLVMDisposePassManager(mpm);
+    LLVMDisposeTargetMachine(tm);
+
+    Ok(())
+}
+
+unsafe fn error_str(ptr: *mut c_char) -> String {
+    if ptr.is_null() {
+        "unknown error".to_string()
+    } else {
+        CStr::from_ptr(ptr).to_string_lossy().into_owned()
     }
 }
