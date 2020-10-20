@@ -12,9 +12,10 @@
 //! ```
 //! use redbpf_probes::socket_filter::prelude::*;
 //! ```
-pub use cty::*;
-pub use redbpf_macros::{program, socket_filter};
 pub use crate::bindings::*;
 pub use crate::helpers::*;
 pub use crate::maps::*;
+pub use crate::socket::*;
 pub use crate::socket_filter::*;
+pub use cty::*;
+pub use redbpf_macros::{program, socket_filter};
