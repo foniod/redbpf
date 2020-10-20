@@ -12,7 +12,7 @@ use std::fs;
 use std::io;
 use std::path::Path;
 
-use crate::cpus;
+use crate::{Program, cpus};
 use crate::load::map_io::PerfMessageStream;
 use crate::{Error, KProbe, Map, Module, PerfMap, SocketFilter, UProbe, XDP};
 
@@ -99,6 +99,10 @@ impl Loaded {
 
     pub fn map_mut(&mut self, name: &str) -> Option<&mut Map> {
         self.module.maps.iter_mut().find(|m| m.name == name)
+    }
+
+    pub fn program(&self, name: &str) -> Option<&Program> {
+        self.module.program(name)
     }
 
     pub fn kprobes_mut(&mut self) -> impl Iterator<Item = &mut KProbe> {
