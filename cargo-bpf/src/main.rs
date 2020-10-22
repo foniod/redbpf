@@ -27,7 +27,7 @@ cargo install cargo-bpf
 
 # Creating a new project
 
-After installng `cargo bpf`, you can crate a new project with `cargo bpf new`:
+After installng `cargo bpf`, you can create a new project with `cargo bpf new`:
 ```ìgnore
 $ cargo bpf new hello-bpf
 $ ls -R hello-bpf/
