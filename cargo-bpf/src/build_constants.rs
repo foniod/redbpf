@@ -32,6 +32,7 @@ lazy_static! {
             "-Wall",
             "-Werror",
             "-Wunused",
+            "-Wno-frame-address",
             "-Wno-unused-value",
             "-Wno-pointer-sign",
             "-Wno-compare-distinct-pointer-types",
