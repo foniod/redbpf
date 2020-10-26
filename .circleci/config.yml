@@ -84,7 +84,7 @@ workflows:
               only: /.*/
       - build_doc_and_bin:
           context: org-global
-          name: "fedora 32"
+          name: "fedora rawhide"
           tag: "fedora"
           filters:
             tags:
@@ -94,7 +94,7 @@ workflows:
           requires:
             - "ubuntu 18.04"
             - "ubuntu 20.04"
-            - "fedora 32"
+            - "fedora rawhide"
           filters:
             tags:
               only: /^v.*/
