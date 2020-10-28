@@ -52,10 +52,8 @@ project](https://github.com/redsift/ingraind/tree/v1.0.0).
 In order to build some of the code here, you will need the following:
 
  * Linux 4.19+, with a build tree. The build tree is picked up from standard locations, or the `KERNEL_SOURCE` environment variable.
- * LLVM 10
+ * LLVM 11. For debian based distros that don't have LLVM 11, you can find packages at https://apt.llvm.org. For rpm based ones, you can get it from Fedora Rawhide.
  * The latest stable Rust compiler. We only promise to build with the latest stable and nightly compilers.
-
-NOTE: the latest `nightly` compilers will use LLVM 11, which doesn't ship with most distributions. Use a stable compiler for the time being.
 
 # Getting started
 
