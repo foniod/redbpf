@@ -148,7 +148,7 @@ pub struct HashMap<'a, K: Clone, V: Clone> {
 }
 
 pub struct StackTrace<'a> {
-    base: &'a Map
+    base: &'a Map,
 }
 
 // TODO Use PERF_MAX_STACK_DEPTH
@@ -156,7 +156,7 @@ const BPF_MAX_STACK_DEPTH: usize = 127;
 
 #[repr(C)]
 pub struct BpfStackFrames {
-    pub ip: [u64; BPF_MAX_STACK_DEPTH]
+    pub ip: [u64; BPF_MAX_STACK_DEPTH],
 }
 
 /// Program array map.
@@ -833,7 +833,10 @@ impl<'base> ProgramArray<'base> {
     /// # Example
     /// ```no_run
     /// pub const PROGRAM_PARSE_HTTP: u32 = 0;
-    /// ...
+    ///
+    /// let mut loader = Loader::load_file("iotop.elf").expect("error loading probe");
+    /// let mut programs = ProgramArray::new(loader.map("program_map").unwrap());
+    ///
     /// programs.set(
     ///     PROGRAM_PARSE_HTTP,
     ///     loader.program("parse_http").unwrap().fd().unwrap(),
@@ -910,9 +913,7 @@ impl<K: Clone, V: Clone> Iterator for MapIter<'_, '_, K, V> {
 
 impl StackTrace<'_> {
     pub fn new(map: &Map) -> StackTrace<'_> {
-        StackTrace {
-            base: map
-        }
+        StackTrace { base: map }
     }
 
     pub fn get(&mut self, mut id: libc::c_int) -> Option<BpfStackFrames> {
@@ -922,7 +923,7 @@ impl StackTrace<'_> {
             let ret = bpf_sys::bpf_lookup_elem(
                 self.base.fd,
                 &mut id as *mut libc::c_int as _,
-                value.as_mut_ptr() as *mut _
+                value.as_mut_ptr() as *mut _,
             );
 
             if ret == 0 {
