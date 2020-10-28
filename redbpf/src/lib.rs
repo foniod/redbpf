@@ -834,8 +834,9 @@ impl<'base> ProgramArray<'base> {
     /// ```no_run
     /// pub const PROGRAM_PARSE_HTTP: u32 = 0;
     ///
+    /// use redbpf::{load::Loader, ProgramArray};
     /// let mut loader = Loader::load_file("iotop.elf").expect("error loading probe");
-    /// let mut programs = ProgramArray::new(loader.map("program_map").unwrap());
+    /// let mut programs = ProgramArray::new(loader.map("program_map").unwrap()).unwrap();
     ///
     /// programs.set(
     ///     PROGRAM_PARSE_HTTP,
