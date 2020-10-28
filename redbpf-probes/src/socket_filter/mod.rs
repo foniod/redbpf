@@ -51,5 +51,6 @@ pub enum SkBuffAction {
     SendToUserspace,
 }
 
+pub use crate::tc::prelude::SkBuff;
 /// Result type for socket filter programs.
 pub type SkBuffResult = Result<SkBuffAction, SocketError>;
