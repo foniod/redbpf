@@ -40,9 +40,14 @@ fn example_xdp_probe(ctx: XdpContext) -> XdpResult {
 }
 ```
 */
+
+#![cfg_attr(RUSTC_IS_NIGHTLY, feature(proc_macro_diagnostic))]
+
 extern crate proc_macro;
 extern crate proc_macro2;
 use proc_macro::TokenStream;
+#[cfg(RUSTC_IS_NIGHTLY)]
+use proc_macro::{Diagnostic, Level};
 use proc_macro2::{Ident, Span, TokenStream as TokenStream2};
 use quote::quote;
 use std::str;
@@ -160,6 +165,9 @@ pub fn impl_network_buffer_array(_: TokenStream) -> TokenStream {
 /// require strict naming conventions use `#[map(link_section = "foo")]`
 /// which place the map into a section called `foo`.
 ///
+/// **NOTE:** The `#[map("foo")` (which uses link section `maps/foo`) has
+/// been deprecated in favor of `#[map]` or `#[map(link_section = "maps/foo")]`
+///
 /// # Example
 ///
 /// ```no_run
@@ -183,9 +191,9 @@ pub fn map(attrs: TokenStream, item: TokenStream) -> TokenStream {
         let item = parse_macro_input!(item as ItemStatic);
         format!("maps/{}", item.ident.to_string())
     } else {
-        let meta = parse_macro_input!(attrs as Meta);
-        match meta {
-            Meta::NameValue(mnv) => {
+        match syn::parse::<Meta>(attrs.clone()) {
+            // First try #[map(section_name = "..")]
+            Ok(Meta::NameValue(mnv)) => {
                 if !mnv.path.is_ident("link_section") {
                     panic!("expected #[map(link_section = \"...\")]");
                 }
@@ -194,7 +202,18 @@ pub fn map(attrs: TokenStream, item: TokenStream) -> TokenStream {
                     _ => panic!("expected #[map(link_section = \"...\")]"),
                 }
             }
-            _ => panic!("expected #[map(link_section = \"...\")]"),
+            // Fallback to deprecated #[map("..")]
+            _ => match syn::parse::<Expr>(attrs) {
+                Ok(Expr::Lit(ExprLit {
+                    lit: Lit::Str(s), ..
+                })) => {
+                    #[cfg(RUSTC_IS_NIGHTLY)]
+                    Diagnostic::new(Level::Warning, "`#[map(\"..\")` has been deprecated in favor of `#[map]` or `#[map(link_section = \"..\")]`")
+                        .emit();
+                    format!("maps/{}", s.value())
+                }
+                _ => panic!("expected #[map(\"...\")]"),
+            },
         }
     };
 
