@@ -40,16 +40,24 @@ fn example_xdp_probe(ctx: XdpContext) -> XdpResult {
 }
 ```
 */
+
+#![cfg_attr(RUSTC_IS_NIGHTLY, feature(proc_macro_diagnostic))]
+
 extern crate proc_macro;
 extern crate proc_macro2;
 use proc_macro::TokenStream;
+#[cfg(RUSTC_IS_NIGHTLY)]
+use proc_macro::{Diagnostic, Level};
 use proc_macro2::{Ident, Span, TokenStream as TokenStream2};
 use quote::quote;
 use std::str;
 use syn::parse::{Parse, ParseStream};
 use syn::punctuated::Punctuated;
 use syn::token::Comma;
-use syn::{parse_macro_input, parse_quote, parse_str, Expr, ExprLit, File, ItemFn, Lit, Result};
+use syn::{
+    parse_macro_input, parse_quote, parse_str, Expr, ExprLit, File, ItemFn, ItemStatic, Lit, Meta,
+    Result,
+};
 
 fn inline_string_literal(e: &Expr) -> (TokenStream2, TokenStream2) {
     let bytes = match e {
@@ -150,10 +158,26 @@ pub fn impl_network_buffer_array(_: TokenStream) -> TokenStream {
 /// Attribute macro that must be used when creating [eBPF
 /// maps](https://ingraind.org/api/redbpf_probes/maps/index.html).
 ///
+/// The default `#[map]` places the map into a section of the resulting
+/// ELF binary called `maps/<item_name>`.
+///
+/// If you wish to set the section name manually for BPF programs that
+/// require strict naming conventions use `#[map(link_section = "foo")]`
+/// which place the map into a section called `foo`.
+///
+/// **NOTE:** The `#[map("foo")` (which uses link section `maps/foo`) has
+/// been deprecated in favor of `#[map]` or `#[map(link_section = "maps/foo")]`
+///
 /// # Example
+///
 /// ```no_run
 /// # use redbpf_probes::kprobe::prelude::*;
-/// #[map("dns_queries")]
+/// // Will be linked into the ELF in the section 'maps/counts'
+/// #[map]
+/// static mut counts: PerfMap<u64> = PerfMap::with_max_entries(10240);
+///
+/// // Will be linked into the ELF in the section 'dns_queries'
+/// #[map(link_section = "dns_queries")]
 /// static mut queries: PerfMap<Query> = PerfMap::with_max_entries(1024);
 ///
 /// struct Query {
@@ -162,15 +186,37 @@ pub fn impl_network_buffer_array(_: TokenStream) -> TokenStream {
 /// ```
 #[proc_macro_attribute]
 pub fn map(attrs: TokenStream, item: TokenStream) -> TokenStream {
-    let attrs = parse_macro_input!(attrs as Expr);
-    let name = match attrs {
-        Expr::Lit(ExprLit {
-            lit: Lit::Str(s), ..
-        }) => s.value().clone(),
-        _ => panic!("expected string literal"),
+    let section_name = if attrs.is_empty() {
+        let item = item.clone();
+        let item = parse_macro_input!(item as ItemStatic);
+        format!("maps/{}", item.ident.to_string())
+    } else {
+        match syn::parse::<Meta>(attrs.clone()) {
+            // First try #[map(section_name = "..")]
+            Ok(Meta::NameValue(mnv)) => {
+                if !mnv.path.is_ident("link_section") {
+                    panic!("expected #[map(link_section = \"...\")]");
+                }
+                match mnv.lit {
+                    Lit::Str(lit_str) => lit_str.value(),
+                    _ => panic!("expected #[map(link_section = \"...\")]"),
+                }
+            }
+            // Fallback to deprecated #[map("..")]
+            _ => match syn::parse::<Expr>(attrs) {
+                Ok(Expr::Lit(ExprLit {
+                    lit: Lit::Str(s), ..
+                })) => {
+                    #[cfg(RUSTC_IS_NIGHTLY)]
+                    Diagnostic::new(Level::Warning, "`#[map(\"..\")` has been deprecated in favor of `#[map]` or `#[map(link_section = \"..\")]`")
+                        .emit();
+                    format!("maps/{}", s.value())
+                }
+                _ => panic!("expected #[map(\"...\")]"),
+            },
+        }
     };
 
-    let section_name = format!("maps/{}", name);
     let item = TokenStream2::from(item);
     let tokens = quote! {
         #[no_mangle]
