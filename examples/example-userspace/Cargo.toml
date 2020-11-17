@@ -7,10 +7,6 @@ edition = "2018"
 [build-dependencies]
 cargo-bpf = { version = "", path = "../../cargo-bpf", default-features = false, features = ["build"] }
 
-[[example]]
-name = "vfsreadlat"
-path = "src/bin/vfsreadlat.rs"
-
 [dependencies]
 probes = { path = "../example-probes", package = "example-probes" }
 libc = "0.2"

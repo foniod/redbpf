@@ -22,3 +22,8 @@ path = "src/lib.rs"
 name = "vfsreadlat"
 path = "src/vfsreadlat/main.rs"
 required-features = ["probes"]
+
+[[bin]]
+name = "mallocstacks"
+path = "src/mallocstacks/main.rs"
+required-features = ["probes"]
