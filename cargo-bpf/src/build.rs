@@ -94,12 +94,12 @@ fn build_probe(cargo: &Path, package: &Path, target_dir: &Path, probe: &str) -> 
             }
         })
         .map(|v| format!(r#"kernel_version="{}.{}""#, v.version, v.patchlevel))
-        .unwrap_or(r#"kernel_version="unknown""#.to_string());
+        .unwrap_or_else(|_| r#"kernel_version="unknown""#.to_string());
 
     if !Command::new(cargo)
         .current_dir(package)
         .env("RUSTFLAGS", flags)
-        .args("rustc --release --features=probes".split(" "))
+        .args("rustc --release --features=probes".split(' '))
         .arg("--target-dir")
         .arg(target_dir.to_str().unwrap())
         .arg("--bin")
@@ -109,7 +109,7 @@ fn build_probe(cargo: &Path, package: &Path, target_dir: &Path, probe: &str) -> 
         .arg(version)
         .args(
             "--emit=llvm-bc -C panic=abort -C lto -C link-arg=-nostartfiles -C opt-level=3"
-                .split(" "),
+                .split(' '),
         )
         .arg("-o")
         .arg(artifacts_dir.join(probe).to_str().unwrap())
@@ -155,7 +155,7 @@ pub fn build(
 ) -> Result<(), Error> {
     let path = package.join("Cargo.toml");
     if !path.exists() {
-        return Err(Error::MissingManifest(path.clone()));
+        return Err(Error::MissingManifest(path));
     }
 
     if probes.is_empty() {
@@ -174,13 +174,12 @@ pub fn build(
 
 pub fn cmd_build(programs: Vec<String>, target_dir: PathBuf) -> Result<(), CommandError> {
     let current_dir = std::env::current_dir().unwrap();
-    let ret = build(Path::new("cargo"), &current_dir, &target_dir, programs)?;
-    Ok(ret)
+    Ok(build(Path::new("cargo"), &current_dir, &target_dir, programs)?)
 }
 
 pub fn probe_files(package: &Path) -> Result<Vec<String>, Error> {
     glob(&format!("{}/src/**/*.rs", &package.to_string_lossy()))
-        .map_err(|e| Error::PatternError(e))
+        .map_err(Error::PatternError)
         .map(|iter| {
             iter.filter_map(|entry| entry.ok().map(|path| path.to_string_lossy().into_owned()))
                 .collect()
@@ -190,7 +189,7 @@ pub fn probe_files(package: &Path) -> Result<Vec<String>, Error> {
 fn load_package(package: &Path) -> Result<Document, Error> {
     let path = package.join("Cargo.toml");
     if !path.exists() {
-        return Err(Error::MissingManifest(path.clone()));
+        return Err(Error::MissingManifest(path));
     }
 
     let data = fs::read_to_string(path).unwrap();
@@ -203,6 +202,6 @@ fn probe_names(doc: &Document) -> Result<Vec<String>, Error> {
             .iter()
             .map(|t| t["name"].as_str().unwrap().into())
             .collect()),
-        _ => return Err(Error::NoPrograms),
+        _ => Err(Error::NoPrograms),
     }
 }

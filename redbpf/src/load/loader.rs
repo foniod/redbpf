@@ -32,7 +32,7 @@ impl Loader {
     /// This will parse `data` with `Module::parse()` and load all the programs
     /// present in the module.
     pub fn load(data: &[u8]) -> Result<Loaded, LoaderError> {
-        let mut module = Module::parse(&data).map_err(|e| LoaderError::ParseError(e))?;
+        let mut module = Module::parse(&data).map_err(LoaderError::ParseError)?;
         for program in module.programs.iter_mut() {
             program
                 .load(module.version, module.license.clone())
@@ -65,7 +65,7 @@ impl Loader {
     ///
     /// See `load()`.
     pub fn load_file<P: AsRef<Path>>(file: P) -> Result<Loaded, LoaderError> {
-        Loader::load(&fs::read(file).map_err(|e| LoaderError::FileError(e))?)
+        Loader::load(&fs::read(file).map_err(LoaderError::FileError)?)
     }
 }
 

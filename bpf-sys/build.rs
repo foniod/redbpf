@@ -9,7 +9,7 @@
 use std::env;
 use std::path::PathBuf;
 
-const KERNEL_HEADERS: [&'static str; 6] = [
+const KERNEL_HEADERS: [&str; 6] = [
     "arch/x86/include/generated/uapi",
     "arch/x86/include/uapi",
     "arch/x86/include/",

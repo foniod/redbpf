@@ -12,7 +12,6 @@ use hexdump::hexdump;
 use redbpf::xdp;
 use redbpf::{load::Loader, Program::*};
 use std::path::PathBuf;
-use tokio;
 use tokio::runtime::Runtime;
 use tokio::signal;
 

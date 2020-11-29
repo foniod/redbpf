@@ -81,12 +81,13 @@ unsafe fn inject_exit_call(context: LLVMContextRef, func: LLVMValueRef, builder:
     let block = LLVMGetLastBasicBlock(func);
     let last = LLVMGetLastInstruction(block);
     LLVMPositionBuilderBefore(builder, last);
+    let c_str = CString::new("").unwrap();
     LLVMBuildCall(
         builder,
         exit,
         ptr::null_mut(),
         0,
-        CString::new("").unwrap().as_ptr(),
+        c_str.as_ptr(),
     );
 }
 
@@ -111,7 +112,7 @@ pub unsafe fn process_ir(context: LLVMContextRef, module: LLVMModuleRef) -> Resu
     let always_inline_attr = LLVMCreateEnumAttribute(context, always_inline_kind, 0);
 
     let mut func = LLVMGetFirstFunction(module);
-    while func != ptr::null_mut() {
+    while !func.is_null() {
         let mut size: libc::size_t = 0;
         let name = CStr::from_ptr(LLVMGetValueName2(func, &mut size as *mut _))
             .to_str()
@@ -209,7 +210,7 @@ unsafe fn compile_module(
     // run function passes
     LLVMInitializeFunctionPassManager(fpm);
     let mut func = LLVMGetFirstFunction(module);
-    while func != ptr::null_mut() {
+    while !func.is_null() {
         if LLVMIsDeclaration(func) == 0 {
             LLVMRunFunctionPassManager(fpm, func);
         }

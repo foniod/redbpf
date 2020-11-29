@@ -63,7 +63,7 @@ fn inline_string_literal(e: &Expr) -> (TokenStream2, TokenStream2) {
     let bytes = match e {
         Expr::Lit(ExprLit {
             lit: Lit::Str(s), ..
-        }) => s.value().clone().into_bytes(),
+        }) => s.value().into_bytes(),
         _ => panic!("expected string literal"),
     };
 
@@ -232,7 +232,7 @@ fn probe_impl(ty: &str, attrs: TokenStream, item: ItemFn, mut name: String) -> T
         name = match parse_macro_input!(attrs as Expr) {
             Expr::Lit(ExprLit {
                 lit: Lit::Str(s), ..
-            }) => s.value().clone(),
+            }) => s.value(),
             _ => panic!("expected string literal"),
         }
     };
@@ -277,7 +277,7 @@ pub fn kprobe(attrs: TokenStream, item: TokenStream) -> TokenStream {
     let item = parse_macro_input!(item as ItemFn);
     let name = item.sig.ident.to_string();
     let wrapper = wrap_kprobe(item);
-    probe_impl("kprobe", attrs, wrapper, name).into()
+    probe_impl("kprobe", attrs, wrapper, name)
 }
 
 /// Attribute macro that must be used to define [`kretprobes`](https://www.kernel.org/doc/Documentation/kprobes.txt).
@@ -296,7 +296,7 @@ pub fn kretprobe(attrs: TokenStream, item: TokenStream) -> TokenStream {
     let item = parse_macro_input!(item as ItemFn);
     let name = item.sig.ident.to_string();
     let wrapper = wrap_kprobe(item);
-    probe_impl("kretprobe", attrs, wrapper, name).into()
+    probe_impl("kretprobe", attrs, wrapper, name)
 }
 
 /// Attribute macro that must be used to define [`uprobes`](https://www.kernel.org/doc/Documentation/trace/uprobetracer.txt).
@@ -315,7 +315,7 @@ pub fn uprobe(attrs: TokenStream, item: TokenStream) -> TokenStream {
     let item = parse_macro_input!(item as ItemFn);
     let name = item.sig.ident.to_string();
     let wrapper = wrap_kprobe(item);
-    probe_impl("uprobe", attrs, wrapper, name).into()
+    probe_impl("uprobe", attrs, wrapper, name)
 }
 
 /// Attribute macro that must be used to define [`uretprobes`](https://www.kernel.org/doc/Documentation/trace/uprobetracer.txt).
@@ -334,7 +334,7 @@ pub fn uretprobe(attrs: TokenStream, item: TokenStream) -> TokenStream {
     let item = parse_macro_input!(item as ItemFn);
     let name = item.sig.ident.to_string();
     let wrapper = wrap_kprobe(item);
-    probe_impl("uretprobe", attrs, wrapper, name).into()
+    probe_impl("uretprobe", attrs, wrapper, name)
 }
 
 /// Attribute macro that must be used to define [`XDP` probes](https://www.iovisor.org/technology/xdp).
@@ -370,7 +370,7 @@ pub fn xdp(attrs: TokenStream, item: TokenStream) -> TokenStream {
             #item
         }
     };
-    probe_impl("xdp", attrs, wrapper, name).into()
+    probe_impl("xdp", attrs, wrapper, name)
 }
 
 /// Attribute macro that must be used to define [`socket
@@ -407,7 +407,7 @@ pub fn socket_filter(attrs: TokenStream, item: TokenStream) -> TokenStream {
         }
     };
 
-    probe_impl("socketfilter", attrs, wrapper, name).into()
+    probe_impl("socketfilter", attrs, wrapper, name)
 }
 
 /// Define [tc action BPF programs](https://man7.org/linux/man-pages/man8/tc-bpf.8.html)
@@ -433,5 +433,5 @@ pub fn tc_action(attrs: TokenStream, item: TokenStream) -> TokenStream {
         }
     };
 
-    probe_impl("tc_action", attrs, wrapper, name).into()
+    probe_impl("tc_action", attrs, wrapper, name)
 }

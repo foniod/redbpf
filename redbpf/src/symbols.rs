@@ -21,7 +21,7 @@ lazy_static! {
         LdSoCache::load("/etc/ld.so.cache");
 }
 
-const CACHE_HEADER: &'static str = "glibc-ld.so.cache1.1";
+const CACHE_HEADER: &str = "glibc-ld.so.cache1.1";
 
 pub(crate) struct ElfSymbols<'a> {
     elf: Elf<'a>,
@@ -87,7 +87,7 @@ pub(crate) struct LdSoCache {
 
 impl LdSoCache {
     pub fn load(path: &str) -> Result<Self, CacheError> {
-        let data = fs::read(path).map_err(|e| CacheError::IOError(e))?;
+        let data = fs::read(path).map_err(CacheError::IOError)?;
         Self::parse(&data)
     }
 
@@ -95,7 +95,7 @@ impl LdSoCache {
         let mut cursor = Cursor::new(data);
 
         let mut buf = [0u8; CACHE_HEADER.len()];
-        cursor.read(&mut buf)?;
+        cursor.read_exact(&mut buf)?;
         let header = str::from_utf8(&buf).or(Err(CacheError::InvalidHeader))?;
         if header != CACHE_HEADER {
             return Err(CacheError::InvalidHeader);
@@ -150,7 +150,7 @@ fn proc_maps_libs(pid: pid_t) -> io::Result<Vec<(String, String)>> {
         .lines()
         .filter_map(|line| {
             let line = line.split_whitespace().last()?;
-            if line.starts_with("/") {
+            if line.starts_with('/') {
                 let path = PathBuf::from(line);
                 let key = path.file_name().unwrap().to_string_lossy().into_owned();
                 let value = path.to_string_lossy().into_owned();

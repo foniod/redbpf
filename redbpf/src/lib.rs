@@ -178,6 +178,7 @@ pub struct Rel {
 }
 
 impl Program {
+    #[allow(clippy::unnecessary_wraps)]
     fn new(kind: &str, name: &str, code: &[u8]) -> Result<Program> {
         let code = zero::read_array(code).to_vec();
         let name = name.to_string();
@@ -275,14 +276,14 @@ impl Program {
     /// }
     /// ```
     pub fn load(&mut self, kernel_version: u32, license: String) -> Result<()> {
-        if let Some(_) = self.data().fd {
+        if self.data().fd.is_some() {
             return Err(Error::ProgramAlreadyLoaded);
         }
         let clicense = CString::new(license)?;
         let cname = CString::new(self.data_mut().name.clone())?;
         let log_buffer: MutDataPtr =
             unsafe { libc::malloc(mem::size_of::<i8>() * 16 * 65535) as MutDataPtr };
-        let buf_size = 64 * 65535 as u32;
+        let buf_size = 64 * 65535_u32;
 
         let fd = unsafe {
             bpf_sys::bcc_prog_load(
@@ -292,7 +293,7 @@ impl Program {
                 (self.data_mut().code.len() * mem::size_of::<bpf_insn>()) as i32,
                 clicense.as_ptr() as DataPtr,
                 kernel_version as u32,
-                0 as i32,
+                0_i32,
                 log_buffer,
                 buf_size,
             )
@@ -387,7 +388,7 @@ impl UProbe {
         let path = if let Some(pid) = pid {
             resolve_proc_maps_lib(pid, target).unwrap_or_else(|| target.to_string())
         } else {
-            match (target.starts_with("/"), LD_SO_CACHE.as_ref()) {
+            match (target.starts_with('/'), LD_SO_CACHE.as_ref()) {
                 (false, Ok(cache)) => cache.resolve(target).unwrap_or(target).to_string(),
                 _ => target.to_owned(),
             }
@@ -744,7 +745,7 @@ impl Map {
 }
 
 impl<'base, K: Clone, V: Clone> HashMap<'base, K, V> {
-    pub fn new<'a>(base: &'a Map) -> Result<HashMap<'a, K, V>> {
+    pub fn new(base: &Map) -> Result<HashMap<K, V>> {
         if mem::size_of::<K>() != base.config.key_size as usize
             || mem::size_of::<V>() != base.config.value_size as usize
         {
@@ -799,7 +800,7 @@ impl<'base, K: Clone, V: Clone> HashMap<'base, K, V> {
 }
 
 impl<'base> ProgramArray<'base> {
-    pub fn new<'a>(base: &'a Map) -> Result<ProgramArray<'a>> {
+    pub fn new(base: &Map) -> Result<ProgramArray> {
         if mem::size_of::<u32>() != base.config.key_size as usize
             || mem::size_of::<RawFd>() != base.config.value_size as usize
         {
@@ -903,11 +904,7 @@ impl<K: Clone, V: Clone> Iterator for MapIter<'_, '_, K, V> {
             }
         };
 
-        if self.key.is_none() {
-            return None;
-        }
-
-        let key = self.key.clone().unwrap();
+        let key = self.key.as_ref()?.clone();
         Some((key.clone(), self.map.get(key).unwrap()))
     }
 }

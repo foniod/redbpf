@@ -152,11 +152,11 @@ impl Visit<'_> for RewriteBpfHelpers {
 }
 
 fn gen_helpers(helpers: &str) -> String {
-    let mut tree: syn::File = parse_str(&helpers).unwrap();
+    let tree: syn::File = parse_str(&helpers).unwrap();
     let mut tx = RewriteBpfHelpers {
         helpers: Vec::new(),
     };
-    tx.visit_file(&mut tree);
+    tx.visit_file(&tree);
     let mut out = String::new();
     out.push_str("use crate::bindings::*;\n");
     for helper in &tx.helpers {
