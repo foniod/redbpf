@@ -38,7 +38,17 @@ pub use {name}::*;
     )
 }
 
+fn rerun_if_changed_dir(dir: &str) {
+    println!("cargo:rerun-if-changed={}/", dir);
+    glob::glob(&format!("./{}/**/*.h", dir))
+        .expect("Failed to glob for source files from build.rs")
+        .filter_map(|e| e.ok())
+        .for_each(|path| println!("cargo:rerun-if-changed={}", path.to_string_lossy()));
+}
+
 fn main() {
+    rerun_if_changed_dir("include");
+
     let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
     let types = ["pt_regs", "s32", "bpf_.*"];
     let vars = ["BPF_.*"];
