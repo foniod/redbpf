@@ -8,10 +8,7 @@
 use std::fs::{self, File, OpenOptions};
 use std::io::{Seek, SeekFrom, Write};
 use std::path::Path;
-use toml_edit;
-
 use crate::CommandError;
-
 
 impl From<toml_edit::Value> for CommandError {
     fn from(error: toml_edit::Value) -> CommandError {
@@ -36,14 +33,14 @@ pub fn new_program(name: &str) -> Result<(), CommandError> {
 
     let crate_name = config["lib"]["name"]
         .as_str()
-        .or(config["package"]["name"].as_str())
-        .ok_or(CommandError("invalid manifest syntax".to_string()))
+        .or_else(|| config["package"]["name"].as_str())
+        .ok_or_else(|| CommandError("invalid manifest syntax".to_string()))
         .map(String::from)?;
 
     let mut targets = match &config["bin"] {
         Item::None => ArrayOfTables::new(),
         Item::ArrayOfTables(array) => array.clone(),
-        _ => return Err(CommandError(format!("invalid manifest syntax"))),
+        _ => return Err(CommandError("invalid manifest syntax".to_string())),
     };
     if targets
         .iter()
@@ -73,7 +70,7 @@ pub fn new_program(name: &str) -> Result<(), CommandError> {
     let lib_rs = src.join("lib.rs");
     let mut file = OpenOptions::new().write(true).open(lib_rs)?;
     file.seek(SeekFrom::End(0))?;
-    write!(&mut file, "pub mod {};\n", ident)?;
+    writeln!(&mut file, "pub mod {};", ident)?;
 
     let probe_dir = src.join(name);
     fs::create_dir_all(probe_dir.clone())?;

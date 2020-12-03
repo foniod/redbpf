@@ -12,6 +12,7 @@ use std::str::from_utf8_unchecked;
 use std::str::FromStr;
 use std::fs;
 
+#[allow(clippy::result_unit_err)]
 pub fn uname() -> Result<::libc::utsname, ()> {
     let mut uname = unsafe { mem::zeroed() };
     let res = unsafe { ::libc::uname(&mut uname) };
@@ -35,13 +36,14 @@ pub fn get_kernel_internal_version() -> Option<u32> {
     })
 }
 
+#[allow(clippy::result_unit_err)]
 #[inline]
 pub fn get_fqdn() -> Result<String, ()> {
     let uname = uname()?;
     let mut hostname = to_str(&uname.nodename).to_string();
     let domainname = to_str(&uname.domainname);
     if domainname != "(none)" {
-        hostname.push_str(".");
+        hostname.push('.');
         hostname.push_str(domainname);
     }
 
@@ -54,18 +56,18 @@ pub fn to_str(bytes: &[c_char]) -> &str {
 }
 
 fn parse_version_signature(signature: &str) -> Option<String> {
-    let parts: Vec<_> = signature.split(" ").collect();
+    let parts: Vec<_> = signature.split(' ').collect();
     if parts.len() != 3 {
         return None;
     }
 
-    parts.last().map(|v| v.clone().into())
+    parts.last().map(|v| <&str>::clone(v).into())
 }
 
 fn parse_version(version: &str) -> Option<(u32, u32, u32)> {
-    if let Some(version) = version.splitn(2, "-").next() {
-        if let Some(version) = version.splitn(2, "+").next() {
-            let parts: Vec<_> = version.splitn(3, ".").filter_map(|v| u32::from_str(v).ok()).collect();
+    if let Some(version) = version.splitn(2, '-').next() {
+        if let Some(version) = version.splitn(2, '+').next() {
+            let parts: Vec<_> = version.splitn(3, '.').filter_map(|v| u32::from_str(v).ok()).collect();
             if parts.len() != 3 {
                 return None;
             }

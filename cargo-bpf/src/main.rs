@@ -235,10 +235,10 @@ fn main() {
         let target_dir = m
             .value_of("TARGET_DIR")
             .map(PathBuf::from)
-            .unwrap_or(current_dir.join("target"));
+            .unwrap_or_else(||current_dir.join("target"));
         let programs = m
             .values_of("NAME")
-            .map(|i| i.map(|s| String::from(s)).collect())
+            .map(|i| i.map(String::from).collect())
             .unwrap_or_else(Vec::new);
         if let Err(e) = cargo_bpf::cmd_build(programs, target_dir) {
             clap::Error::with_description(&e.0, clap::ErrorKind::InvalidValue).exit()

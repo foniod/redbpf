@@ -34,6 +34,9 @@ pub struct MapData<T> {
 }
 
 impl<T> MapData<T> {
+    /// # Safety
+    ///
+    /// Casts a pointer of `Sample.data` to `*const MapData<U>`
     pub unsafe fn from_sample<U>(sample: &Sample) -> &MapData<U> {
         &*(sample.data.as_ptr() as *const MapData<U>)
     }

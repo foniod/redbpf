@@ -11,7 +11,6 @@ use std::io::{self, Write};
 use std::path::Path;
 use std::process::Command;
 use std::str;
-use tempfile;
 
 pub use crate::accessors::generate_read_accessors;
 use crate::build_constants::{kernel_headers, BUILD_FLAGS};
@@ -76,7 +75,7 @@ pub fn cmd_bindgen(header: &Path, extra_args: &[&str]) -> Result<(), CommandErro
     };
 
     let builder = builder().header(header.to_str().unwrap());
-    let bindings = generate(&builder, extra_args).map_err(|e| CommandError(e))?;
+    let bindings = generate(&builder, extra_args).map_err(CommandError)?;
     let mut out = io::stdout();
     writeln!(
         &mut out,

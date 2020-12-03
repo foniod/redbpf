@@ -71,13 +71,32 @@ where
         self.data_end() - self.data_start()
     }
 
+    /// Returns a raw pointer to a given address inside the buffer.
+    ///
+    /// # Safety
+    ///
+    /// This method uses `NetworkBuffer::check_bounds` to ensure the given address
+    /// `addr` is within the buffer and allows enough following space to point
+    /// to something of type `U`. However no checks are done to ensure the
+    /// returned pointer points to a valid bit pattern of type `U`, nor are any
+    /// alignments checked. Ensuring proper alignment is followed and pointed to
+    /// address is a valid bit pattern of type `U` is left up to the caller.
     #[inline]
     unsafe fn ptr_at<U>(&self, addr: usize) -> NetworkResult<*const U> {
         self.check_bounds(addr, addr + mem::size_of::<U>())?;
 
         Ok(addr as *const U)
     }
-
+    /// Returns a raw pointer to the address following `prev` plus the size of a `T`
+    ///
+    /// # Safety
+    ///
+    /// This method uses `NetworkBuffer::check_bounds` to ensure the given address
+    /// `addr` is within the buffer and allows enough following space to point
+    /// to something of type `U`. However no checks are done to ensure the
+    /// returned pointer points to a valid bit pattern of type `U`, nor are any
+    /// alignments checked. Ensuring proper alignment is followed and pointed to
+    /// address is a valid bit pattern of type `U` is left up to the caller.
     #[inline]
     unsafe fn ptr_after<T, U>(&self, prev: *const T) -> NetworkResult<*const U> {
         self.ptr_at(prev as usize + mem::size_of::<T>())
@@ -97,7 +116,7 @@ where
             return Err(NetworkError::OutOfBounds);
         }
 
-        return Ok(());
+        Ok(())
     }
 
     /// Returns the packet's `Ethernet` header if present.

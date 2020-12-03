@@ -155,7 +155,7 @@ impl From<PerfMapFlags> for u64 {
     #[inline]
     fn from(flags: PerfMapFlags) -> u64 {
         (flags.xdp_size as u64) << 32
-            | (flags.index.unwrap_or(BPF_F_CURRENT_CPU.try_into().unwrap()) as u64)
+            | (flags.index.unwrap_or_else(|| BPF_F_CURRENT_CPU.try_into().unwrap()) as u64)
     }
 }
 
