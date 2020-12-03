@@ -5,119 +5,99 @@ RedBPF
 [![CircleCI](https://circleci.com/gh/redsift/redbpf.svg?style=shield)](https://circleci.com/gh/redsift/redbpf)
 [![element](https://img.shields.io/matrix/redbpf:rustch.at?server_fqdn=rustch.at)](https://app.element.io/#/room/!vCJcBZDeGUXaqSvPpL:rustch.at?via=rustch.at)
 
-
 A Rust eBPF toolchain.
 
 # Overview
 
-The RedBPF project is a collection of Rust libraries to work with eBPF
-programs. It includes:
+The redbpf project is a collection of tools and libraries to build eBPF
+programs using Rust. It includes:
 
-- `redbpf-probes` - an idiomatic Rust API to write programs that can be
-compiled to eBPF bytecode and executed by the linux in-kernel eBPF virtual
-machine.
-    
-    [![Documentation](https://img.shields.io/badge/docs-latest-red.svg)](https://ingraind.org/api/redbpf_probes/)
+- [redbpf](https://ingraind.org/api/redbpf/) - a user space library that can be
+  used to load eBPF programs
 
-- `redbpf-macros` - companion crate to `redbpf-probes` which provides
-procedural macros to reduce the amount of boilerplate needed to produce eBPF
-programs.
+- [redbpf-probes](https://ingraind.org/api/redbpf_probes/) - an idiomatic Rust
+  API to write eBPF programs that can be loaded by the linux kernel
 
-    [![Documentation](https://img.shields.io/badge/docs-latest-red.svg)](https://ingraind.org/api/redbpf_macros/)
+- [redbpf-macros](https://ingraind.org/api/redbpf_macros/) - companion crate to
+  `redbpf-probes` which provides convenient procedural macros useful when
+  writing eBPF programs
 
-- `redbpf` - a user space library that can be used to parse and load eBPF
-programs written using `redbpf-probes` and `redbpf-macros`.
-
-    [![Documentation](https://img.shields.io/badge/docs-latest-red.svg)](https://ingraind.org/api/redbpf/)
-
-- `cargo-bpf` - a cargo subcommand for creating, developing and building eBPF
-programs in Rust using the RedBPF APIs.
-    
-    [![Documentation](https://img.shields.io/badge/docs-latest-red.svg)](https://ingraind.org/api/cargo_bpf/)
-
-# Usage
-
-The easiest way to get started is to install `cargo-bpf`, see the
-[cargo bpf
-documentation](https://ingraind.org/api/cargo_bpf/)
-for more info.
-
-The
-[`rust-tools`](https://github.com/redsift/redbpf/tree/master/redbpf-tools)
-directory also contains examples of using redbpf in real life.
-
-To see how and what RedBPF can be used for, check out the [ingraind
-project](https://github.com/redsift/ingraind/tree/v1.0.0).
+- [cargo-bpf](https://ingraind.org/api/cargo_bpf/) - a cargo subcommand for
+  creating, building and debugging eBPF programs
 
 # Requirements
 
-In order to build some of the code here, you will need the following:
+In order to use redbpf you need LLVM 11 and the headers for the kernel you want
+to target.
 
- * Linux 4.19+, with a build tree. The build tree is picked up from standard locations, or the `KERNEL_SOURCE` environment variable.
- * LLVM 11. For debian based distros that don't have LLVM 11, you can find packages at https://apt.llvm.org. For rpm based ones, you can get it from Fedora Rawhide.
- * The latest stable Rust compiler. We only promise to build with the latest stable and nightly compilers.
+## Linux kernel
+
+The **minimum kernel version supported is 4.19**. Kernel headers are discovered
+automatically, or you can use the `KERNEL_SOURCE` environment variable to point
+to a specific location. Building against a linux source tree is supported as
+long as you run `make prepare` first.
+
+## Installing dependencies on Debian based distributions
+
+On Debian, Ubuntu and derivatives you can install the dependencies running:
+
+	sudo apt-get -y install build-essential zlib1g-dev \
+			llvm-11-dev libclang-11-dev linux-headers-$(uname -r)
+
+If your distribution doesn't have LLVM 11, you can add the [official LLVM
+APT repository](apt.llvm.org) to your `sources.list`.
+
+## Installing dependencies on RPM based distributions
+
+First ensure that your distro includes LLVM 11:
+
+	yum info llvm-devel | grep Version
+	Version      : 11.0.0
+
+If you don't have vesion 11, you can get it from the Fedora 33 repository.
+
+Then install the dependencies running:
+
+	yum install clang llvm-devel zlib-devel kernel-devel
 
 # Getting started
 
-It's easiest to get started by installing `cargo-bpf` using cargo.
+The easiest way to get started is using `cargo-bpf`, see the
+[documentation](https://ingraind.org/api/cargo_bpf/) for more info.
 
-	cargo install cargo-bpf
-	cargo bpf --help
+[redbpf-tools](https://github.com/redsift/redbpf/tree/master/redbpf-tools) is a
+`cargo-bpf` generated crate that includes simple examples you can use to
+understand how to structure your programs.
 
-If you would like to go the git way, clone this repository then make
-sure you sync the git submodules necessary to build redbpf:
+Finally the [ingraind project](https://github.com/redsift/ingraind)
+includes more concrete examples of redbpf programs.
+
+# Building from source
+
+After cloning the repository run:
 
     git submodule sync
     git submodule update --init
 
-Then install the dependencies for your distro before running the usual ritual.
-
-    cargo install --path cargo-bpf
-
-## Ubuntu
-
-Install the following dependencies:
-
-	apt-get install -y curl \
-		wget \
-		gnupg2 \
-		software-properties-common \
-		build-essential \
-		clang-10 \
-		llvm-10 \
-		libelf-dev \
-		linux-headers-$(uname -r) \
-		zlib1g \
-		ca-certificates
-
-## Fedora
-
-	yum install -y clang-10.0.0 \
-		llvm-10.0.0 \
-		llvm-libs-10.0.0 \
-		llvm-devel-10.0.0 \
-		llvm-static-10.0.0 \
-		kernel \
-		kernel-devel \
-		elfutils-libelf-devel \
-		ca-certificates
+Install the dependencies as documented above, then run `cargo build` as usual.
 
 # License
 
 This repository contains code from other software in the following
 directories, licensed under their own particular licenses:
 
- * `bpf-sys/libelf/*`: GPL2 + LGPL3 
+ * `bpf-sys/libelf/*`: GPL2 + LGPL3
  * `bpf-sys/bcc/*`: Apache2, public domain
  * `include/bpf_helpers.h` LGPL2 + BSD-2
  * `include/bpf_helper_defs.h`: LGPL2 + BSD-2
  * `bpf-sys/libbpf`: LGPL2 + BSD-2
- 
+
 Where '+' means they are dual licensed.
 
 RedBPF and its components, unless otherwise stated, are licensed under either of
 
- * Apache License, Version 2.0, ([LICENSE-APACHE](LICENSE-APACHE) or http://www.apache.org/licenses/LICENSE-2.0)
+ * Apache License, Version 2.0, ([LICENSE-APACHE](LICENSE-APACHE) or
+	http://www.apache.org/licenses/LICENSE-2.0)
  * MIT license ([LICENSE-MIT](LICENSE-MIT) or http://opensource.org/licenses/MIT)
 
 at your option.
@@ -125,5 +105,5 @@ at your option.
 # Contribution
 
 Unless you explicitly state otherwise, any contribution intentionally submitted
-for inclusion in the work by you, as defined in the Apache-2.0 license, shall be dual licensed as above, without any
-additional terms or conditions.
+for inclusion in the work by you, as defined in the Apache-2.0 license, shall
+be dual licensed as above, without any additional terms or conditions.
