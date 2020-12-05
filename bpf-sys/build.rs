@@ -26,8 +26,23 @@ pub mod headers {
     include!(concat!(env!("CARGO_MANIFEST_DIR"), "/src/headers.rs"));
 }
 
+fn rerun_if_changed_dir(dir: &str) {
+    println!("cargo:rerun-if-changed={}/", dir);
+    for ext in &["c", "h", "bash", "map", "md", "rst", "sh", "template"] {
+        glob::glob(&format!("./{}/**/*.{}", dir, ext))
+            .expect("Failed to glob for source files from build.rs")
+            .filter_map(|e| e.ok())
+            .for_each(|path| println!("cargo:rerun-if-changed={}", path.to_string_lossy()));
+    }
+}
+
 fn main() {
     println!("cargo:rustc-link-lib=static=bpf");
+    for dir in &["bcc", "libbpf", "libelf"] {
+        rerun_if_changed_dir(dir);
+    }
+    println!("cargo:rerun-if-changed=bpfsys-musl.h");
+    println!("cargo:rerun-if-changed=libbpf_xdp.h");
 
     let target = env::var("TARGET").unwrap();
     let out_dir = env::var("OUT_DIR").unwrap();

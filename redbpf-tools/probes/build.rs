@@ -26,7 +26,17 @@ pub use {name}::*;
     )
 }
 
+fn rerun_if_changed_dir(dir: &str) {
+    println!("cargo:rerun-if-changed={}/", dir);
+    glob::glob(&format!("./{}/**/*.h", dir))
+        .expect("Failed to glob for source files from build.rs")
+        .filter_map(|e| e.ok())
+        .for_each(|path| println!("cargo:rerun-if-changed={}", path.to_string_lossy()));
+}
+
 fn main() {
+    rerun_if_changed_dir("include");
+
     if env::var("CARGO_FEATURE_PROBES").is_err() {
         return;
     }
