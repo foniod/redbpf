@@ -139,6 +139,7 @@ pub struct Map {
     pub kind: u32,
     fd: RawFd,
     config: bpf_map_def,
+    section_data: bool,
 }
 
 pub struct HashMap<'a, K: Clone, V: Clone> {
@@ -170,11 +171,10 @@ pub struct ProgramArray<'a> {
 }
 
 #[allow(dead_code)]
-pub struct Rel {
-    shndx: usize,
-    target: usize,
+pub struct RelocationInfo {
+    target_sec_idx: usize,
     offset: u64,
-    sym: usize,
+    sym_idx: usize,
 }
 
 impl Program {
@@ -555,10 +555,30 @@ impl Module {
             let content = data(&bytes, &shdr);
 
             match (section_type, kind, name) {
-                (hdr::SHT_REL, _, _) => add_rel(&mut rels, shndx, &shdr, shdr_relocs),
+                (hdr::SHT_REL, _, _) => add_relocation(&mut rels, shndx, &shdr, shdr_relocs),
                 (hdr::SHT_PROGBITS, Some("version"), _) => version = get_version(&content),
                 (hdr::SHT_PROGBITS, Some("license"), _) => {
                     license = zero::read_str(content).to_string()
+                }
+                (hdr::SHT_PROGBITS, Some(name), None)
+                    if name == ".bss"
+                        || name.starts_with(".data")
+                        || name.starts_with(".rodata") =>
+                {
+                    // load these as ARRAY maps containing one item: the section data. Then during
+                    // relocation make instructions point inside the maps.
+                    maps.insert(
+                        shndx,
+                        Map::with_section_data(
+                            name,
+                            content,
+                            if name.starts_with(".rodata") {
+                                bpf_sys::BPF_F_RDONLY_PROG
+                            } else {
+                                0
+                            },
+                        )?,
+                    );
                 }
                 (hdr::SHT_PROGBITS, Some("maps"), Some(name)) => {
                     // Maps are immediately bcc_create_map'd
@@ -578,7 +598,7 @@ impl Module {
 
         // Rewrite programs with relocation data
         for rel in rels.iter() {
-            if programs.contains_key(&rel.target) {
+            if programs.contains_key(&rel.target_sec_idx) {
                 rel.apply(&mut programs, &maps, &symtab)?;
             }
         }
@@ -697,7 +717,7 @@ fn get_split_section_name<'o>(
     Ok((kind, name))
 }
 
-impl Rel {
+impl RelocationInfo {
     #[inline]
     pub fn apply(
         &self,
@@ -705,14 +725,23 @@ impl Rel {
         maps: &RSHashMap<usize, Map>,
         symtab: &[Sym],
     ) -> Result<()> {
-        let prog = programs.get_mut(&self.target).ok_or(Error::Reloc)?;
-        let map = maps.get(&symtab[self.sym].st_shndx).ok_or(Error::Reloc)?;
+        // get the program we need to apply relocations to based on the program section index
+        let prog = programs.get_mut(&self.target_sec_idx).ok_or(Error::Reloc)?;
+        // lookup the symbol we're relocating in the symbol table
+        let sym = symtab[self.sym_idx];
+        // get the map referenced by the program based on the symbol section index
+        let map = maps.get(&sym.st_shndx).ok_or(Error::Reloc)?;
+
+        // the index of the instruction we need to patch
         let insn_idx = (self.offset / std::mem::size_of::<bpf_insn>() as u64) as usize;
-
         let code = &mut prog.data_mut().code;
-        code[insn_idx].set_src_reg(bpf_sys::BPF_PSEUDO_MAP_FD as u8);
+        if map.section_data {
+            code[insn_idx].set_src_reg(bpf_sys::BPF_PSEUDO_MAP_VALUE as u8);
+            code[insn_idx + 1].imm = code[insn_idx].imm + sym.st_value as i32;
+        } else {
+            code[insn_idx].set_src_reg(bpf_sys::BPF_PSEUDO_MAP_FD as u8);
+        }
         code[insn_idx].imm = map.fd;
-
         Ok(())
     }
 }
@@ -720,7 +749,40 @@ impl Rel {
 impl Map {
     pub fn load(name: &str, code: &[u8]) -> Result<Map> {
         let config: bpf_map_def = *zero::read(code);
-        let cname = CString::new(name.to_owned())?;
+        Map::with_map_def(name, config)
+    }
+
+    fn with_section_data(name: &str, data: &[u8], flags: u32) -> Result<Map> {
+        let mut map = Map::with_map_def(
+            name,
+            bpf_map_def {
+                type_: bpf_sys::bpf_map_type_BPF_MAP_TYPE_ARRAY,
+                key_size: mem::size_of::<u32>() as u32,
+                value_size: data.len() as u32,
+                max_entries: 1,
+                map_flags: flags,
+            },
+        )?;
+        map.section_data = true;
+        // for BSS we don't need to copy the data, it's already 0-initialized
+        if name != ".bss" {
+            unsafe {
+                let ret = bpf_sys::bpf_update_elem(
+                    map.fd,
+                    &mut 0 as *mut _ as *mut _,
+                    data.as_ptr() as *mut u8 as *mut _,
+                    0,
+                );
+                if ret < 0 {
+                    return Err(Error::BPF);
+                }
+            }
+        }
+        Ok(map)
+    }
+
+    fn with_map_def(name: &str, config: bpf_map_def) -> Result<Map> {
+        let cname = CString::new(name)?;
         let fd = unsafe {
             bpf_sys::bcc_create_map(
                 config.type_,
@@ -740,6 +802,7 @@ impl Map {
             kind: config.type_,
             fd,
             config,
+            section_data: false,
         })
     }
 }
@@ -949,18 +1012,17 @@ impl StackTrace<'_> {
 }
 
 #[inline]
-fn add_rel(
-    rels: &mut Vec<Rel>,
+fn add_relocation(
+    rels: &mut Vec<RelocationInfo>,
     shndx: usize,
     shdr: &SectionHeader,
     shdr_relocs: &[(usize, RelocSection<'_>)],
 ) {
     // if unwrap blows up, something's really bad
     let section_rels = &shdr_relocs.iter().find(|(idx, _)| idx == &shndx).unwrap().1;
-    rels.extend(section_rels.iter().map(|rel| Rel {
-        shndx,
-        target: shdr.sh_info as usize,
-        sym: rel.r_sym,
+    rels.extend(section_rels.iter().map(|rel| RelocationInfo {
+        target_sec_idx: shdr.sh_info as usize,
+        sym_idx: rel.r_sym,
         offset: rel.r_offset,
     }));
 }
