@@ -426,7 +426,7 @@ pub fn tc_action(attrs: TokenStream, item: TokenStream) -> TokenStream {
                 Ok(::redbpf_probes::tc::TcAction::Unspec) => -1,
                 Ok(::redbpf_probes::tc::TcAction::Pipe) => 3,
                 Ok(::redbpf_probes::tc::TcAction::Reclassify) => 1,
-                _ => 0
+                Err(_) => -1
             };
 
             #item
