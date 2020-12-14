@@ -91,3 +91,8 @@ workflows:
             - "ubuntu 18.04"
             - "ubuntu 20.04"
             - "fedora rawhide"
+          filters:
+            tags:
+              only: /^v.*/
+            branches:
+              ignore: /.*/
