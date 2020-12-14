@@ -2,11 +2,17 @@ image: &default_image quay.io/redsift/ingraind-build:20.04
 
 version: 2.1
 commands:
-  setup_ubuntu_env:
+  setup_env:
     steps:
       - checkout
       - run: git submodule sync
       - run: git submodule update --init
+      - run: |
+          export KERNEL_SOURCE=/usr/src/kernels/$(rpm -qa kernel-devel |cut -d- -f3- || true)/
+          if [ "x$KERNEL_SOURCE" = "x/usr/src/kernels//" ]; then
+              export KERNEL_SOURCE=/lib/modules/$(ls /lib/modules |head -n1)/build/
+          fi
+          echo "export KERNEL_SOURCE=$KERNEL_SOURCE" |tee $BASH_ENV
 
 jobs:
   build_doc_and_bin:
@@ -19,14 +25,10 @@ jobs:
     docker:
       - image: quay.io/redsift/ingraind-build:<< parameters.tag >>
     steps:
-      - setup_ubuntu_env
+      - setup_env
       - run:
           name: Build
           command: |
-            export KERNEL_SOURCE=/usr/src/kernels/$(rpm -qa kernel-devel |cut -d- -f3- || true)/
-            if [ "x$KERNEL_SOURCE" = "x/usr/src/kernels//" ]; then
-                export KERNEL_SOURCE=/lib/modules/$(ls /lib/modules |head -n1)/build/
-            fi
             cargo build
             cargo test --bins --tests
             RUSTDOCFLAGS="-C panic=abort" cargo test --doc --workspace src
@@ -36,19 +38,13 @@ jobs:
     docker:
       - image: *default_image
     steps:
-      - setup_ubuntu_env
+      - setup_env
       - run:
-          name: Publish package
+          name: Publish package docs
           command: |
             rustup default nightly
             git config --global url."https://$GITHUB_HTTP_TOKEN:@github.com".insteadOf "https://github.com"
             cargo login $CRATES_KEY
-            for package in bpf-sys redbpf{,-macros,-probes} cargo-bpf; do
-              pushd $package
-              cargo publish || true
-              popd
-              sleep 5
-            done
 
             cargo doc --no-deps --release
 
@@ -95,8 +91,3 @@ workflows:
             - "ubuntu 18.04"
             - "ubuntu 20.04"
             - "fedora rawhide"
-          filters:
-            tags:
-              only: /^v.*/
-            branches:
-              ignore: /.*/
