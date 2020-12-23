@@ -563,7 +563,7 @@ impl Module {
                 (hdr::SHT_PROGBITS, Some(name), None)
                     if name == ".bss"
                         || name.starts_with(".data")
-                        || (name.starts_with(".rodata") && content.len() > 0) =>
+                        || name.starts_with(".rodata") =>
                 {
                     // load these as ARRAY maps containing one item: the section data. Then during
                     // relocation make instructions point inside the maps.
@@ -729,10 +729,6 @@ impl RelocationInfo {
         let prog = programs.get_mut(&self.target_sec_idx).ok_or(Error::Reloc)?;
         // lookup the symbol we're relocating in the symbol table
         let sym = symtab[self.sym_idx];
-        // If the reloc size is 0, there is nothing to do so we skip
-        if sym.st_size == 0 {
-            return Ok(());
-        }
         // get the map referenced by the program based on the symbol section index
         let map = maps.get(&sym.st_shndx).ok_or(Error::Reloc)?;
 
