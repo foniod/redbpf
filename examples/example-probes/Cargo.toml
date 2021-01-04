@@ -10,6 +10,7 @@ cargo-bpf = { version = "", path = "../../cargo-bpf", default-features = false, 
 cty = "0.2"
 redbpf-macros = { version = "", path = "../../redbpf-macros" }
 redbpf-probes = { version = "", path = "../../redbpf-probes" }
+memoffset = "0.6.1"
 
 [features]
 default = []
@@ -26,4 +27,10 @@ required-features = ["probes"]
 [[bin]]
 name = "mallocstacks"
 path = "src/mallocstacks/main.rs"
+required-features = ["probes"]
+
+
+[[bin]]
+name = "tcp-lifetime"
+path = "src/tcp_lifetime/main.rs"
 required-features = ["probes"]
