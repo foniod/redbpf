@@ -18,4 +18,4 @@ pub use crate::maps::*;
 pub use crate::socket::*;
 pub use crate::socket_filter::*;
 pub use cty::*;
-pub use redbpf_macros::{program, socket_filter};
+pub use redbpf_macros::{map, program, socket_filter};
