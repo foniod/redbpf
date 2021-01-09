@@ -435,3 +435,42 @@ pub fn tc_action(attrs: TokenStream, item: TokenStream) -> TokenStream {
 
     probe_impl("tc_action", attrs, wrapper, name)
 }
+
+/// Define a tracepoint.
+#[proc_macro_attribute]
+pub fn tracepoint(attrs: TokenStream, item: TokenStream) -> TokenStream {
+    let item = parse_macro_input!(item as ItemFn);
+    let ident = item.sig.ident.clone();
+
+    let (name, split) = if !attrs.is_empty() {
+        match parse_macro_input!(attrs as Expr) {
+            Expr::Lit(ExprLit {
+                lit: Lit::Str(s), ..
+            }) => (s.value(), ":"),
+            _ => panic!("expected string literal"),
+        }
+    } else {
+        (ident.to_string(), "__")
+    };
+    let mut iter = name.split(split);
+    let group = iter.next().expect("group");
+    let name = iter.next().expect("name");
+    assert_eq!(iter.next(), None);
+
+    let section_name = format!("tracepoint/{}__{}", group, name);
+    let outer_name = quote::format_ident!("tracepoint__{}__{}", group, name);
+    // todo parse /sys/kernel/debug/tracing/events/{group}/{name}/format
+    // and generate args struct
+    let tokens = quote! {
+        #[no_mangle]
+        #[link_section = #section_name]
+        fn #outer_name(args: *const core::ffi::c_void) -> i32 {
+            #item
+
+            #ident(args);
+            return 0;
+        }
+    };
+
+    tokens.into()
+}

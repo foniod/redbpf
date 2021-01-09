@@ -127,6 +127,8 @@ pub struct SocketFilter {
 
 pub struct TracePoint {
     common: ProgramData,
+    category: String,
+    name: String,
 }
 /// Type to work with `XDP` programs.
 pub struct XDP {
@@ -180,12 +182,9 @@ pub struct RelocationInfo {
 impl Program {
     #[allow(clippy::unnecessary_wraps)]
     fn new(kind: &str, name: &str, code: &[u8]) -> Result<Program> {
-        let code = zero::read_array(code).to_vec();
-        let name = name.to_string();
-
         let common = ProgramData {
-            name,
-            code,
+            name: name.to_string(),
+            code: zero::read_array(code).to_vec(),
             fd: None,
         };
 
@@ -206,7 +205,22 @@ impl Program {
                 common,
                 attach_type: bpf_probe_attach_type_BPF_PROBE_RETURN,
             }),
-            "tracepoint" => Program::TracePoint(TracePoint { common }),
+            "tracepoint" => {
+                let mut iter = name.splitn(2, "__");
+                let category = iter
+                    .next()
+                    .ok_or_else(|| Error::Section(name.to_string()))?
+                    .to_string();
+                let name = iter
+                    .next()
+                    .ok_or_else(|| Error::Section(name.to_string()))?
+                    .to_string();
+                Program::TracePoint(TracePoint {
+                    category,
+                    name,
+                    common,
+                })
+            }
             "socketfilter" => Program::SocketFilter(SocketFilter { common }),
             "xdp" => Program::XDP(XDP {
                 common,
@@ -438,10 +452,10 @@ impl UProbe {
 }
 
 impl TracePoint {
-    pub fn attach_trace_point(&mut self, category: &str, name: &str) -> Result<()> {
+    pub fn attach_tracepoint(&mut self) -> Result<()> {
         let fd = self.common.fd.ok_or(Error::ProgramNotLoaded)?;
-        let category = CString::new(category)?;
-        let name = CString::new(name)?;
+        let category = CString::new(self.category.as_str())?;
+        let name = CString::new(self.name.as_str())?;
         let res = unsafe {
             bpf_sys::bpf_attach_tracepoint(
                 fd,
@@ -457,8 +471,12 @@ impl TracePoint {
         }
     }
 
-    pub fn name(&self) -> String {
-        self.common.name.to_string()
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    pub fn category(&self) -> &str {
+        &self.category
     }
 }
 
@@ -589,6 +607,7 @@ impl Module {
                 | (hdr::SHT_PROGBITS, Some(kind @ "uprobe"), Some(name))
                 | (hdr::SHT_PROGBITS, Some(kind @ "uretprobe"), Some(name))
                 | (hdr::SHT_PROGBITS, Some(kind @ "xdp"), Some(name))
+                | (hdr::SHT_PROGBITS, Some(kind @ "tracepoint"), Some(name))
                 | (hdr::SHT_PROGBITS, Some(kind @ "socketfilter"), Some(name)) => {
                     programs.insert(shndx, Program::new(kind, name, &content)?);
                 }
@@ -681,7 +700,7 @@ impl Module {
         })
     }
 
-    pub fn trace_points(&self) -> impl Iterator<Item = &TracePoint> {
+    pub fn tracepoints(&self) -> impl Iterator<Item = &TracePoint> {
         use Program::*;
         self.programs.iter().filter_map(|prog| match prog {
             TracePoint(p) => Some(p),
@@ -689,7 +708,7 @@ impl Module {
         })
     }
 
-    pub fn trace_points_mut(&mut self) -> impl Iterator<Item = &mut TracePoint> {
+    pub fn tracepoints_mut(&mut self) -> impl Iterator<Item = &mut TracePoint> {
         use Program::*;
         self.programs.iter_mut().filter_map(|prog| match prog {
             TracePoint(p) => Some(p),

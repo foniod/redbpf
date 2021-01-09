@@ -59,5 +59,6 @@ pub mod registers;
 pub mod socket;
 pub mod socket_filter;
 pub mod tc;
+pub mod tracepoint;
 pub mod uprobe;
 pub mod xdp;
