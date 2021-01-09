@@ -45,12 +45,14 @@ fn example_xdp_probe(ctx: XdpContext) -> XdpResult {
 
 extern crate proc_macro;
 extern crate proc_macro2;
+use heck::CamelCase;
 use proc_macro::TokenStream;
 #[cfg(RUSTC_IS_NIGHTLY)]
 use proc_macro::{Diagnostic, Level};
 use proc_macro2::{Ident, Span, TokenStream as TokenStream2};
-use quote::quote;
-use std::str;
+use quote::{format_ident, quote};
+use std::process::Command;
+use std::str::{self, FromStr};
 use syn::parse::{Parse, ParseStream};
 use syn::punctuated::Punctuated;
 use syn::token::Comma;
@@ -453,24 +455,104 @@ pub fn tracepoint(attrs: TokenStream, item: TokenStream) -> TokenStream {
         (ident.to_string(), "__")
     };
     let mut iter = name.split(split);
-    let group = iter.next().expect("group");
+    let category = iter.next().expect("category");
     let name = iter.next().expect("name");
     assert_eq!(iter.next(), None);
 
-    let section_name = format!("tracepoint/{}__{}", group, name);
-    let outer_name = quote::format_ident!("tracepoint__{}__{}", group, name);
-    // todo parse /sys/kernel/debug/tracing/events/{group}/{name}/format
-    // and generate args struct
+    let section_name = format!("tracepoint/{}__{}", category, name);
+    let outer_name = format_ident!("tracepoint__{}__{}", category, name);
+    let struct_ident = format_ident!("{}", name.to_camel_case());
+    let event_struct = gen_event_struct(category, name, &struct_ident);
+
     let tokens = quote! {
+        #event_struct
+
         #[no_mangle]
         #[link_section = #section_name]
         fn #outer_name(args: *const core::ffi::c_void) -> i32 {
             #item
 
-            #ident(args);
+            #ident(unsafe { &*(args as *const #struct_ident) });
             return 0;
         }
     };
 
     tokens.into()
+}
+
+fn gen_event_struct(category: &str, name: &str, ident: &syn::Ident) -> TokenStream2 {
+    let events_dir = "/sys/kernel/debug/tracing/events";
+    let output =  Command::new("sudo")
+        .arg("cat")
+        .arg(format!("{}/{}/{}/format", events_dir, category, name))
+        .output()
+        .expect("failed to execute `sudo cat ...`");
+    if !output.status.success() {
+        let err = std::str::from_utf8(&output.stderr).unwrap();
+        panic!("{}", err);
+    }
+    let mut lines = std::str::from_utf8(&output.stdout).unwrap().lines();
+    lines.next().unwrap();
+    lines.next().expect("id");
+    lines.next().expect("format");
+    let mut fields = vec![];
+    for line in lines {
+        if line.is_empty() {
+            continue;
+        }
+        if !line.starts_with('\t') {
+            break;
+        }
+        let mut cols = line.split('\t');
+        cols.next().unwrap();
+        let (name, len) = parse_name(parse_field(cols.next()));
+        cols.next().unwrap();
+        let size = match usize::from_str(parse_field(cols.next())).unwrap() / len {
+            1 => "8",
+            2 => "16",
+            4 => "32",
+            8 => "64",
+            size => panic!("unexpected size {}", size),
+        };
+        let prefix = match parse_field(cols.next()) {
+            "0" => "u",
+            "1" => "i",
+            signed => panic!("unexpected signed {}", signed),
+        };
+        let ty = format_ident!("{}{}", prefix, size);
+        if len > 1 {
+            fields.push(quote!(#name: [#ty; #len]));
+        } else {
+            fields.push(quote!(#name: #ty));
+        }
+    }
+    quote! {
+        #[derive(Debug)]
+        #[repr(C)]
+        struct #ident {
+            #(#fields),*
+        }
+    }
+}
+
+fn parse_name(input: &str) -> (syn::Ident, usize) {
+    let mut iter = input.splitn(2, '[');
+    let name = iter.next().unwrap();
+    let len = iter.next()
+        .map(|len| len[..(len.len() - 1)].parse().unwrap())
+        .unwrap_or(1);
+    (format_ident!("{}", name), len)
+}
+
+fn parse_field(input: Option<&str>) -> &str {
+    let value = input
+        .unwrap()
+        .splitn(2, ':')
+        .skip(1)
+        .next()
+        .unwrap()
+        .rsplitn(2, ' ')
+        .next()
+        .unwrap();
+    &value[..(value.len() - 1)]
 }
