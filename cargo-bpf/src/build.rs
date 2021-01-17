@@ -108,7 +108,7 @@ fn build_probe(cargo: &Path, package: &Path, target_dir: &Path, probe: &str) -> 
         .arg("--cfg")
         .arg(version)
         .args(
-            "--emit=llvm-bc -C panic=abort -C lto -C link-arg=-nostartfiles -C opt-level=3"
+            "--emit=llvm-bc -C panic=abort -C lto -C link-arg=-nostartfiles -C opt-level=3 -C debuginfo=2"
                 .split(' '),
         )
         .arg("-o")
