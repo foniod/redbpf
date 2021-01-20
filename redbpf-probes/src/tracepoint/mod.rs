@@ -8,13 +8,9 @@
 /*!
 Tracepoint probes.
 
-KProbes are hooks on the entry (kprobe) or exit (kretprobe) of a kernel function.
-For an overview of KProbes and how they work, see
-<https://www.kernel.org/doc/Documentation/kprobes.txt>.
-
 # Example
 
-Do something when `execve` is called.
+Do something when a syscall is started.
 
 ```no_run
 #![no_std]

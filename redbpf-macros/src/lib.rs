@@ -480,18 +480,35 @@ pub fn tracepoint(attrs: TokenStream, item: TokenStream) -> TokenStream {
     tokens.into()
 }
 
+/*
+sudo cat /sys/kernel/debug/tracing/events/raw_syscalls/sys_enter/format
+name: sys_enter
+ID: 341
+format:
+	field:unsigned short common_type;	offset:0;	size:2;	signed:0;
+	field:unsigned char common_flags;	offset:2;	size:1;	signed:0;
+	field:unsigned char common_preempt_count;	offset:3;	size:1;	signed:0;
+	field:int common_pid;	offset:4;	size:4;	signed:1;
+
+	field:long id;	offset:8;	size:8;	signed:1;
+	field:unsigned long args[6];	offset:16;	size:48;	signed:0;
+
+print fmt: "NR %ld (%lx, %lx, %lx, %lx, %lx, %lx)", REC->id, REC->args[0], REC->args[1], REC->args[2], REC->args[3], REC->args[4], REC->args[5]
+*/
 fn gen_event_struct(category: &str, name: &str, ident: &syn::Ident) -> TokenStream2 {
     let events_dir = "/sys/kernel/debug/tracing/events";
+    let path = format!("{}/{}/{}/format", events_dir, category, name);
     let output =  Command::new("sudo")
         .arg("cat")
         .arg(format!("{}/{}/{}/format", events_dir, category, name))
-        .output()
-        .expect("failed to execute `sudo cat ...`");
-    if !output.status.success() {
-        let err = std::str::from_utf8(&output.stderr).unwrap();
-        panic!("{}", err);
-    }
-    let mut lines = std::str::from_utf8(&output.stdout).unwrap().lines();
+        .output();
+    let format = match output {
+        Ok(output) if output.status.success() => {
+            std::str::from_utf8(&output.stdout).unwrap().to_owned()
+        }
+        _ => std::fs::read_to_string(path).unwrap(),
+    };
+    let mut lines = format.lines();
     lines.next().unwrap();
     lines.next().expect("id");
     lines.next().expect("format");
