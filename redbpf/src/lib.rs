@@ -19,7 +19,7 @@ BPF programs used with `redbpf` are typically created and built with
 [`redbpf-macros`](https://ingraind.org/api/redbpf_macros/) APIs.
 
 For full featured examples on how to use redbpf see
-https://github.com/redsift/redbpf/tree/master/redbpf-tools.
+<https://github.com/redsift/redbpf/tree/master/redbpf-tools>.
 
 # Example
 
@@ -55,8 +55,9 @@ pub mod xdp;
 
 pub use bpf_sys::uname;
 use bpf_sys::{
-    bpf_insn, bpf_map_def, bpf_probe_attach_type, bpf_probe_attach_type_BPF_PROBE_ENTRY,
-    bpf_probe_attach_type_BPF_PROBE_RETURN, bpf_prog_type,
+    bpf_attach_type_BPF_SK_SKB_STREAM_PARSER, bpf_attach_type_BPF_SK_SKB_STREAM_VERDICT, bpf_insn,
+    bpf_map_def, bpf_probe_attach_type, bpf_probe_attach_type_BPF_PROBE_ENTRY,
+    bpf_probe_attach_type_BPF_PROBE_RETURN, bpf_prog_type, BPF_ANY,
 };
 use goblin::elf::{reloc::RelocSection, section_header as hdr, Elf, SectionHeader, Sym};
 
@@ -100,6 +101,8 @@ pub enum Program {
     SocketFilter(SocketFilter),
     TracePoint(TracePoint),
     XDP(XDP),
+    StreamParser(StreamParser),
+    StreamVerdict(StreamVerdict),
 }
 
 struct ProgramData {
@@ -134,6 +137,16 @@ pub struct XDP {
     interfaces: Vec<String>,
 }
 
+/// Type to work with `stream_parser` BPF programs.
+pub struct StreamParser {
+    common: ProgramData,
+}
+
+/// Type to work with `stream_verdict` BPF programs.
+pub struct StreamVerdict {
+    common: ProgramData,
+}
+
 pub struct Map {
     pub name: String,
     pub kind: u32,
@@ -149,6 +162,19 @@ pub struct HashMap<'a, K: Clone, V: Clone> {
 }
 
 pub struct StackTrace<'a> {
+    base: &'a Map,
+}
+
+/// SockMap structure for storing file descriptors of TCP sockets by userspace
+/// program.
+///
+/// A sockmap is a BPF map type that holds references to sock structs. BPF
+/// programs can use the sockmap to redirect `skb`s between sockets using
+/// related BPF helpers.
+///
+/// The counterpart which is used by BPF program is:
+/// [`redbpf_probes::maps::SockMap`](../redbpf_probes/maps/struct.SockMap.html).
+pub struct SockMap<'a> {
     base: &'a Map,
 }
 
@@ -212,6 +238,8 @@ impl Program {
                 common,
                 interfaces: Vec::new(),
             }),
+            "streamparser" => Program::StreamParser(StreamParser { common }),
+            "streamverdict" => Program::StreamVerdict(StreamVerdict { common }),
             _ => return Err(Error::Section(kind.to_string())),
         })
     }
@@ -226,6 +254,7 @@ impl Program {
             XDP(_) => bpf_sys::bpf_prog_type_BPF_PROG_TYPE_XDP,
             SocketFilter(_) => bpf_sys::bpf_prog_type_BPF_PROG_TYPE_SOCKET_FILTER,
             TracePoint(_) => bpf_sys::bpf_prog_type_BPF_PROG_TYPE_TRACEPOINT,
+            StreamParser(_) | StreamVerdict(_) => bpf_sys::bpf_prog_type_BPF_PROG_TYPE_SK_SKB,
         }
     }
 
@@ -238,6 +267,8 @@ impl Program {
             XDP(p) => &p.common,
             SocketFilter(p) => &p.common,
             TracePoint(p) => &p.common,
+            StreamParser(p) => &p.common,
+            StreamVerdict(p) => &p.common,
         }
     }
 
@@ -250,6 +281,8 @@ impl Program {
             XDP(p) => &mut p.common,
             SocketFilter(p) => &mut p.common,
             TracePoint(p) => &mut p.common,
+            StreamParser(p) => &mut p.common,
+            StreamVerdict(p) => &mut p.common,
         }
     }
 
@@ -589,7 +622,9 @@ impl Module {
                 | (hdr::SHT_PROGBITS, Some(kind @ "uprobe"), Some(name))
                 | (hdr::SHT_PROGBITS, Some(kind @ "uretprobe"), Some(name))
                 | (hdr::SHT_PROGBITS, Some(kind @ "xdp"), Some(name))
-                | (hdr::SHT_PROGBITS, Some(kind @ "socketfilter"), Some(name)) => {
+                | (hdr::SHT_PROGBITS, Some(kind @ "socketfilter"), Some(name))
+                | (hdr::SHT_PROGBITS, Some(kind @ "streamparser"), Some(name))
+                | (hdr::SHT_PROGBITS, Some(kind @ "streamverdict"), Some(name)) => {
                     programs.insert(shndx, Program::new(kind, name, &content)?);
                 }
                 _ => {}
@@ -693,6 +728,38 @@ impl Module {
         use Program::*;
         self.programs.iter_mut().filter_map(|prog| match prog {
             TracePoint(p) => Some(p),
+            _ => None,
+        })
+    }
+
+    pub fn stream_parser(&self) -> impl Iterator<Item = &StreamParser> {
+        use Program::*;
+        self.programs.iter().filter_map(|prog| match prog {
+            StreamParser(p) => Some(p),
+            _ => None,
+        })
+    }
+
+    pub fn stream_parser_mut(&mut self) -> impl Iterator<Item = &mut StreamParser> {
+        use Program::*;
+        self.programs.iter_mut().filter_map(|prog| match prog {
+            StreamParser(p) => Some(p),
+            _ => None,
+        })
+    }
+
+    pub fn stream_verdict(&self) -> impl Iterator<Item = &StreamVerdict> {
+        use Program::*;
+        self.programs.iter().filter_map(|prog| match prog {
+            StreamVerdict(p) => Some(p),
+            _ => None,
+        })
+    }
+
+    pub fn stream_verdict_mut(&mut self) -> impl Iterator<Item = &mut StreamVerdict> {
+        use Program::*;
+        self.programs.iter_mut().filter_map(|prog| match prog {
+            StreamVerdict(p) => Some(p),
             _ => None,
         })
     }
@@ -1007,6 +1074,99 @@ impl StackTrace<'_> {
             } else {
                 Err(Error::Map)
             }
+        }
+    }
+}
+
+impl StreamParser {
+    /// Attach `sock_map` to stream parser BPF program.
+    ///
+    /// # Example
+    /// ```no_run
+    /// use redbpf::{load::Loader, SockMap};
+    ///
+    /// let loaded = Loader::load("echo.elf").expect("error loading BPF program");
+    /// let mut echo_sockmap = SockMap::new(loaded.map("echo_sockmap").expect("sockmap not found")).unwrap();
+    /// loaded.stream_parser().next().unwrap().attach_sockmap(&echo_sockmap).expect("Attaching sockmap failed");
+    /// ```
+    pub fn attach_sockmap(&self, sock_map: &SockMap) -> Result<()> {
+        let attach_fd = sock_map.base.fd;
+        let prog_fd = self.common.fd.unwrap();
+
+        let ret = unsafe {
+            bpf_sys::bpf_prog_attach(
+                prog_fd,
+                attach_fd,
+                bpf_attach_type_BPF_SK_SKB_STREAM_PARSER,
+                0,
+            )
+        };
+        if ret < 0 {
+            Err(Error::BPF)
+        } else {
+            Ok(())
+        }
+    }
+}
+
+impl StreamVerdict {
+    /// Attach `sock_map` to stream verdict BPF program.
+    ///
+    /// # Example
+    /// ```no_run
+    /// use redbpf::{load::Loader, SockMap};
+    ///
+    /// let loaded = Loader::load("echo.elf").expect("error loading BPF program");
+    /// let mut echo_sockmap = SockMap::new(loaded.map("echo_sockmap").expect("sockmap not found")).unwrap();
+    /// loaded.stream_verdict().next().unwrap().attach_sockmap(&echo_sockmap).expect("Attaching sockmap failed");
+    /// ```
+    pub fn attach_sockmap(&self, sock_map: &SockMap) -> Result<()> {
+        let attach_fd = sock_map.base.fd;
+        let prog_fd = self.common.fd.unwrap();
+
+        let ret = unsafe {
+            bpf_sys::bpf_prog_attach(
+                prog_fd,
+                attach_fd,
+                bpf_attach_type_BPF_SK_SKB_STREAM_VERDICT,
+                0,
+            )
+        };
+        if ret < 0 {
+            Err(Error::BPF)
+        } else {
+            Ok(())
+        }
+    }
+}
+
+impl<'a> SockMap<'a> {
+    pub fn new(map: &'a Map) -> Result<SockMap<'a>> {
+        Ok(SockMap { base: map })
+    }
+
+    pub fn set(&mut self, mut idx: u32, mut fd: RawFd) -> Result<()> {
+        let ret = unsafe {
+            bpf_sys::bpf_update_elem(
+                self.base.fd,
+                &mut idx as *mut _ as *mut _,
+                &mut fd as *mut _ as *mut _,
+                BPF_ANY.into(), // No condition on the existence of the entry for `idx`.
+            )
+        };
+        if ret < 0 {
+            Err(Error::Map)
+        } else {
+            Ok(())
+        }
+    }
+
+    pub fn delete(&mut self, mut idx: u32) -> Result<()> {
+        let ret = unsafe { bpf_sys::bpf_delete_elem(self.base.fd, &mut idx as *mut _ as *mut _) };
+        if ret < 0 {
+            Err(Error::Map)
+        } else {
+            Ok(())
         }
     }
 }
