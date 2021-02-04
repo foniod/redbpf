@@ -305,3 +305,64 @@ impl ProgramArray {
         Ok(())
     }
 }
+
+/// SockMap.
+///
+/// A sockmap is a BPF map type that holds references to sock structs. BPF
+/// programs can use the sockmap to redirect `skb`s between sockets using
+/// related BPF helpers.
+pub struct SockMap {
+    def: bpf_map_def,
+}
+
+impl SockMap {
+    pub const fn with_max_entries(max_entries: u32) -> Self {
+        Self {
+            def: bpf_map_def {
+                type_: bpf_map_type_BPF_MAP_TYPE_SOCKMAP,
+                key_size: mem::size_of::<i32>() as u32,
+                value_size: mem::size_of::<i32>() as u32,
+                max_entries,
+                map_flags: 0,
+            },
+        }
+    }
+
+    /// Redirect the packet on `egress path` to the socket referenced by sockmap
+    /// at index `key`.
+    pub fn redirect(&mut self, skb: *mut __sk_buff, key: u32) -> Result<(), ()> {
+        let ret = unsafe {
+            bpf_sk_redirect_map(
+                skb as *mut _,
+                &mut self.def as *mut _ as *mut c_void,
+                key,
+                0,
+            ) as sk_action
+        };
+        #[allow(non_upper_case_globals)]
+        match ret {
+            sk_action_SK_PASS => Ok(()),
+            sk_action_SK_DROP => Err(()),
+            _ => panic!("invalid return value of bpf_sk_redirect_map"),
+        }
+    }
+
+    /// Redirect the packet on `ingress path` to the socket referenced by
+    /// sockmap at index `key`.
+    pub fn redirect_ingress(&mut self, skb: *mut __sk_buff, key: u32) -> Result<(), ()> {
+        let ret: sk_action = unsafe {
+            bpf_sk_redirect_map(
+                skb as *mut _,
+                &mut self.def as *mut _ as *mut c_void,
+                key,
+                BPF_F_INGRESS.into(),
+            ) as sk_action
+        };
+        #[allow(non_upper_case_globals)]
+        match ret {
+            sk_action_SK_PASS => Ok(()),
+            sk_action_SK_DROP => Err(()),
+            _ => panic!("invalid return value of bpf_sk_redirect_map"),
+        }
+    }
+}
