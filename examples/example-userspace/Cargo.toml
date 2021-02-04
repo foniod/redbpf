@@ -10,6 +10,6 @@ cargo-bpf = { version = "", path = "../../cargo-bpf", default-features = false, 
 [dependencies]
 probes = { path = "../example-probes", package = "example-probes" }
 libc = "0.2"
-tokio = { version = "^0.2.4", features = ["signal", "time"] }
+tokio = { version = "^0.2.4", features = ["signal", "time", "io-util", "tcp", "rt-util", "sync"] }
 redbpf = { version = "", path = "../../redbpf", features = ["load"] }
 futures = "0.3"
