@@ -191,7 +191,7 @@ pub struct BpfStackFrames {
 /// An array of eBPF programs that can be used as a jump table.
 ///
 /// To use this from eBPF code, see
-/// [`redbpf_probes::maps::ProgramArray`](../../redbpf_probes/maps/struct.ProgramArray.html).
+/// [`redbpf_probes::maps::ProgramArray`](../redbpf_probes/maps/struct.ProgramArray.html).
 pub struct ProgramArray<'a> {
     base: &'a Map,
 }
@@ -959,7 +959,7 @@ impl<'base> ProgramArray<'base> {
     /// Set the `index` entry to the given eBPF program `fd`.
     ///
     /// To jump to a program from eBPF, see
-    /// [`redbpf_probes::maps::ProgramArray::tail_call`](../../redbpf_probes/maps/struct.ProgramArray.html#method.tail_call).
+    /// [`redbpf_probes::maps::ProgramArray::tail_call`](../redbpf_probes/maps/struct.ProgramArray.html#method.tail_call).
     ///
     /// # Example
     /// ```no_run
