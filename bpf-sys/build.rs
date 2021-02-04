@@ -88,6 +88,8 @@ fn main() {
 
     let bindings = bindgen::Builder::default()
         .header("libbpf_xdp.h")
+        .header("libbpf/src/bpf.h")
+        .clang_arg("-Ilibbpf/src")
         .clang_arg("-Ilibbpf/include/uapi")
         .clang_arg("-Ilibbpf/include")
         .clang_arg("-Ibcc")
@@ -109,6 +111,8 @@ fn main() {
         .expect("Couldn't write bindings!");
     let bindings = bindgen::Builder::default()
         .header("bcc/perf_reader.h")
+        .header("libbpf/src/bpf.h")
+        .clang_arg("-Ilibbpf/src")
         .clang_arg("-Ilibbpf/include/uapi")
         .clang_arg("-Ilibbpf/include")
         .clang_arg("-Ibcc")
