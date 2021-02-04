@@ -19,7 +19,7 @@ pub enum Error {
     LibraryNotFound(String),
     SymbolNotFound(String),
     ProgramAlreadyLoaded,
-    ProgramNotLoaded
+    ProgramNotLoaded,
 }
 
 pub type Result<T> = ::std::result::Result<T, Error>;

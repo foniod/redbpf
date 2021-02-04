@@ -155,7 +155,9 @@ impl From<PerfMapFlags> for u64 {
     #[inline]
     fn from(flags: PerfMapFlags) -> u64 {
         (flags.xdp_size as u64) << 32
-            | (flags.index.unwrap_or_else(|| BPF_F_CURRENT_CPU.try_into().unwrap()) as u64)
+            | (flags
+                .index
+                .unwrap_or_else(|| BPF_F_CURRENT_CPU.try_into().unwrap()) as u64)
     }
 }
 
@@ -217,12 +219,12 @@ const BPF_MAX_STACK_DEPTH: usize = 127;
 
 #[repr(transparent)]
 pub struct StackTrace {
-    def: bpf_map_def
+    def: bpf_map_def,
 }
 
 #[repr(C)]
 struct BpfStackFrames {
-    ip: [u64; BPF_MAX_STACK_DEPTH]
+    ip: [u64; BPF_MAX_STACK_DEPTH],
 }
 
 impl StackTrace {
@@ -233,8 +235,8 @@ impl StackTrace {
                 key_size: mem::size_of::<u32>() as u32,
                 value_size: mem::size_of::<BpfStackFrames>() as u32,
                 max_entries: cap,
-                map_flags: 0
-            }
+                map_flags: 0,
+            },
         }
     }
 

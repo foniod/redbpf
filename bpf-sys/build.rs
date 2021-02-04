@@ -62,16 +62,19 @@ fn main() {
         .include("libelf")
         .include(".");
     if target.contains("musl") {
-
-        for include in headers::prefix_kernel_headers(&KERNEL_HEADERS).expect("couldn't find kernel headers") {
+        for include in
+            headers::prefix_kernel_headers(&KERNEL_HEADERS).expect("couldn't find kernel headers")
+        {
             libbpf.include(include);
         }
         libbpf
             .define("COMPAT_NEED_REALLOCARRAY", "1")
-            .flag("-include").flag("bpfsys-musl.h");
+            .flag("-include")
+            .flag("bpfsys-musl.h");
     }
     libbpf
-        .flag("-include").flag("linux/stddef.h")
+        .flag("-include")
+        .flag("linux/stddef.h")
         .file("libbpf/src/bpf.c")
         .file("libbpf/src/bpf_prog_linfo.c")
         .file("libbpf/src/btf.c")

@@ -12,9 +12,9 @@
 //! ```
 //! use redbpf_probes::uprobe::prelude::*;
 //! ```
-pub use cty::*;
-pub use redbpf_macros::{uprobe, uretprobe, map, program};
 pub use crate::bindings::*;
 pub use crate::helpers::*;
 pub use crate::maps::*;
 pub use crate::registers::*;
+pub use cty::*;
+pub use redbpf_macros::{map, program, uprobe, uretprobe};

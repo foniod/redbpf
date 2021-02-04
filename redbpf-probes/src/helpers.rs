@@ -17,10 +17,10 @@ use cty::*;
 pub use ufmt;
 use ufmt::uWrite;
 pub mod gen {
-/*!
-Low-level, generated bindings for the helper functions provided by the BPF
-subsystem.
-*/
+    /*!
+    Low-level, generated bindings for the helper functions provided by the BPF
+    subsystem.
+    */
     include!(concat!(env!("OUT_DIR"), "/gen_helpers.rs"));
 }
 

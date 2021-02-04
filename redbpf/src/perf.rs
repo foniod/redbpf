@@ -50,7 +50,7 @@
 #![allow(clippy::cast_lossless)]
 #![allow(clippy::cast_ptr_alignment)]
 
-use crate::{Error, Map, HashMap, Result};
+use crate::{Error, HashMap, Map, Result};
 use std::cell::RefCell;
 use std::io;
 use std::mem;

@@ -1,9 +1,11 @@
-use std::slice;
 use std::default::Default;
+use std::slice;
 
-use bpf_sys::{XDP_FLAGS_UPDATE_IF_NOEXIST, XDP_FLAGS_SKB_MODE,
-              XDP_FLAGS_DRV_MODE, XDP_FLAGS_HW_MODE, XDP_FLAGS_MODES, XDP_FLAGS_MASK};
 use crate::Sample;
+use bpf_sys::{
+    XDP_FLAGS_DRV_MODE, XDP_FLAGS_HW_MODE, XDP_FLAGS_MASK, XDP_FLAGS_MODES, XDP_FLAGS_SKB_MODE,
+    XDP_FLAGS_UPDATE_IF_NOEXIST,
+};
 
 #[derive(Debug, Clone, Copy)]
 #[repr(u32)]
@@ -14,7 +16,7 @@ pub enum Flags {
     DrvMode = XDP_FLAGS_DRV_MODE,
     HwMode = XDP_FLAGS_HW_MODE,
     Modes = XDP_FLAGS_MODES,
-    Mask = XDP_FLAGS_MASK
+    Mask = XDP_FLAGS_MASK,
 }
 
 impl Default for Flags {

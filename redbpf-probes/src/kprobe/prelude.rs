@@ -13,9 +13,9 @@
 //! ```
 //! use redbpf_probes::kprobe::prelude::*;
 //! ```
-pub use cty::*;
-pub use redbpf_macros::{kprobe, kretprobe, map, program};
 pub use crate::bindings::*;
 pub use crate::helpers::*;
 pub use crate::maps::*;
 pub use crate::registers::*;
+pub use cty::*;
+pub use redbpf_macros::{kprobe, kretprobe, map, program};
