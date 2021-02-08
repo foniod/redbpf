@@ -26,6 +26,15 @@ impl_from_be!(u32);
 pub enum SocketError {
     /// Loading data from the socket buffer failed.
     LoadFailed,
+    /// Error in parsing inside a stream parser. The TCP stream is
+    /// unrecoverable.
+    ParserError,
+}
+
+/// SkAction is returned by verdict eBPF programs.
+pub enum SkAction {
+    Pass,
+    Drop,
 }
 
 /// Context object provided to Socket-related programs.

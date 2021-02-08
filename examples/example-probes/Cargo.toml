@@ -29,8 +29,12 @@ name = "mallocstacks"
 path = "src/mallocstacks/main.rs"
 required-features = ["probes"]
 
-
 [[bin]]
 name = "tcp-lifetime"
 path = "src/tcp_lifetime/main.rs"
+required-features = ["probes"]
+
+[[bin]]
+name = "echo"
+path = "src/echo/main.rs"
 required-features = ["probes"]

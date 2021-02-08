@@ -12,10 +12,10 @@
 //! ```
 //! use redbpf_probes::xdp::prelude::*;
 //! ```
-pub use cty::*;
-pub use redbpf_macros::{map, program, xdp};
 pub use crate::bindings::*;
 pub use crate::helpers::*;
 pub use crate::maps::{HashMap, PerfMapFlags};
 pub use crate::net::*;
 pub use crate::xdp::*;
+pub use cty::*;
+pub use redbpf_macros::{map, program, xdp};

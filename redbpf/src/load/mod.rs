@@ -1,4 +1,4 @@
-pub mod map_io;
 mod loader;
+pub mod map_io;
 
 pub use loader::*;

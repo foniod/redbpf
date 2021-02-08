@@ -12,9 +12,11 @@ use std::fs;
 use std::io;
 use std::path::Path;
 
-use crate::{Program, cpus};
 use crate::load::map_io::PerfMessageStream;
-use crate::{Error, KProbe, Map, Module, PerfMap, SocketFilter, UProbe, XDP};
+use crate::{cpus, Program};
+use crate::{
+    Error, KProbe, Map, Module, PerfMap, SocketFilter, StreamParser, StreamVerdict, UProbe, XDP,
+};
 
 #[derive(Debug)]
 pub enum LoaderError {
@@ -41,6 +43,7 @@ impl Loader {
 
         let online_cpus = cpus::get_online().unwrap();
         let (sender, receiver) = mpsc::unbounded();
+        // bpf_map_type_BPF_MAP_TYPE_PERF_EVENT_ARRAY = 4
         for m in module.maps.iter_mut().filter(|m| m.kind == 4) {
             for cpuid in online_cpus.iter() {
                 let name = m.name.clone();
@@ -119,5 +122,21 @@ impl Loaded {
 
     pub fn socket_filters_mut(&mut self) -> impl Iterator<Item = &mut SocketFilter> {
         self.module.socket_filters_mut()
+    }
+
+    pub fn stream_parser(&self) -> impl Iterator<Item = &StreamParser> {
+        self.module.stream_parser()
+    }
+
+    pub fn stream_parser_mut(&mut self) -> impl Iterator<Item = &mut StreamParser> {
+        self.module.stream_parser_mut()
+    }
+
+    pub fn stream_verdict(&self) -> impl Iterator<Item = &StreamVerdict> {
+        self.module.stream_verdict()
+    }
+
+    pub fn stream_verdict_mut(&mut self) -> impl Iterator<Item = &mut StreamVerdict> {
+        self.module.stream_verdict_mut()
     }
 }

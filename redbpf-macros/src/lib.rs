@@ -410,6 +410,92 @@ pub fn socket_filter(attrs: TokenStream, item: TokenStream) -> TokenStream {
     probe_impl("socketfilter", attrs, wrapper, name)
 }
 
+/// Attribute macro for defining BPF programs of `stream parser`s. A `sockmap`
+/// can be attached to the stream parser. The role of stream parsers is to find
+/// a message boundary of TCP stream and return the length of a message. If it
+/// returns proper length of a message then a `stream verdict` BPF program will
+/// be called.
+///
+/// # Example
+/// ```no_run
+/// use core::ptr;
+/// use memoffset::offset_of;
+/// use redbpf_probes::sockmap::prelude::*;
+///
+/// #[stream_parser]
+/// fn parse_message_boundary(skb: SkBuff) -> StreamParserResult {
+///     let len: u32 = unsafe {
+///         let addr = (skb.skb as usize + offset_of!(__sk_buff, len)) as *const u32;
+///         ptr::read(addr)
+///     };
+///     Ok(StreamParserAction::MessageLength(len))
+/// }
+/// ```
+#[proc_macro_attribute]
+pub fn stream_parser(attrs: TokenStream, item: TokenStream) -> TokenStream {
+    let item = parse_macro_input!(item as ItemFn);
+    let name = item.sig.ident.to_string();
+    let ident = item.sig.ident.clone();
+    let outer_ident = Ident::new(&format!("outer_{}", ident), Span::call_site());
+    let wrapper = parse_quote! {
+        fn #outer_ident(skb: *const ::redbpf_probes::bindings::__sk_buff) -> i32 {
+            let skb = ::redbpf_probes::socket::SkBuff { skb };
+            use ::redbpf_probes::sockmap::StreamParserAction::*;
+            return match #ident(skb) {
+                Ok(MessageLength(len)) if len > 0 => len as i32,
+                Ok(MoreDataWanted) => 0,
+                Ok(SendToUserspace) => -86,  // -ESTRPIPE
+                _ => -1,  // error
+            };
+
+            #item
+        }
+    };
+
+    probe_impl("streamparser", attrs, wrapper, name)
+}
+
+/// Attribute macro for defining BPF programs of `stream verdict`s. A `sockmap`
+/// can be attached to the stream verdict. The role of stream verdicts is to
+/// predicate to which socket a message should be redirected.
+///
+/// # Example
+/// ```no_run
+/// use redbpf_probes::sockmap::prelude::*;
+/// #[map(link_section = "maps/echo_sockmap")]
+/// static mut SOCKMAP: SockMap = SockMap::with_max_entries(10240);
+///
+/// #[stream_verdict]
+/// fn verdict(skb: SkBuff) -> SkAction {
+///     match unsafe { SOCKMAP.redirect(skb.skb as *mut _, 0) } {
+///         Ok(_) => SkAction::Pass,
+///         Err(_) => SkAction::Drop,
+///     }
+/// }
+/// ```
+#[proc_macro_attribute]
+pub fn stream_verdict(attrs: TokenStream, item: TokenStream) -> TokenStream {
+    let item = parse_macro_input!(item as ItemFn);
+    let name = item.sig.ident.to_string();
+    let ident = item.sig.ident.clone();
+    let outer_ident = Ident::new(&format!("outer_{}", ident), Span::call_site());
+    let wrapper = parse_quote! {
+        fn #outer_ident(skb: *const ::redbpf_probes::bindings::__sk_buff) -> i32 {
+            let skb = ::redbpf_probes::socket::SkBuff { skb };
+            use ::redbpf_probes::socket::SkAction;
+
+            return match #ident(skb) {
+                SkAction::Pass => ::redbpf_probes::bindings::sk_action_SK_PASS,
+                SkAction::Drop => ::redbpf_probes::bindings::sk_action_SK_DROP,
+            } as i32;
+
+            #item
+        }
+    };
+
+    probe_impl("streamverdict", attrs, wrapper, name)
+}
+
 /// Define [tc action BPF programs](https://man7.org/linux/man-pages/man8/tc-bpf.8.html)
 #[proc_macro_attribute]
 pub fn tc_action(attrs: TokenStream, item: TokenStream) -> TokenStream {
