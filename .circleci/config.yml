@@ -21,7 +21,6 @@ jobs:
         type: string
         default: "latest"
     working_directory: /build
-    resource_class: large
     docker:
       - image: quay.io/redsift/ingraind-build:<< parameters.tag >>
     steps:
