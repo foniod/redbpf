@@ -1085,7 +1085,7 @@ impl StreamParser {
     /// ```no_run
     /// use redbpf::{load::Loader, SockMap};
     ///
-    /// let loaded = Loader::load("echo.elf").expect("error loading BPF program");
+    /// let loaded = Loader::load(b"echo.elf").expect("error loading BPF program");
     /// let mut echo_sockmap = SockMap::new(loaded.map("echo_sockmap").expect("sockmap not found")).unwrap();
     /// loaded.stream_parser().next().unwrap().attach_sockmap(&echo_sockmap).expect("Attaching sockmap failed");
     /// ```
@@ -1116,7 +1116,7 @@ impl StreamVerdict {
     /// ```no_run
     /// use redbpf::{load::Loader, SockMap};
     ///
-    /// let loaded = Loader::load("echo.elf").expect("error loading BPF program");
+    /// let loaded = Loader::load(b"echo.elf").expect("error loading BPF program");
     /// let mut echo_sockmap = SockMap::new(loaded.map("echo_sockmap").expect("sockmap not found")).unwrap();
     /// loaded.stream_verdict().next().unwrap().attach_sockmap(&echo_sockmap).expect("Attaching sockmap failed");
     /// ```

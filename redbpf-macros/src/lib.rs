@@ -97,9 +97,9 @@ impl Parse for Args {
 /// # Example
 ///
 /// ```no_run
-/// # #![no_std]
-/// # #![no_main]
-/// # use redbpf_macros::program;
+/// #![no_std]
+/// #![no_main]
+/// use redbpf_macros::program;
 /// program!(0xFFFFFFFE, "GPL");
 /// # fn main() {}
 /// ```
