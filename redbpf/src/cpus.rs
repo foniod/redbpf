@@ -10,6 +10,7 @@ use std::io::Error;
 use std::str::FromStr;
 
 const SYS_CPU_ONLINE: &str = "/sys/devices/system/cpu/online";
+const SYS_CPU_POSSIBLE: &str = "/sys/devices/system/cpu/possible";
 
 pub type CpuId = i32;
 
@@ -25,6 +26,29 @@ pub type CpuId = i32;
 pub fn get_online() -> Result<Vec<CpuId>, Error> {
     let cpus = unsafe { String::from_utf8_unchecked(read(SYS_CPU_ONLINE)?) };
     Ok(list_from_string(&cpus.trim()))
+}
+
+/// Returns a list of possible CPU IDs.
+///
+/// Possible CPUs are fixed at boot time.
+/// cf.,<https://elixir.bootlin.com/linux/v5.8/source/include/linux/cpumask.h#L50>
+pub fn get_possible() -> Result<Vec<CpuId>, Error> {
+    let cpus = unsafe {
+        String::from_utf8_unchecked(
+            read(SYS_CPU_POSSIBLE).expect("error figuring out possible cpus"),
+        )
+    };
+    Ok(list_from_string(&cpus.trim()))
+}
+
+/// Returns the number of possible CPUs.
+///
+/// The number of possible CPUs is static after it is set during boot time
+/// discovery phase.
+/// For reference, see comments in kernel source: <https://elixir.bootlin.com/linux/v5.8/source/arch/x86/kernel/smpboot.c#L1447>
+pub fn get_possible_num() -> usize {
+    // get_possible() always returns Ok
+    get_possible().unwrap().len()
 }
 
 fn list_from_string(cpus: &str) -> Vec<CpuId> {
