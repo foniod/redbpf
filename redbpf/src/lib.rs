@@ -56,7 +56,8 @@ pub mod xdp;
 pub use bpf_sys::uname;
 use bpf_sys::{
     bpf_attach_type_BPF_SK_SKB_STREAM_PARSER, bpf_attach_type_BPF_SK_SKB_STREAM_VERDICT, bpf_insn,
-    bpf_map_def, bpf_probe_attach_type, bpf_probe_attach_type_BPF_PROBE_ENTRY,
+    bpf_map_def, bpf_map_type_BPF_MAP_TYPE_ARRAY, bpf_map_type_BPF_MAP_TYPE_PERCPU_ARRAY,
+    bpf_probe_attach_type, bpf_probe_attach_type_BPF_PROBE_ENTRY,
     bpf_probe_attach_type_BPF_PROBE_RETURN, bpf_prog_type, BPF_ANY,
 };
 use goblin::elf::{reloc::RelocSection, section_header as hdr, Elf, SectionHeader, Sym};
@@ -69,7 +70,9 @@ use std::io;
 use std::marker::PhantomData;
 use std::mem;
 use std::mem::MaybeUninit;
+use std::ops::{Deref, DerefMut};
 use std::os::unix::io::RawFd;
+use std::ptr;
 
 pub use crate::error::{Error, Result};
 pub use crate::perf::*;
@@ -176,6 +179,41 @@ pub struct StackTrace<'a> {
 /// [`redbpf_probes::maps::SockMap`](../redbpf_probes/maps/struct.SockMap.html).
 pub struct SockMap<'a> {
     base: &'a Map,
+}
+
+/// Array map corresponding to BPF_MAP_TYPE_ARRAY
+///
+/// # Example
+/// ```no_run
+/// use redbpf::{load::Loader, Array};
+/// let loaded = Loader::load(b"biolatpcts.elf").expect("error loading BPF program");
+/// let biolat = Array::<u64>::new(loaded.map("biolat").expect("arr not found")).expect("error creating Array in userspace");
+/// let v = biolat.get(0).unwrap();
+/// ```
+///
+/// This structure is used by userspace programs. For BPF program's API, see [`redbpf_probes::maps::Array`](../redbpf_probes/maps/struct.Array.html)
+pub struct Array<'a, T: Clone> {
+    base: &'a Map,
+    _element: PhantomData<T>,
+}
+
+/// Per-cpu array map corresponding to BPF_MAP_TYPE_PERCPU_ARRAY
+///
+/// # Example
+/// ```no_run
+/// use redbpf::{load::Loader, PerCpuArray, PerCpuValues};
+/// let loaded = Loader::load(b"biolatpcts.elf").expect("error loading BPF program");
+/// let biolat = PerCpuArray::<u64>::new(loaded.map("biolat").expect("arr not found")).expect("error creating Array in userspace");
+/// let mut values = PerCpuValues::new(0);
+/// values[0] = 1;
+/// values[1] = 10;
+/// biolat.set(0, &values);
+/// ```
+///
+/// This structure is used by userspace programs. For BPF program's API, see [`redbpf_probes::maps::PerCpuArray`](../redbpf_probes/maps/struct.PerCpuArray.html)
+pub struct PerCpuArray<'a, T: Clone> {
+    base: &'a Map,
+    _element: PhantomData<T>,
 }
 
 // TODO Use PERF_MAX_STACK_DEPTH
@@ -926,6 +964,210 @@ impl<'base, K: Clone, V: Clone> HashMap<'base, K, V> {
             map: self,
             key: None,
         }
+    }
+}
+
+impl<'base, T: Clone> Array<'base, T> {
+    /// Create `Array` map from `base`
+    pub fn new(base: &Map) -> Result<Array<T>> {
+        if mem::size_of::<T>() != base.config.value_size as usize
+            || bpf_map_type_BPF_MAP_TYPE_ARRAY != base.config.type_
+        {
+            return Err(Error::Map);
+        }
+
+        Ok(Array {
+            base,
+            _element: PhantomData,
+        })
+    }
+
+    /// Set `value` into this array map at `index`
+    ///
+    /// This method can fail if `index` is out of bound
+    pub fn set(&self, mut index: i32, mut value: T) -> Result<()> {
+        let rv = unsafe {
+            bpf_sys::bpf_update_elem(
+                self.base.fd,
+                &mut index as *mut _ as *mut _,
+                &mut value as *mut _ as *mut _,
+                0,
+            )
+        };
+        if rv < 0 {
+            Err(Error::Map)
+        } else {
+            Ok(())
+        }
+    }
+
+    /// Get an element at `index` from this array map
+    ///
+    /// This method always returns a `Some(T)` if `index` is valid, but `None`
+    /// can be returned if `index` is out of bound.
+    pub fn get(&self, mut index: i32) -> Option<T> {
+        let mut value = MaybeUninit::zeroed();
+        if unsafe {
+            bpf_sys::bpf_lookup_elem(
+                self.base.fd,
+                &mut index as *mut _ as *mut _,
+                &mut value as *mut _ as *mut _,
+            )
+        } < 0
+        {
+            return None;
+        }
+        Some(unsafe { value.assume_init() })
+    }
+
+    /// Get length of this array map.
+    pub fn len(&self) -> usize {
+        self.base.config.max_entries as usize
+    }
+}
+
+// round up to multiple of `unit_size`
+//
+// `unit_size` must be power of 2
+fn round_up<T>(unit_size: usize) -> usize {
+    let value_size = std::mem::size_of::<T>();
+    ((value_size - 1) | (unit_size - 1)) + 1
+}
+
+/// A structure representing values of per-cpu map structures such as [`PerCpuArray`](./struct.PerCpuArray.html)
+///
+/// It is a kind of newtype of `Box<[T]>`. The length of the slice is always
+/// the same with [`cpus::get_possible_num`](./cpus/fn.get_possible_num.html).
+/// It also implements `Deref` and `DerefMut` so it can be used as a normal
+/// array.
+/// # Example
+/// ```no_run
+/// use redbpf::PerCpuValues;
+/// let mut values = PerCpuValues::<u64>::new(0);
+/// values[0] = 1;
+/// ```
+pub struct PerCpuValues<T: Clone>(Box<[T]>);
+
+impl<T: Clone> PerCpuValues<T> {
+    /// Create a `PerCpuValues<T>` instance
+    ///
+    /// The created instance contains the fixed number of elements filled with
+    /// `default_value`
+    pub fn new(default_value: T) -> Self {
+        let count = cpus::get_possible_num();
+        let v = vec![default_value; count];
+        Self(v.into_boxed_slice())
+    }
+
+    // This is called by `get` methods of per-cpu map structures
+    fn from_boxed_slice(v: Box<[T]>) -> Self {
+        Self(v)
+    }
+}
+
+impl<T: Clone> Deref for PerCpuValues<T> {
+    type Target = Box<[T]>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl<T: Clone> DerefMut for PerCpuValues<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl<'base, T: Clone> PerCpuArray<'base, T> {
+    pub fn new(base: &Map) -> Result<PerCpuArray<T>> {
+        if mem::size_of::<T>() != base.config.value_size as usize
+            || bpf_map_type_BPF_MAP_TYPE_PERCPU_ARRAY != base.config.type_
+        {
+            return Err(Error::Map);
+        }
+
+        Ok(PerCpuArray {
+            base,
+            _element: PhantomData,
+        })
+    }
+
+    /// Set per-cpu `values` to the BPF map
+    ///
+    /// The number of elements in `values` should be equal to the number of
+    /// possible CPUs. It is guranteed if `values` is created by
+    /// [`PerCpuValues::new`](./struct.PerCpuValues.html#method.new)
+    ///
+    /// This method can fail if `index` is out of bound of array map.
+    pub fn set(&self, mut index: i32, values: &PerCpuValues<T>) -> Result<()> {
+        let count = cpus::get_possible_num();
+        if values.len() != count {
+            return Err(Error::Map);
+        }
+        // It is needed to round up the value size to 8*N bytes
+        // cf., https://elixir.bootlin.com/linux/v5.8/source/kernel/bpf/syscall.c#L1103
+        let value_size = round_up::<T>(8);
+        let alloc_size = value_size * count;
+        let mut alloc = vec![0u8; alloc_size];
+        let mut ptr = alloc.as_mut_ptr();
+        for i in 0..count {
+            unsafe {
+                let dst_ptr = ptr.offset((value_size * i) as isize) as *const T as *mut T;
+                ptr::write_unaligned::<T>(dst_ptr, values[i].clone());
+            }
+        }
+        let rv = unsafe {
+            bpf_sys::bpf_update_elem(
+                self.base.fd,
+                &mut index as *mut _ as *mut _,
+                &mut ptr as *mut _ as *mut _,
+                0,
+            )
+        };
+
+        if rv < 0 {
+            Err(Error::Map)
+        } else {
+            Ok(())
+        }
+    }
+
+    /// Get per-cpu values from the BPF map
+    ///
+    /// Get per-cpu values at `index`. This method returns
+    /// [`PerCpuValues`](./struct.PerCpuValues.html)
+    ///
+    /// This method can return None if `index` is out of bound.
+    pub fn get(&self, mut index: i32) -> Option<PerCpuValues<T>> {
+        // It is needed to round up the value size to 8*N
+        // cf., https://elixir.bootlin.com/linux/v5.8/source/kernel/bpf/syscall.c#L1035
+        let value_size = round_up::<T>(8);
+        let count = cpus::get_possible_num();
+        let alloc_size = value_size * count;
+        let mut alloc = vec![0u8; alloc_size];
+        let ptr = alloc.as_mut_ptr();
+        if unsafe {
+            bpf_sys::bpf_lookup_elem(self.base.fd, &mut index as *mut _ as *mut _, ptr as *mut _)
+        } < 0
+        {
+            return None;
+        }
+
+        let mut values = Vec::with_capacity(count);
+        for i in 0..count {
+            unsafe {
+                let elem_ptr = ptr.offset((value_size * i) as isize) as *const T;
+                values.push(ptr::read_unaligned(elem_ptr));
+            }
+        }
+
+        Some(PerCpuValues::from_boxed_slice(values.into_boxed_slice()))
+    }
+
+    /// Get length of array map
+    pub fn len(&self) -> usize {
+        self.base.config.max_entries as usize
     }
 }
 
