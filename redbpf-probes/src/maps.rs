@@ -21,87 +21,190 @@ use cty::*;
 use crate::bindings::*;
 use crate::helpers::*;
 
-/// Hash table map.
-///
-/// High level API for BPF_MAP_TYPE_HASH maps.
-#[repr(transparent)]
-pub struct HashMap<K, V> {
-    def: bpf_map_def,
-    _k: PhantomData<K>,
-    _v: PhantomData<V>,
-}
-
-impl<K, V> HashMap<K, V> {
-    /// Creates a map with the specified maximum number of elements.
-    pub const fn with_max_entries(max_entries: u32) -> Self {
-        Self {
-            def: bpf_map_def {
-                type_: bpf_map_type_BPF_MAP_TYPE_HASH,
-                key_size: mem::size_of::<K>() as u32,
-                value_size: mem::size_of::<V>() as u32,
-                max_entries,
-                map_flags: 0,
-            },
-            _k: PhantomData,
-            _v: PhantomData,
+macro_rules! define_hashmap {
+    ($(#[$attr:meta])* $name:ident, $map_type:expr) => {
+        $(#[$attr])*
+        #[repr(transparent)]
+        pub struct $name<K, V> {
+            def: bpf_map_def,
+            _k: PhantomData<K>,
+            _v: PhantomData<V>,
         }
-    }
 
-    /// Returns a reference to the value corresponding to the key.
-    #[inline]
-    pub fn get(&mut self, key: &K) -> Option<&V> {
-        unsafe {
-            let value = bpf_map_lookup_elem(
-                &mut self.def as *mut _ as *mut c_void,
-                key as *const _ as *const c_void,
-            );
-            if value.is_null() {
-                None
-            } else {
-                Some(&*(value as *const V))
+        impl<K, V> $name<K, V> {
+            /// Creates a map with the specified maximum number of elements.
+            pub const fn with_max_entries(max_entries: u32) -> Self {
+                Self {
+                    def: bpf_map_def {
+                        type_: $map_type,
+                        key_size: mem::size_of::<K>() as u32,
+                        value_size: mem::size_of::<V>() as u32,
+                        max_entries,
+                        map_flags: 0,
+                    },
+                    _k: PhantomData,
+                    _v: PhantomData,
+                }
+            }
+            /// Returns a reference to the value corresponding to the key.
+            #[inline]
+            pub fn get(&mut self, key: &K) -> Option<&V> {
+                unsafe {
+                    let value = bpf_map_lookup_elem(
+                        &mut self.def as *mut _ as *mut c_void,
+                        key as *const _ as *const c_void,
+                    );
+                    if value.is_null() {
+                        None
+                    } else {
+                        Some(&*(value as *const V))
+                    }
+                }
+            }
+
+            #[inline]
+            pub fn get_mut(&mut self, key: &K) -> Option<&mut V> {
+                unsafe {
+                    let value = bpf_map_lookup_elem(
+                        &mut self.def as *mut _ as *mut c_void,
+                        key as *const _ as *const c_void,
+                    );
+                    if value.is_null() {
+                        None
+                    } else {
+                        Some(&mut *(value as *mut V))
+                    }
+                }
+            }
+
+            /// Set the `value` in the map for `key`
+            #[inline]
+            pub fn set(&mut self, key: &K, value: &V) {
+                unsafe {
+                    bpf_map_update_elem(
+                        &mut self.def as *mut _ as *mut c_void,
+                        key as *const _ as *const c_void,
+                        value as *const _ as *const c_void,
+                        BPF_ANY.into(),
+                    );
+                }
+            }
+
+            /// Delete the entry indexed by `key`
+            #[inline]
+            pub fn delete(&mut self, key: &K) {
+                unsafe {
+                    bpf_map_delete_elem(
+                        &mut self.def as *mut _ as *mut c_void,
+                        key as *const _ as *const c_void,
+                    );
+                }
             }
         }
-    }
+    };
+}
 
-    #[inline]
-    pub fn get_mut(&mut self, key: &K) -> Option<&mut V> {
-        unsafe {
-            let value = bpf_map_lookup_elem(
-                &mut self.def as *mut _ as *mut c_void,
-                key as *const _ as *const c_void,
-            );
-            if value.is_null() {
-                None
-            } else {
-                Some(&mut *(value as *mut V))
+macro_rules! define_array {
+    ($(#[$attr:meta])* $name:ident, $map_type:expr) => {
+        $(#[$attr])*
+        #[repr(transparent)]
+        pub struct $name<T> {
+            def: bpf_map_def,
+            _element: PhantomData<T>,
+        }
+
+        impl<T> $name<T> {
+            /// Create array map of which length is `max_entries`
+            pub const fn with_max_entries(max_entries: u32) -> Self {
+                Self {
+                    def: bpf_map_def {
+                        type_: $map_type,
+                        key_size: mem::size_of::<i32>() as u32,
+                        value_size: mem::size_of::<T>() as u32,
+                        max_entries,
+                        map_flags: 0,
+                    },
+                    _element: PhantomData,
+                }
+            }
+
+            /// Returns a reference to the value at `index`.
+            #[inline]
+            pub fn get(&mut self, index: i32) -> Option<&T> {
+                unsafe {
+                    let value = bpf_map_lookup_elem(
+                        &mut self.def as *mut _ as *mut c_void,
+                        &index as *const _ as *const c_void,
+                    );
+                    if value.is_null() {
+                        None
+                    } else {
+                        Some(&*(value as *const T))
+                    }
+                }
+            }
+
+            /// Returns a mutable reference to the value at `index`.
+            #[inline]
+            pub fn get_mut(&mut self, index: i32) -> Option<&mut T> {
+                unsafe {
+                    let value = bpf_map_lookup_elem(
+                        &mut self.def as *mut _ as *mut c_void,
+                        &index as *const _ as *const c_void,
+                    );
+                    if value.is_null() {
+                        None
+                    } else {
+                        Some(&mut *(value as *mut T))
+                    }
+                }
+            }
+
+            /// Set the `value` at `index`.
+            #[inline]
+            pub fn set(&mut self, index: i32, value: &T) {
+                unsafe {
+                    bpf_map_update_elem(
+                        &mut self.def as *mut _ as *mut c_void,
+                        &index as *const _ as *const c_void,
+                        value as *const _ as *const c_void,
+                        BPF_ANY.into(),
+                    );
+                }
             }
         }
-    }
-
-    /// Set the `value` in the map for `key`
-    #[inline]
-    pub fn set(&mut self, key: &K, value: &V) {
-        unsafe {
-            bpf_map_update_elem(
-                &mut self.def as *mut _ as *mut c_void,
-                key as *const _ as *const c_void,
-                value as *const _ as *const c_void,
-                BPF_ANY.into(),
-            );
-        }
-    }
-
-    /// Delete the entry indexed by `key`
-    #[inline]
-    pub fn delete(&mut self, key: &K) {
-        unsafe {
-            bpf_map_delete_elem(
-                &mut self.def as *mut _ as *mut c_void,
-                key as *const _ as *const c_void,
-            );
-        }
-    }
+    };
 }
+define_hashmap!(
+    /// Hash table map.
+    ///
+    /// High level API for BPF_MAP_TYPE_HASH maps.
+    ///
+    /// For userspace API, see [`redbpf::HashMap`](../../redbpf/struct.HashMap.html)
+    HashMap,
+    bpf_map_type_BPF_MAP_TYPE_HASH
+);
+// define_hashmap!(PerCpuHashMap, bpf_map_type_BPF_MAP_TYPE_PERCPU_HASH);  // userspace part is not implemented yet
+// define_hashmap!(LruHashMap, bpf_map_type_BPF_MAP_TYPE_LRU_HASH);  // userspace part is not implemented yet
+// define_hashmap!(LruPerCpuHashMap, bpf_map_type_BPF_MAP_TYPE_LRU_PERCPU_HASH);  // userspace part is not implemented yet
+define_array!(
+    /// BPF array map for BPF programs
+    ///
+    /// High-level API of BPF_MAP_TYPE_ARRAY maps used by BPF programs.
+    ///
+    /// For userspace API, see [`redbpf::Array`](../../redbpf/struct.Array.html)
+    Array,
+    bpf_map_type_BPF_MAP_TYPE_ARRAY
+);
+define_array!(
+    /// BPF per-cpu array map for BPF programs
+    ///
+    /// High-level API of BPF_MAP_TYPE_PERCPU_ARRAY maps used by BPF programs.
+    ///
+    /// For userspace API, see [`redbpf::PerCpuArray`](../../redbpf/struct.PerCpuArray.html)
+    PerCpuArray,
+    bpf_map_type_BPF_MAP_TYPE_PERCPU_ARRAY
+);
 
 /// Flags that can be passed to `PerfMap::insert_with_flags`.
 #[derive(Debug, Copy, Clone)]

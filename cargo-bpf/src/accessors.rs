@@ -196,6 +196,7 @@ pub fn generate_read_accessors(bindings: &str, whitelist: &[&str]) -> String {
             let accessors = functions.values();
             let ident = Ident::new(item_id, Span::call_site());
             let item = quote! {
+                /// Auto-generated read-accessors by cargo_bpf::accessors::generate_read_accessors
                 impl #ident {
                     #(#accessors)*
                 }
