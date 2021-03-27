@@ -8,9 +8,9 @@ use std::ptr;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio;
-use tokio::runtime::Runtime;
+use tokio::runtime;
 use tokio::signal;
-use tokio::time::delay_for;
+use tokio::time::sleep;
 
 const UNDER_ONE: &str = "~ 0";
 const ONE_TO_TEN: &str = "1 ~ 10";
@@ -31,7 +31,7 @@ fn start_reporter(counts: Counts) {
                 println!("{:>8} ms\t{}", range, cnt);
                 *cnt = 0;
             }
-            delay_for(Duration::from_secs(1)).await
+            sleep(Duration::from_secs(1)).await
         }
     });
 }
@@ -44,7 +44,7 @@ fn start_perf_event_handler(mut loaded: Loaded, counts: Counts) {
                 match name.as_str() {
                     "pid" => {
                         let vev = unsafe { ptr::read(event.as_ptr() as *const VFSEvent) };
-                        let latency = vev.latency / 1000_0000;
+                        let latency = vev.latency / 1_000_000;
                         let range = if latency < 1 {
                             UNDER_ONE
                         } else if 1 <= latency && latency < 10 {
@@ -80,7 +80,11 @@ fn main() {
         .cloned()
         .collect(),
     ));
-    let _ = Runtime::new().unwrap().block_on(async {
+    let rt = runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+    let _ = rt.block_on(async {
         let mut loaded = Loader::load(probe_code()).expect("error loading BPF program");
         for kp in loaded.kprobes_mut() {
             kp.attach_kprobe(&kp.name(), 0)

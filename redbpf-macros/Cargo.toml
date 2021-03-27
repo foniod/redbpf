@@ -24,4 +24,4 @@ rustc_version = "0.3.0"
 # redbpf-probes is needed by doctests
 redbpf-probes = { version = "^1.3.0", path = "../redbpf-probes" }
 # memoffset is needed by doctests
-memoffset = "0.5"
+memoffset = "0.6"

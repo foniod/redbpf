@@ -13,12 +13,18 @@ use std::os::unix::io::RawFd;
 use std::pin::Pin;
 use std::slice;
 use std::task::{Context, Poll};
-use tokio::io::PollEvented;
+use tokio::io::unix::AsyncFd;
+use tokio::io::Interest;
 
 use crate::{Event, PerfMap};
 
+// TODO Remove MapIo and upgrade mio.
+// It is pub-visibility so removing this is semver breaking change. Since mio
+// v0.7, `Evented` is not provided, new version of mio can not be used now.
+#[deprecated]
 pub struct MapIo(RawFd);
 
+#[allow(deprecated)]
 impl Evented for MapIo {
     fn register(
         &self,
@@ -46,18 +52,19 @@ impl Evented for MapIo {
 }
 
 pub struct PerfMessageStream {
-    poll: PollEvented<MapIo>,
+    poll: AsyncFd<RawFd>,
     map: PerfMap,
     name: String,
 }
 
 impl PerfMessageStream {
     pub fn new(name: String, map: PerfMap) -> Self {
-        let io = MapIo(map.fd);
-        let poll = PollEvented::new(io).unwrap();
+        let poll = AsyncFd::with_interest(map.fd, Interest::READABLE).unwrap();
         PerfMessageStream { poll, map, name }
     }
 
+    // Note that all messages should be consumed. Because ready flag is
+    // cleared, the remaining messages will not be read soon.
     fn read_messages(&mut self) -> Vec<Box<[u8]>> {
         let mut ret = Vec::new();
         while let Some(ev) = self.map.read() {
@@ -82,15 +89,18 @@ impl PerfMessageStream {
 
 impl Stream for PerfMessageStream {
     type Item = Vec<Box<[u8]>>;
-
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<Self::Item>> {
-        let ready = Ready::readable();
-        if let Poll::Pending = self.poll.poll_read_ready(cx, ready) {
-            return Poll::Pending;
-        }
-
-        let messages = self.read_messages();
-        self.poll.clear_read_ready(cx, ready).unwrap();
-        Poll::Ready(Some(messages))
+        match self.poll.poll_read_ready(cx) {
+            Poll::Pending => return Poll::Pending,
+            Poll::Ready(Err(e)) => {
+                // it should never happen
+                eprintln!("PerfMessageStream error: {:?}", e);
+                return Poll::Ready(None);
+            }
+            Poll::Ready(Ok(mut rg)) => rg.clear_ready(),
+        };
+        // Must read all messages because AsyncFdReadyGuard::clear_ready is
+        // already called.
+        Some(self.read_messages()).into()
     }
 }

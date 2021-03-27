@@ -23,7 +23,7 @@ use redbpf::HashMap;
 
 use probes::tcp_lifetime::{SocketAddr, TCPLifetime};
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 async fn main() {
     if unsafe { libc::getuid() != 0 } {
         eprintln!("You must be root to use eBPF!");

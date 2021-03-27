@@ -7,7 +7,7 @@ use std::process;
 use std::ptr;
 use std::sync::{Arc, Mutex};
 use tokio;
-use tokio::runtime::Runtime;
+use tokio::runtime;
 use tokio::signal;
 
 use redbpf::load::{Loaded, Loader};
@@ -76,7 +76,11 @@ fn main() {
     });
 
     let acc: Acc = Arc::new(Mutex::new(HashMap::new()));
-    let _ = Runtime::new().unwrap().block_on(async {
+    let rt = runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+    let _ = rt.block_on(async {
         let mut loaded = Loader::load(probe_code()).expect("error loading BPF program");
 
         for prb in loaded.uprobes_mut() {

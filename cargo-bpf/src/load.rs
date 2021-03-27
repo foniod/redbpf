@@ -12,7 +12,7 @@ use hexdump::hexdump;
 use redbpf::xdp;
 use redbpf::{load::Loader, Program::*};
 use std::path::PathBuf;
-use tokio::runtime::Runtime;
+use tokio::runtime;
 use tokio::signal;
 
 pub fn load(
@@ -21,8 +21,11 @@ pub fn load(
     uprobe_path: Option<&str>,
     pid: Option<i32>,
 ) -> Result<(), CommandError> {
-    let mut runtime = Runtime::new().unwrap();
-    runtime.block_on(async {
+    let rt = runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+    rt.block_on(async {
         // Load all the programs and maps included in the program
         let mut loader = Loader::load_file(&program).expect("error loading file");
 
