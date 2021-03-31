@@ -12,7 +12,7 @@ use std::net::Ipv4Addr;
 use std::process;
 use std::ptr;
 use tokio;
-use tokio::runtime::Runtime;
+use tokio::runtime;
 use tokio::signal;
 
 use probes::knock::{Connection, KnockAttempt, PortSequence, MAX_SEQ_LEN};
@@ -28,8 +28,11 @@ fn main() {
         None => process::exit(1),
     };
 
-    let mut runtime = Runtime::new().unwrap();
-    let _ = runtime.block_on(async {
+    let rt = runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+    let _ = rt.block_on(async {
         let mut loader = Loader::load(probe_code()).expect("error loading probe");
 
         // attach the xdp program

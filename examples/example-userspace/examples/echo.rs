@@ -19,7 +19,7 @@ enum Command {
     Delete { key: IdxMapKey },
 }
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 async fn main() {
     if unsafe { libc::getuid() != 0 } {
         eprintln!("You must be root to use eBPF!");
@@ -33,10 +33,10 @@ async fn main() {
         .parse()
         .expect("invalid port number");
 
-    let (mut tx, mut rx) = mpsc::channel(128);
+    let (tx, mut rx) = mpsc::channel(128);
     let local = task::LocalSet::new();
     local.spawn_local(async move {
-        let mut listener = TcpListener::bind(SocketAddr::from(([0, 0, 0, 0], port)))
+        let listener = TcpListener::bind(SocketAddr::from(([0, 0, 0, 0], port)))
             .await
             .unwrap();
         loop {
@@ -51,7 +51,7 @@ async fn main() {
                     port: u32::to_be(client_addr.port().into()),
                 };
                 tx.send(Command::Set { fd, key }).await.unwrap();
-                let mut tx = tx.clone();
+                let tx = tx.clone();
                 task::spawn_local(async move {
                     let mut buf = [0; 0];
                     // Even though it awaits for something to read, it only

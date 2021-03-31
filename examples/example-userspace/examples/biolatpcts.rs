@@ -4,7 +4,7 @@
 // find another half, a BPF program, at example-probes/biolatpcts/main.rs
 use std::cmp;
 use std::time::Duration;
-use tokio::time::delay_for;
+use tokio::time::sleep;
 
 use redbpf::load::Loader;
 use redbpf::PerCpuArray;
@@ -64,7 +64,7 @@ fn calc_lat_pct(
     return pcts;
 }
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 async fn main() -> ! {
     if unsafe { libc::getuid() != 0 } {
         eprintln!("You must be root to use eBPF!");
@@ -102,7 +102,7 @@ async fn main() -> ! {
     let mut lat_10us = [0; 100];
 
     loop {
-        delay_for(Duration::from_secs(3)).await;
+        sleep(Duration::from_secs(3)).await;
 
         let mut lat_total = 0;
 

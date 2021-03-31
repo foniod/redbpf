@@ -30,7 +30,7 @@ ring = { version = "0.16", optional = true }
 
 futures = { version = "0.3", optional = true }
 mio = { version = "0.6", optional = true }
-tokio = { version = "^0.2.4", features = ["rt-core", "io-driver", "macros", "signal"], optional = true }
+tokio = { version = "^1.0.1", features = ["rt", "macros", "signal", "net"], optional = true }
 
 [features]
 default = []

@@ -21,7 +21,7 @@ quote = "1.0"
 glob = "0.3.0"
 
 [dev-dependencies]
-memoffset = "0.5"
+memoffset = "0.6"
 
 [features]
 default = []
