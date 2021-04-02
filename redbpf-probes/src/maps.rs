@@ -119,7 +119,7 @@ macro_rules! define_array {
                 Self {
                     def: bpf_map_def {
                         type_: $map_type,
-                        key_size: mem::size_of::<i32>() as u32,
+                        key_size: mem::size_of::<u32>() as u32,
                         value_size: mem::size_of::<T>() as u32,
                         max_entries,
                         map_flags: 0,
@@ -130,7 +130,7 @@ macro_rules! define_array {
 
             /// Returns a reference to the value at `index`.
             #[inline]
-            pub fn get(&mut self, index: i32) -> Option<&T> {
+            pub fn get(&mut self, index: u32) -> Option<&T> {
                 unsafe {
                     let value = bpf_map_lookup_elem(
                         &mut self.def as *mut _ as *mut c_void,
@@ -146,7 +146,7 @@ macro_rules! define_array {
 
             /// Returns a mutable reference to the value at `index`.
             #[inline]
-            pub fn get_mut(&mut self, index: i32) -> Option<&mut T> {
+            pub fn get_mut(&mut self, index: u32) -> Option<&mut T> {
                 unsafe {
                     let value = bpf_map_lookup_elem(
                         &mut self.def as *mut _ as *mut c_void,
@@ -162,7 +162,7 @@ macro_rules! define_array {
 
             /// Set the `value` at `index`.
             #[inline]
-            pub fn set(&mut self, index: i32, value: &T) {
+            pub fn set(&mut self, index: u32, value: &T) {
                 unsafe {
                     bpf_map_update_elem(
                         &mut self.def as *mut _ as *mut c_void,
