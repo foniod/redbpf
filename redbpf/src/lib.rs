@@ -985,7 +985,7 @@ impl<'base, T: Clone> Array<'base, T> {
     /// Set `value` into this array map at `index`
     ///
     /// This method can fail if `index` is out of bound
-    pub fn set(&self, mut index: i32, mut value: T) -> Result<()> {
+    pub fn set(&self, mut index: u32, mut value: T) -> Result<()> {
         let rv = unsafe {
             bpf_sys::bpf_update_elem(
                 self.base.fd,
@@ -1005,7 +1005,7 @@ impl<'base, T: Clone> Array<'base, T> {
     ///
     /// This method always returns a `Some(T)` if `index` is valid, but `None`
     /// can be returned if `index` is out of bound.
-    pub fn get(&self, mut index: i32) -> Option<T> {
+    pub fn get(&self, mut index: u32) -> Option<T> {
         let mut value = MaybeUninit::zeroed();
         if unsafe {
             bpf_sys::bpf_lookup_elem(
@@ -1100,7 +1100,7 @@ impl<'base, T: Clone> PerCpuArray<'base, T> {
     /// [`PerCpuValues::new`](./struct.PerCpuValues.html#method.new)
     ///
     /// This method can fail if `index` is out of bound of array map.
-    pub fn set(&self, mut index: i32, values: &PerCpuValues<T>) -> Result<()> {
+    pub fn set(&self, mut index: u32, values: &PerCpuValues<T>) -> Result<()> {
         let count = cpus::get_possible_num();
         if values.len() != count {
             return Err(Error::Map);
@@ -1139,7 +1139,7 @@ impl<'base, T: Clone> PerCpuArray<'base, T> {
     /// [`PerCpuValues`](./struct.PerCpuValues.html)
     ///
     /// This method can return None if `index` is out of bound.
-    pub fn get(&self, mut index: i32) -> Option<PerCpuValues<T>> {
+    pub fn get(&self, mut index: u32) -> Option<PerCpuValues<T>> {
         // It is needed to round up the value size to 8*N
         // cf., https://elixir.bootlin.com/linux/v5.8/source/kernel/bpf/syscall.c#L1035
         let value_size = round_up::<T>(8);
