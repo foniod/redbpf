@@ -110,3 +110,10 @@ take a few minutes to review our [code of conduct](https://github.com/ingraind/p
 Unless you explicitly state otherwise, any contribution intentionally submitted
 for inclusion in the work by you, as defined in the Apache-2.0 license, shall
 be dual licensed as above, without any additional terms or conditions.
+
+For further advice on getting started, please consult the
+[Contributor's
+Guide](https://github.com/ingraind/project/blob/main/CONTRIBUTING.md). Please
+note that all contributions MUST contain a [Developer Certificate of
+Origin](https://github.com/ingraind/project/blob/developer-certificate-of-origin/CONTRIBUTING.md#developer-certificate-of-origin)
+sign-off line.
