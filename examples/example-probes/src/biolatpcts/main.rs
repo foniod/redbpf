@@ -41,7 +41,7 @@ fn blk_account_io_done(regs: Registers) {
     let dur = now - stime;
     let slot = cmp::min(dur / (100 * NSEC_PER_MSEC) as u64, 99);
     unsafe {
-        match LAT_100MS.get_mut(slot as i32) {
+        match LAT_100MS.get_mut(slot as u32) {
             Some(mut val) => *val += 1,
             _ => (),
         }
@@ -52,7 +52,7 @@ fn blk_account_io_done(regs: Registers) {
 
     let slot = cmp::min(dur / NSEC_PER_MSEC as u64, 99);
     unsafe {
-        match LAT_1MS.get_mut(slot as i32) {
+        match LAT_1MS.get_mut(slot as u32) {
             Some(mut val) => *val += 1,
             _ => (),
         }
@@ -63,7 +63,7 @@ fn blk_account_io_done(regs: Registers) {
 
     let slot = cmp::min(dur / (10 * NSEC_PER_USEC) as u64, 99);
     unsafe {
-        match LAT_10US.get_mut(slot as i32) {
+        match LAT_10US.get_mut(slot as u32) {
             Some(mut val) => *val += 1,
             _ => (),
         }
