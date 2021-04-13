@@ -624,7 +624,7 @@ impl Module {
 
             let section_type = shdr.sh_type;
             let content = data(&bytes, &shdr);
-
+            
             match (section_type, kind, name) {
                 (hdr::SHT_REL, _, _) => add_relocation(&mut rels, shndx, &shdr, shdr_relocs),
                 (hdr::SHT_PROGBITS, Some("version"), _) => version = get_version(&content),
@@ -651,8 +651,9 @@ impl Module {
                         )?,
                     );
                 }
-                (hdr::SHT_PROGBITS, Some("maps"), Some(name)) => {
+                (hdr::SHT_PROGBITS, Some("maps"), name) => {
                     // Maps are immediately bcc_create_map'd
+                    let name = name.unwrap_or("");
                     maps.insert(shndx, Map::load(name, &content)?);
                 }
                 (hdr::SHT_PROGBITS, Some(kind @ "kprobe"), Some(name))
