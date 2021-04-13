@@ -20,6 +20,7 @@ pub enum Error {
     SymbolNotFound(String),
     ProgramAlreadyLoaded,
     ProgramNotLoaded,
+    ElfError,
 }
 
 pub type Result<T> = ::std::result::Result<T, Error>;
