@@ -107,15 +107,15 @@ async fn main() -> ! {
         let mut lat_total = 0;
 
         for i in 0usize..100 {
-            let v: u64 = cur_lat_100ms.get(i as i32).unwrap().iter().sum();
+            let v: u64 = cur_lat_100ms.get(i as u32).unwrap().iter().sum();
             lat_100ms[i] = cmp::max(v - last_lat_100ms[i], 0);
             last_lat_100ms[i] = v;
 
-            let v: u64 = cur_lat_1ms.get(i as i32).unwrap().iter().sum();
+            let v: u64 = cur_lat_1ms.get(i as u32).unwrap().iter().sum();
             lat_1ms[i] = cmp::max(v - last_lat_1ms[i], 0);
             last_lat_1ms[i] = v;
 
-            let v: u64 = cur_lat_10us.get(i as i32).unwrap().iter().sum();
+            let v: u64 = cur_lat_10us.get(i as u32).unwrap().iter().sum();
             lat_10us[i] = cmp::max(v - last_lat_10us[i], 0);
             last_lat_10us[i] = v;
 
