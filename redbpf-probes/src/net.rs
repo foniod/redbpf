@@ -161,11 +161,7 @@ where
         unsafe {
             let base: *const c_void = match self.transport()? {
                 TCP(hdr) => {
-                    let mut addr = hdr as usize + mem::size_of::<tcphdr>();
-                    let data_offset = (*hdr).doff();
-                    if data_offset > 5 {
-                        addr += ((data_offset - 5) * 4) as usize;
-                    }
+                    let addr = hdr as usize + ((*hdr).doff() * 4) as usize;
                     self.ptr_at(addr)
                 }
                 UDP(hdr) => self.ptr_after(hdr),

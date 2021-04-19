@@ -37,7 +37,7 @@ fn blk_mq_start_request(regs: Registers) {
 }
 
 #[kprobe]
-fn blk_account_io_completion(regs: Registers) {
+fn blk_account_io_done(regs: Registers) {
     let _ = do_complete(regs);
 }
 

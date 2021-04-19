@@ -45,7 +45,7 @@ On Debian, Ubuntu and derivatives you can install the dependencies running:
 			llvm-11-dev libclang-11-dev linux-headers-$(uname -r)
 
 If your distribution doesn't have LLVM 11, you can add the [official LLVM
-APT repository](apt.llvm.org) to your `sources.list`.
+APT repository](https://apt.llvm.org) to your `sources.list`.
 
 ## Installing dependencies on RPM based distributions
 
