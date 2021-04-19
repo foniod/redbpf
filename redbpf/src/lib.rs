@@ -150,6 +150,7 @@ pub struct StreamVerdict {
     common: ProgramData,
 }
 
+#[derive(Debug)]
 pub struct Map {
     pub name: String,
     pub kind: u32,
@@ -609,12 +610,16 @@ impl SocketFilter {
 impl Module {
     pub fn parse(bytes: &[u8]) -> Result<Module> {
         let object = Elf::parse(&bytes[..])?;
+        let strtab = &object.strtab;
         let symtab = object.syms.to_vec();
         let shdr_relocs = &object.shdr_relocs;
 
         let mut rels = vec![];
         let mut programs = RSHashMap::new();
+        // maps: section header index => map
+        // symval_to_maps: symbol value => map
         let mut maps = RSHashMap::new();
+        let mut symval_to_maps = RSHashMap::new();
 
         let mut license = String::new();
         let mut version = 0u32;
@@ -655,6 +660,18 @@ impl Module {
                     // Maps are immediately bcc_create_map'd
                     maps.insert(shndx, Map::load(name, &content)?);
                 }
+                (hdr::SHT_PROGBITS, Some("maps"), None) => {
+                    // Somehow clang direct compiled binary (in C) uses this approach to define maps.
+                    // More specifically, the maps contains all map definitions (except names).
+                    let maps_syms = symtab.iter().filter(|sym| sym.st_shndx == shndx);
+
+                    for sym in maps_syms {
+                        let offset = sym.st_value as usize;
+                        let name = strtab.get(sym.st_name).ok_or(Error::ElfError)??;
+                        let cur_content = &content[offset..];
+                        symval_to_maps.insert(sym.st_value, Map::load(name, cur_content)?);
+                    }
+                }
                 (hdr::SHT_PROGBITS, Some(kind @ "kprobe"), Some(name))
                 | (hdr::SHT_PROGBITS, Some(kind @ "kretprobe"), Some(name))
                 | (hdr::SHT_PROGBITS, Some(kind @ "uprobe"), Some(name))
@@ -672,12 +689,16 @@ impl Module {
         // Rewrite programs with relocation data
         for rel in rels.iter() {
             if programs.contains_key(&rel.target_sec_idx) {
-                rel.apply(&mut programs, &maps, &symtab)?;
+                rel.apply(&mut programs, &maps, &symtab).or_else(|_| {
+                    // means that not normal case, we should rely on symbol value instead of section header index
+                    rel.apply_with_symmap(&mut programs, &symval_to_maps, &symtab)
+                })?;
             }
         }
 
         let programs = programs.drain().map(|(_, v)| v).collect();
-        let maps = maps.drain().map(|(_, v)| v).collect();
+        let mut maps: Vec<Map> = maps.drain().map(|(_, v)| v).collect();
+        maps.extend(symval_to_maps.drain().map(|(_, v)| v));
         Ok(Module {
             programs,
             maps,
@@ -835,17 +856,34 @@ impl RelocationInfo {
         // lookup the symbol we're relocating in the symbol table
         let sym = symtab[self.sym_idx];
         // get the map referenced by the program based on the symbol section index
+        let insn_idx = (self.offset / std::mem::size_of::<bpf_insn>() as u64) as usize;
+        let code = &mut prog.data_mut().code;
         let map = maps.get(&sym.st_shndx).ok_or(Error::Reloc)?;
 
         // the index of the instruction we need to patch
-        let insn_idx = (self.offset / std::mem::size_of::<bpf_insn>() as u64) as usize;
-        let code = &mut prog.data_mut().code;
         if map.section_data {
             code[insn_idx].set_src_reg(bpf_sys::BPF_PSEUDO_MAP_VALUE as u8);
             code[insn_idx + 1].imm = code[insn_idx].imm + sym.st_value as i32;
         } else {
             code[insn_idx].set_src_reg(bpf_sys::BPF_PSEUDO_MAP_FD as u8);
         }
+        code[insn_idx].imm = map.fd;
+        Ok(())
+    }
+
+    #[inline]
+    fn apply_with_symmap(
+        &self,
+        programs: &mut RSHashMap<usize, Program>,
+        symval_to_maps: &RSHashMap<u64, Map>,
+        symtab: &[Sym],
+    ) -> Result<()> {
+        let prog = programs.get_mut(&self.target_sec_idx).ok_or(Error::Reloc)?;
+        let sym = symtab[self.sym_idx];
+        let insn_idx = (self.offset / std::mem::size_of::<bpf_insn>() as u64) as usize;
+        let code = &mut prog.data_mut().code;
+        let map = symval_to_maps.get(&sym.st_value).ok_or(Error::Reloc)?;
+        code[insn_idx].set_src_reg(bpf_sys::BPF_PSEUDO_MAP_FD as u8);
         code[insn_idx].imm = map.fd;
         Ok(())
     }
