@@ -38,7 +38,7 @@ fn rerun_if_changed_dir(dir: &str) {
 
 fn main() {
     println!("cargo:rustc-link-lib=static=bpf");
-    for dir in &["bcc", "libbpf", "libelf"] {
+    for dir in &["libbpf", "libelf"] {
         rerun_if_changed_dir(dir);
     }
     println!("cargo:rerun-if-changed=bpfsys-musl.h");
@@ -58,7 +58,6 @@ fn main() {
         .flag("-Wno-missing-field-initializers")
         .include("libbpf/include/uapi")
         .include("libbpf/include")
-        .include("bcc")
         .include("libelf")
         .include(".");
     if target.contains("musl") {
@@ -85,17 +84,17 @@ fn main() {
         .file("libbpf/src/nlattr.c")
         .file("libbpf/src/str_error.c")
         .file("libbpf/src/xsk.c")
-        .file("bcc/libbpf.c")
-        .file("bcc/perf_reader.c")
         .compile("libbpf.a");
 
     let bindings = bindgen::Builder::default()
         .header("libbpf_xdp.h")
         .header("libbpf/src/bpf.h")
+        .header("libbpf/src/libbpf.h")
         .clang_arg("-Ilibbpf/src")
         .clang_arg("-Ilibbpf/include/uapi")
         .clang_arg("-Ilibbpf/include")
-        .clang_arg("-Ibcc")
+        // blacklist `bpf_map_def` to avoid conflict with libbpf_map_def.rs
+        .blacklist_type("bpf_map_def")
         .generate()
         .expect("Unable to generate bindings");
     bindings
@@ -105,7 +104,6 @@ fn main() {
         .header("libbpf/src/libbpf.h")
         .clang_arg("-Ilibbpf/include/uapi")
         .clang_arg("-Ilibbpf/include")
-        .clang_arg("-Ibcc")
         .whitelist_type("bpf_map_def")
         .generate()
         .expect("Unable to generate bindings");
@@ -113,12 +111,10 @@ fn main() {
         .write_to_file(out_path.join("libbpf_map_def.rs"))
         .expect("Couldn't write bindings!");
     let bindings = bindgen::Builder::default()
-        .header("bcc/perf_reader.h")
         .header("libbpf/src/bpf.h")
         .clang_arg("-Ilibbpf/src")
         .clang_arg("-Ilibbpf/include/uapi")
         .clang_arg("-Ilibbpf/include")
-        .clang_arg("-Ibcc")
         .generate()
         .expect("Unable to generate bindings");
     bindings
