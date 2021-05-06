@@ -52,6 +52,8 @@
 
 use crate::{Error, HashMap, Map, Result};
 use std::cell::RefCell;
+use std::ffi::CString;
+use std::fs;
 use std::io;
 use std::mem;
 use std::os::unix::io::RawFd;
@@ -83,6 +85,147 @@ unsafe fn open_perf_buffer(pid: i32, cpu: i32, group: RawFd, flags: u32) -> Resu
         cpu,
         group,
         flags | PERF_FLAG_FD_CLOEXEC,
+    );
+    if pfd < 0 {
+        Err(Error::IO(io::Error::last_os_error()))
+    } else {
+        Ok(pfd as RawFd)
+    }
+}
+
+pub(crate) unsafe fn attach_perf_event(prog_fd: libc::c_int, pfd: libc::c_int) -> Result<()> {
+    if ioctl(pfd, PERF_EVENT_IOC_SET_BPF, prog_fd) < 0 {
+        return Err(Error::IO(io::Error::last_os_error()));
+    }
+
+    if ioctl(pfd, PERF_EVENT_IOC_ENABLE, 0) < 0 {
+        return Err(Error::IO(io::Error::last_os_error()));
+    }
+    Ok(())
+}
+
+unsafe fn perf_event_open_kprobe(name: &str, offset: u64, retprobe: bool) -> Result<RawFd> {
+    let mut attr = mem::zeroed::<perf_event_attr>();
+    let type_ = fs::read_to_string("/sys/bus/event_source/devices/kprobe/type")
+        .expect("Cannot read /sys/bus/event_source/devices/kprobe/type")
+        .trim()
+        .parse::<u32>()
+        .unwrap();
+
+    if retprobe {
+        let s = fs::read_to_string("/sys/bus/event_source/devices/kprobe/format/retprobe")
+            .expect("Cannot read /sys/bus/event_source/devices/kprobe/format/retprobe");
+        let v: Vec<_> = s.trim().split("config:").collect();
+        let bit = v[1].parse::<i32>().unwrap();
+        attr.config |= 1 << bit;
+    }
+    attr.size = mem::size_of_val(&attr) as u32;
+    attr.type_ = type_;
+    let cname = CString::new(name)?;
+    attr.__bindgen_anon_3.config1 = cname.as_ptr() as u64;
+    attr.__bindgen_anon_4.config2 = offset;
+
+    let pfd = syscall(
+        SYS_perf_event_open,
+        &attr as *const perf_event_attr,
+        -1, // pid
+        0,  // cpu
+        -1, // group_fd
+        PERF_FLAG_FD_CLOEXEC,
+    );
+    if pfd < 0 {
+        Err(Error::IO(io::Error::last_os_error()))
+    } else {
+        Ok(pfd as RawFd)
+    }
+}
+
+pub(crate) unsafe fn open_kprobe_perf_event(name: &str, offset: u64) -> Result<RawFd> {
+    perf_event_open_kprobe(name, offset, false)
+}
+
+pub(crate) unsafe fn open_kretprobe_perf_event(name: &str, offset: u64) -> Result<RawFd> {
+    perf_event_open_kprobe(name, offset, true)
+}
+
+unsafe fn perf_event_open_uprobe(
+    name: &str,
+    offset: u64,
+    pid: Option<libc::pid_t>,
+    retprobe: bool,
+) -> Result<RawFd> {
+    let mut attr = mem::zeroed::<perf_event_attr>();
+    let type_ = fs::read_to_string("/sys/bus/event_source/devices/uprobe/type")
+        .expect("Cannot read /sys/bus/event_source/devices/uprobe/type")
+        .trim()
+        .parse::<u32>()
+        .unwrap();
+
+    if retprobe {
+        let s = fs::read_to_string("/sys/bus/event_source/devices/uprobe/format/retprobe")
+            .expect("Cannot read /sys/bus/event_source/devices/uprobe/format/retprobe");
+        let v: Vec<_> = s.trim().split("config:").collect();
+        let bit = v[1].parse::<i32>().unwrap();
+        attr.config |= 1 << bit;
+    }
+    attr.size = mem::size_of_val(&attr) as u32;
+    attr.type_ = type_;
+    let cname = CString::new(name)?;
+    attr.__bindgen_anon_3.config1 = cname.as_ptr() as u64;
+    attr.__bindgen_anon_4.config2 = offset;
+
+    let pfd = syscall(
+        SYS_perf_event_open,
+        &attr as *const perf_event_attr,
+        pid.unwrap_or(-1), // pid
+        0,                 // cpu
+        -1,                // group_fd
+        PERF_FLAG_FD_CLOEXEC,
+    );
+    if pfd < 0 {
+        Err(Error::IO(io::Error::last_os_error()))
+    } else {
+        Ok(pfd as RawFd)
+    }
+}
+
+pub(crate) unsafe fn open_uprobe_perf_event(
+    name: &str,
+    offset: u64,
+    pid: Option<libc::pid_t>,
+) -> Result<RawFd> {
+    perf_event_open_uprobe(name, offset, pid, false)
+}
+
+pub(crate) unsafe fn open_uretprobe_perf_event(
+    name: &str,
+    offset: u64,
+    pid: Option<libc::pid_t>,
+) -> Result<RawFd> {
+    perf_event_open_uprobe(name, offset, pid, true)
+}
+
+pub(crate) unsafe fn open_tracepoint_perf_event(category: &str, name: &str) -> Result<RawFd> {
+    let file = format!("/sys/kernel/debug/tracing/events/{}/{}/id", category, name);
+    let tp_id = fs::read_to_string(&file)
+        .expect(&format!("Cannot read {}", &file))
+        .parse::<i32>()
+        .unwrap();
+    if tp_id < 0 {
+        return Err(Error::BPF);
+    }
+    let mut attr = mem::zeroed::<perf_event_attr>();
+    attr.type_ = perf_type_id_PERF_TYPE_TRACEPOINT;
+    attr.size = mem::size_of_val(&attr) as u32;
+    attr.config = tp_id as u64;
+
+    let pfd = syscall(
+        SYS_perf_event_open,
+        &attr as *const perf_event_attr,
+        -1, // pid
+        0,  // cpu
+        -1, // group_fd
+        PERF_FLAG_FD_CLOEXEC,
     );
     if pfd < 0 {
         Err(Error::IO(io::Error::last_os_error()))

@@ -15,6 +15,7 @@ use std::slice;
 use std::task::{Context, Poll};
 use tokio::io::unix::AsyncFd;
 use tokio::io::Interest;
+use tracing::error;
 
 use crate::{Event, PerfMap};
 
@@ -70,7 +71,7 @@ impl PerfMessageStream {
         while let Some(ev) = self.map.read() {
             match ev {
                 Event::Lost(lost) => {
-                    eprintln!("Possibly lost {} samples for {}", lost.count, &self.name);
+                    error!("Possibly lost {} samples for {}", lost.count, &self.name);
                 }
                 Event::Sample(sample) => {
                     let msg = unsafe {
@@ -94,7 +95,7 @@ impl Stream for PerfMessageStream {
             Poll::Pending => return Poll::Pending,
             Poll::Ready(Err(e)) => {
                 // it should never happen
-                eprintln!("PerfMessageStream error: {:?}", e);
+                error!("PerfMessageStream error: {:?}", e);
                 return Poll::Ready(None);
             }
             Poll::Ready(Ok(mut rg)) => rg.clear_ready(),

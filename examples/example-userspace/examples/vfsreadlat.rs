@@ -11,6 +11,8 @@ use tokio;
 use tokio::runtime;
 use tokio::signal;
 use tokio::time::sleep;
+use tracing::{error, Level};
+use tracing_subscriber::FmtSubscriber;
 
 const UNDER_ONE: &str = "~ 0";
 const ONE_TO_TEN: &str = "1 ~ 10";
@@ -65,8 +67,13 @@ fn start_perf_event_handler(mut loaded: Loaded, counts: Counts) {
 }
 
 fn main() {
+    let subscriber = FmtSubscriber::builder()
+        .with_max_level(Level::TRACE)
+        .finish();
+    tracing::subscriber::set_global_default(subscriber).unwrap();
+
     if unsafe { libc::getuid() } != 0 {
-        eprintln!("You must be root to use eBPF!");
+        error!("You must be root to use eBPF!");
         process::exit(1);
     }
     let counts: Counts = Arc::new(Mutex::new(
