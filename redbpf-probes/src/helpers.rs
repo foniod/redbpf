@@ -104,7 +104,8 @@ pub unsafe fn bpf_probe_read<T>(src: *const T) -> Result<T, i32> {
         src as *const c_void,
     );
     if ret < 0 {
-        return Err(ret);
+        // TODO return i64
+        return Err(ret as i32);
     }
 
     Ok(v.assume_init())
