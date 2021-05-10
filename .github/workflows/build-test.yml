@@ -1,0 +1,55 @@
+name: RedBPF build test
+
+on:
+  push:
+    branches:
+      - main
+
+    # Publish `v1.2.3` tags as releases.
+    tags:
+      - v*
+
+  # Run tests for any PRs.
+  pull_request:
+
+env:
+  BASE_IMAGE: ghcr.io/${{ github.repository_owner }}/ingraind-build
+
+jobs:
+  ubuntu-2004-build-test:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: System info
+      run: |
+        uname -a
+        lsb_release -a
+    - name: Initialize git submodules
+      run: |
+        git submodule update --init --recursive
+    - name: Run RedBPF build on ubuntu-20.04 container
+      run: |
+        docker run --privileged \
+        -v $PWD:/build \
+        -w /build \
+        $BASE_IMAGE:latest-ubuntu-20.04 \
+        /bin/bash -c 'export KERNEL_VERSION=$(ls --indicator-style=none /lib/modules/); echo KERNEL_VERSION=$KERNEL_VERSION; cargo build && cargo build --examples'
+
+  fedora-35-build-test:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: System info
+      run: |
+        uname -a
+        lsb_release -a
+    - name: Initialize git submodules
+      run: |
+        git submodule update --init --recursive
+    - name: Run RedBPF build on fedora-35 container
+      run: |
+        docker run --privileged \
+        -v $PWD:/build \
+        -w /build \
+        $BASE_IMAGE:latest-fedora-rawhide \
+        /bin/bash -c 'export KERNEL_VERSION=$(ls --indicator-style=none /lib/modules/); echo KERNEL_VERSION=$KERNEL_VERSION; cargo build && cargo build --examples'
