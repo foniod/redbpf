@@ -65,10 +65,15 @@ fn main() {
         "sockaddr",
         "sockaddr_in",
         "in_addr",
+        "tcp.*_sock",
+        "udp.*_sock",
+        "btf_ptr",
     ];
     let xdp_vars = ["ETH_.*", "IPPROTO_.*", "SOCK_.*", "SK_FL_.*", "AF_.*"];
 
-    let mut builder = bpf_bindgen::builder().header("./include/redbpf_helpers.h");
+    let mut builder = bpf_bindgen::builder()
+        .header("../include/redbpf_helpers.h")
+        .header("../bpf-sys/libbpf/src/bpf_helpers.h");
 
     for ty in types.iter().chain(xdp_types.iter()) {
         builder = builder.whitelist_type(ty);
@@ -102,7 +107,8 @@ fn main() {
     create_module(out_dir.join("gen_bindings.rs"), "gen_bindings", &bindings).unwrap();
 
     let bindings = bpf_bindgen::builder()
-        .header("./include/redbpf_helpers.h")
+        .header("../include/redbpf_helpers.h")
+        .header("../bpf-sys/libbpf/src/bpf_helpers.h")
         .whitelist_var("bpf_.*")
         .generate()
         .expect("Unable to generate bindings!");
