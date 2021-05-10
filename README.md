@@ -2,7 +2,6 @@ RedBPF
 ======
 
 ![LICENSE](https://img.shields.io/badge/license-MIT%2FApache--2.0-blue.svg)
-[![CircleCI](https://circleci.com/gh/ingraind/redbpf.svg?style=shield)](https://circleci.com/gh/ingraind/redbpf)
 [![element](https://img.shields.io/matrix/redbpf:rustch.at?server_fqdn=rustch.at)](https://app.element.io/#/room/!vCJcBZDeGUXaqSvPpL:rustch.at?via=rustch.at)
 
 A Rust eBPF toolchain.
