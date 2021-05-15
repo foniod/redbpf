@@ -77,13 +77,13 @@ async fn main() {
         let mut echo_sockmap =
             SockMap::new(loaded.map("echo_sockmap").expect("sockmap not found")).unwrap();
         loaded
-            .stream_parser()
+            .stream_parsers()
             .next()
             .unwrap()
             .attach_sockmap(&echo_sockmap)
             .expect("Attaching sockmap failed");
         loaded
-            .stream_verdict()
+            .stream_verdicts()
             .next()
             .unwrap()
             .attach_sockmap(&echo_sockmap)

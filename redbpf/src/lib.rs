@@ -829,7 +829,7 @@ impl Module {
         })
     }
 
-    pub fn stream_parser_mut(&mut self) -> impl Iterator<Item = &mut StreamParser> {
+    pub fn stream_parsers_mut(&mut self) -> impl Iterator<Item = &mut StreamParser> {
         use Program::*;
         self.programs.iter_mut().filter_map(|prog| match prog {
             StreamParser(p) => Some(p),
@@ -845,12 +845,16 @@ impl Module {
         })
     }
 
-    pub fn stream_verdict_mut(&mut self) -> impl Iterator<Item = &mut StreamVerdict> {
+    pub fn stream_verdicts_mut(&mut self) -> impl Iterator<Item = &mut StreamVerdict> {
         use Program::*;
         self.programs.iter_mut().filter_map(|prog| match prog {
             StreamVerdict(p) => Some(p),
             _ => None,
         })
+    }
+
+    pub fn stream_verdict_mut(&mut self, name: &str) -> Option<&mut StreamVerdict> {
+        self.stream_verdicts_mut().find(|p| p.common.name == name)
     }
 }
 
@@ -1401,7 +1405,7 @@ impl StreamParser {
     ///
     /// let loaded = Loader::load(b"echo.elf").expect("error loading BPF program");
     /// let mut echo_sockmap = SockMap::new(loaded.map("echo_sockmap").expect("sockmap not found")).unwrap();
-    /// loaded.stream_parser().next().unwrap().attach_sockmap(&echo_sockmap).expect("Attaching sockmap failed");
+    /// loaded.stream_parsers().next().unwrap().attach_sockmap(&echo_sockmap).expect("Attaching sockmap failed");
     /// ```
     pub fn attach_sockmap(&self, sock_map: &SockMap) -> Result<()> {
         let attach_fd = sock_map.base.fd;
@@ -1432,7 +1436,7 @@ impl StreamVerdict {
     ///
     /// let loaded = Loader::load(b"echo.elf").expect("error loading BPF program");
     /// let mut echo_sockmap = SockMap::new(loaded.map("echo_sockmap").expect("sockmap not found")).unwrap();
-    /// loaded.stream_verdict().next().unwrap().attach_sockmap(&echo_sockmap).expect("Attaching sockmap failed");
+    /// loaded.stream_verdicts().next().unwrap().attach_sockmap(&echo_sockmap).expect("Attaching sockmap failed");
     /// ```
     pub fn attach_sockmap(&self, sock_map: &SockMap) -> Result<()> {
         let attach_fd = sock_map.base.fd;
