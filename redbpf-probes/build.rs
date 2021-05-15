@@ -47,7 +47,8 @@ fn rerun_if_changed_dir(dir: &str) {
 }
 
 fn main() {
-    rerun_if_changed_dir("include");
+    rerun_if_changed_dir("../include");
+    rerun_if_changed_dir("../bpf-sys/libbpf/src");
 
     let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
     let types = ["pt_regs", "s32", "bpf_.*"];
