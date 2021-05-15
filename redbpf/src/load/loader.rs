@@ -108,35 +108,63 @@ impl Loaded {
         self.module.program(name)
     }
 
+    pub fn program_mut(&mut self, name: &str) -> Option<&mut Program> {
+        self.module.program_mut(name)
+    }
+
     pub fn kprobes_mut(&mut self) -> impl Iterator<Item = &mut KProbe> {
         self.module.kprobes_mut()
+    }
+
+    pub fn kprobe_mut(&mut self, name: &str) -> Option<&mut KProbe> {
+        self.module.kprobe_mut(name)
     }
 
     pub fn uprobes_mut(&mut self) -> impl Iterator<Item = &mut UProbe> {
         self.module.uprobes_mut()
     }
 
+    pub fn uprobe_mut(&mut self, name: &str) -> Option<&mut UProbe> {
+        self.module.uprobe_mut(name)
+    }
+
     pub fn xdps_mut(&mut self) -> impl Iterator<Item = &mut XDP> {
         self.module.xdps_mut()
+    }
+
+    pub fn xdp_mut(&mut self, name: &str) -> Option<&mut XDP> {
+        self.module.xdp_mut(name)
     }
 
     pub fn socket_filters_mut(&mut self) -> impl Iterator<Item = &mut SocketFilter> {
         self.module.socket_filters_mut()
     }
 
-    pub fn stream_parser(&self) -> impl Iterator<Item = &StreamParser> {
-        self.module.stream_parser()
+    pub fn socket_filter_mut(&mut self, name: &str) -> Option<&mut SocketFilter> {
+        self.module.socket_filter_mut(name)
     }
 
-    pub fn stream_parser_mut(&mut self) -> impl Iterator<Item = &mut StreamParser> {
-        self.module.stream_parser_mut()
+    pub fn stream_parsers(&self) -> impl Iterator<Item = &StreamParser> {
+        self.module.stream_parsers()
     }
 
-    pub fn stream_verdict(&self) -> impl Iterator<Item = &StreamVerdict> {
-        self.module.stream_verdict()
+    pub fn stream_parsers_mut(&mut self) -> impl Iterator<Item = &mut StreamParser> {
+        self.module.stream_parsers_mut()
     }
 
-    pub fn stream_verdict_mut(&mut self) -> impl Iterator<Item = &mut StreamVerdict> {
-        self.module.stream_verdict_mut()
+    pub fn stream_parser_mut(&mut self, name: &str) -> Option<&mut StreamParser> {
+        self.module.stream_parser_mut(name)
+    }
+
+    pub fn stream_verdicts(&self) -> impl Iterator<Item = &StreamVerdict> {
+        self.module.stream_verdicts()
+    }
+
+    pub fn stream_verdicts_mut(&mut self) -> impl Iterator<Item = &mut StreamVerdict> {
+        self.module.stream_verdicts_mut()
+    }
+
+    pub fn stream_verdict_mut(&mut self, name: &str) -> Option<&mut StreamVerdict> {
+        self.module.stream_verdict_mut(name)
     }
 }

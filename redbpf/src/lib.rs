@@ -741,6 +741,10 @@ impl Module {
         self.programs.iter().find(|p| p.name() == name)
     }
 
+    pub fn program_mut(&mut self, name: &str) -> Option<&mut Program> {
+        self.programs.iter_mut().find(|p| p.name() == name)
+    }
+
     pub fn kprobes(&self) -> impl Iterator<Item = &KProbe> {
         use Program::*;
         self.programs.iter().filter_map(|prog| match prog {
@@ -755,6 +759,10 @@ impl Module {
             KProbe(p) | KRetProbe(p) => Some(p),
             _ => None,
         })
+    }
+
+    pub fn kprobe_mut(&mut self, name: &str) -> Option<&mut KProbe> {
+        self.kprobes_mut().find(|p| p.common.name == name)
     }
 
     pub fn uprobes(&self) -> impl Iterator<Item = &UProbe> {
@@ -773,6 +781,10 @@ impl Module {
         })
     }
 
+    pub fn uprobe_mut(&mut self, name: &str) -> Option<&mut UProbe> {
+        self.uprobes_mut().find(|p| p.common.name == name)
+    }
+
     pub fn xdps(&self) -> impl Iterator<Item = &XDP> {
         use Program::*;
         self.programs.iter().filter_map(|prog| match prog {
@@ -787,6 +799,10 @@ impl Module {
             XDP(p) => Some(p),
             _ => None,
         })
+    }
+
+    pub fn xdp_mut(&mut self, name: &str) -> Option<&mut XDP> {
+        self.xdps_mut().find(|p| p.common.name == name)
     }
 
     pub fn socket_filters(&self) -> impl Iterator<Item = &SocketFilter> {
@@ -805,6 +821,10 @@ impl Module {
         })
     }
 
+    pub fn socket_filter_mut(&mut self, name: &str) -> Option<&mut SocketFilter> {
+        self.socket_filters_mut().find(|p| p.common.name == name)
+    }
+
     pub fn trace_points(&self) -> impl Iterator<Item = &TracePoint> {
         use Program::*;
         self.programs.iter().filter_map(|prog| match prog {
@@ -821,7 +841,11 @@ impl Module {
         })
     }
 
-    pub fn stream_parser(&self) -> impl Iterator<Item = &StreamParser> {
+    pub fn trace_point_mut(&mut self, name: &str) -> Option<&mut TracePoint> {
+        self.trace_points_mut().find(|p| p.common.name == name)
+    }
+
+    pub fn stream_parsers(&self) -> impl Iterator<Item = &StreamParser> {
         use Program::*;
         self.programs.iter().filter_map(|prog| match prog {
             StreamParser(p) => Some(p),
@@ -837,7 +861,11 @@ impl Module {
         })
     }
 
-    pub fn stream_verdict(&self) -> impl Iterator<Item = &StreamVerdict> {
+    pub fn stream_parser_mut(&mut self, name: &str) -> Option<&mut StreamParser> {
+        self.stream_parsers_mut().find(|p| p.common.name == name)
+    }
+
+    pub fn stream_verdicts(&self) -> impl Iterator<Item = &StreamVerdict> {
         use Program::*;
         self.programs.iter().filter_map(|prog| match prog {
             StreamVerdict(p) => Some(p),
