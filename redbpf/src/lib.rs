@@ -65,12 +65,13 @@ use libc::{self, pid_t};
 use std::collections::HashMap as RSHashMap;
 use std::ffi::{CStr, CString};
 use std::fs;
-use std::io;
+use std::io::{self, ErrorKind};
 use std::marker::PhantomData;
 use std::mem;
 use std::mem::MaybeUninit;
 use std::ops::{Deref, DerefMut};
 use std::os::unix::io::RawFd;
+use std::path::{Path, PathBuf};
 use std::ptr;
 
 pub use crate::error::{Error, Result};
@@ -121,16 +122,32 @@ struct ProgramData {
     fd: Option<RawFd>,
 }
 
+struct KProbeAttachmentPoint {
+    fn_name: String,
+    offset: u64,
+    pfd: RawFd, // file descriptor of perf event
+}
+
+struct UProbeAttachmentPoint {
+    fn_name: Option<String>,
+    offset: u64,
+    target: String,
+    pid: Option<pid_t>,
+    pfd: RawFd, // file descriptor of perf event
+}
+
 /// Type to work with `kprobes` or `kretprobes`.
 pub struct KProbe {
     common: ProgramData,
     attach_type: ProbeAttachType,
+    attachment_points: Vec<KProbeAttachmentPoint>,
 }
 
 /// Type to work with `uprobes` or `uretprobes`.
 pub struct UProbe {
     common: ProgramData,
     attach_type: ProbeAttachType,
+    attachment_points: Vec<UProbeAttachmentPoint>,
 }
 
 /// Type to work with `socket filters`.
@@ -265,18 +282,22 @@ impl Program {
             "kprobe" => Program::KProbe(KProbe {
                 common,
                 attach_type: ProbeAttachType::Entry,
+                attachment_points: Vec::new(),
             }),
             "kretprobe" => Program::KProbe(KProbe {
                 common,
                 attach_type: ProbeAttachType::Return,
+                attachment_points: Vec::new(),
             }),
             "uprobe" => Program::UProbe(UProbe {
                 common,
                 attach_type: ProbeAttachType::Entry,
+                attachment_points: Vec::new(),
             }),
             "uretprobe" => Program::UProbe(UProbe {
                 common,
                 attach_type: ProbeAttachType::Return,
+                attachment_points: Vec::new(),
             }),
             "tracepoint" => Program::TracePoint(TracePoint { common }),
             "socketfilter" => Program::SocketFilter(SocketFilter { common }),
@@ -392,6 +413,35 @@ impl Program {
     }
 }
 
+impl Drop for ProgramData {
+    fn drop(&mut self) {
+        if self.fd.is_some() {
+            unsafe {
+                let _ = libc::close(self.fd.unwrap());
+            }
+        }
+    }
+}
+
+
+impl Drop for KProbeAttachmentPoint {
+    fn drop(&mut self) {
+        unsafe {
+            let _ = perf::detach_perf_event(self.pfd);
+            let _ = libc::close(self.pfd);
+        }
+    }
+}
+
+impl Drop for UProbeAttachmentPoint {
+    fn drop(&mut self) {
+        unsafe {
+            let _ = perf::detach_perf_event(self.pfd);
+            let _ = libc::close(self.pfd);
+        }
+    }
+}
+
 impl KProbe {
     /// Attach the `kprobe` or `kretprobe`.
     ///
@@ -415,8 +465,43 @@ impl KProbe {
 
                 ProbeAttachType::Return => perf::open_kretprobe_perf_event(fn_name, offset)?,
             };
-            perf::attach_perf_event(fd, pfd)
+            let ret = perf::attach_perf_event(fd, pfd);
+            if ret.is_ok() {
+                self.attachment_points.push(KProbeAttachmentPoint {
+                    fn_name: fn_name.to_owned(),
+                    offset,
+                    pfd,
+                });
+            } else {
+                libc::close(pfd);
+            }
+            ret
         }
+    }
+
+    /// Detach the `kprobe` or `kretprobe`
+    ///
+    /// This method is not needed to be called manually because all attachment
+    /// points are detached and closed automatically when `KProbe` is
+    /// dropped. But this method provides a feature for detaching a bpf program
+    /// from kprobe event selectively.
+    ///
+    /// # Example
+    /// ```no_run
+    /// use redbpf::Module;
+    /// let mut module = Module::parse(&std::fs::read("file.elf").unwrap()).unwrap();
+    /// for kprobe in module.kprobes_mut() {
+    ///     kprobe.attach_kprobe(&kprobe.name(), 0).unwrap();
+    ///     // do some stuff...
+    ///     kprobe.detach_kprobe(&kprobe.name(), 0).unwrap();
+    /// }
+    /// ```
+    pub fn detach_kprobe(&mut self, fn_name: &str, offset: u64) -> Result<()> {
+        // bpf program is detached from perf event and the perf event is closed
+        // by dropping KProbeAttachmentPoint
+        self.attachment_points
+            .retain(|ap| !(ap.fn_name == fn_name && ap.offset == offset));
+        Ok(())
     }
 
     pub fn name(&self) -> String {
@@ -485,8 +570,54 @@ impl UProbe {
                     perf::open_uretprobe_perf_event(&path, offset + sym_offset, pid)?
                 }
             };
-            perf::attach_perf_event(fd, pfd)
+            let ret = perf::attach_perf_event(fd, pfd);
+            if ret.is_ok() {
+                self.attachment_points.push(UProbeAttachmentPoint {
+                    fn_name: fn_name.map(String::from),
+                    offset,
+                    target: target.to_owned(),
+                    pid,
+                    pfd,
+                });
+            } else {
+                libc::close(pfd);
+            }
+            ret
         }
+    }
+
+    /// Detach the `uprobe` or `uretprobe`
+    ///
+    /// This method is not needed to be called manually because all attachment
+    /// points are detached and closed automatically when `UProbe` is
+    /// dropped. But this method provides a feature for detaching a bpf program
+    /// from uprobe event selectively.
+    ///
+    /// # Example
+    /// ```no_run
+    /// use redbpf::Module;
+    /// let mut module = Module::parse(&std::fs::read("file.elf").unwrap()).unwrap();
+    /// let uprobe = module.uprobe_mut("count_strlen").expect("bpf program not found");
+    /// uprobe.attach_uprobe(Some(&uprobe.name()), 0, "/lib/x86_64-linux-gnu/libc-2.30.so", None).unwrap();
+    /// // do some stuff...
+    /// uprobe.detach_uprobe(Some(&uprobe.name()), 0, "/lib/x86_64-linux-gnu/libc-2.30.so", None);
+    /// ```
+    pub fn detach_uprobe(
+        &mut self,
+        fn_name: Option<&str>,
+        offset: u64,
+        target: &str,
+        pid: Option<pid_t>,
+    ) -> Result<()> {
+        // bpf program is detached from perf event and the perf event is closed
+        // by dropping UProbeAttachmentPoint
+        self.attachment_points.retain(|ap| {
+            !(ap.fn_name.as_deref() == fn_name
+                && ap.offset == offset
+                && ap.target == target
+                && ap.pid == pid)
+        });
+        Ok(())
     }
 
     pub fn name(&self) -> String {
@@ -1009,6 +1140,13 @@ impl Map {
             config,
             section_data: false,
         })
+    }
+
+impl Drop for Map {
+    fn drop(&mut self) {
+        unsafe {
+            let _ = libc::close(self.fd);
+        }
     }
 }
 
