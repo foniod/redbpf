@@ -56,8 +56,8 @@ pub mod xdp;
 pub use bpf_sys::uname;
 use bpf_sys::{
     bpf_attach_type_BPF_SK_SKB_STREAM_PARSER, bpf_attach_type_BPF_SK_SKB_STREAM_VERDICT, bpf_insn,
-    bpf_map_def, bpf_map_type_BPF_MAP_TYPE_ARRAY, bpf_map_type_BPF_MAP_TYPE_PERCPU_ARRAY,
-    bpf_prog_type, BPF_ANY,
+    bpf_map_def, bpf_map_info, bpf_map_type_BPF_MAP_TYPE_ARRAY,
+    bpf_map_type_BPF_MAP_TYPE_PERCPU_ARRAY, bpf_prog_type, BPF_ANY,
 };
 use goblin::elf::{reloc::RelocSection, section_header as hdr, Elf, SectionHeader, Sym};
 
@@ -181,6 +181,7 @@ pub struct Map {
     fd: RawFd,
     config: bpf_map_def,
     section_data: bool,
+    pin_file: Option<Box<Path>>,
 }
 
 pub struct HashMap<'a, K: Clone, V: Clone> {
@@ -423,6 +424,54 @@ impl Drop for ProgramData {
     }
 }
 
+fn pin_bpf_obj(fd: RawFd, file: impl AsRef<Path>) -> Result<()> {
+    let mut file: PathBuf = PathBuf::from(file.as_ref());
+    if file.exists() {
+        error!("pinned path already exists: {:?}", file);
+        return Err(Error::IO(io::Error::from(ErrorKind::AlreadyExists)));
+    }
+    if file.is_relative() {
+        file = Path::new(".").join(file);
+    }
+    let dir = file.parent().unwrap();
+    let existing_ancestor: Option<&Path> = dir.ancestors().find(|x| x.exists());
+    if existing_ancestor.is_none() {
+        if file.is_absolute() {
+            error!("root directory does not exist");
+        } else {
+            error!("current working directory does not exist");
+        }
+        return Err(Error::IO(io::Error::from(ErrorKind::NotFound)));
+    }
+    unsafe {
+        let path = existing_ancestor.unwrap();
+        let cpath = CString::new(path.to_str().unwrap()).unwrap();
+        let mut stat = mem::zeroed::<libc::statfs>();
+        if libc::statfs(cpath.as_ptr(), &mut stat as *mut _) != 0 {
+            error!("error on statfs {:?}: {}", path, io::Error::last_os_error());
+            return Err(Error::IO(io::Error::last_os_error()));
+        }
+        if stat.f_type != libc::BPF_FS_MAGIC {
+            error!("not BPF FS");
+            return Err(Error::IO(io::Error::from(ErrorKind::PermissionDenied)));
+        }
+    };
+    fs::create_dir_all(dir)?;
+    unsafe {
+        let cpathname = CString::new(file.to_str().unwrap())?;
+        if bpf_sys::bpf_obj_pin(fd, cpathname.as_ptr()) != 0 {
+            error!("error on bpf_obj_pin: {}", io::Error::last_os_error());
+            Err(Error::IO(io::Error::last_os_error()))
+        } else {
+            Ok(())
+        }
+    }
+}
+
+fn unpin_bpf_obj(file: impl AsRef<Path>) -> Result<()> {
+    let _ = fs::remove_file(file)?;
+    Ok(())
+}
 
 impl Drop for KProbeAttachmentPoint {
     fn drop(&mut self) {
@@ -1139,8 +1188,106 @@ impl Map {
             fd,
             config,
             section_data: false,
+            pin_file: None,
         })
     }
+
+    /// Create `Map` from a file which represents pinned map
+    ///
+    /// # Example
+    /// ```no_run
+    /// use redbpf::{Array, Map};
+    /// let map = Map::from_pin_file("/sys/fs/bpf/persist_map").expect("error on creating map from file");
+    /// let array = Array::<u64>::new(&map).expect("error on creating array");
+    /// ```
+    pub fn from_pin_file(file: impl AsRef<Path>) -> Result<Map> {
+        let file = file.as_ref();
+        let fd = unsafe {
+            let cpathname = CString::new(file.to_str().unwrap())?;
+            bpf_sys::bpf_obj_get(cpathname.as_ptr())
+        };
+        if fd < 0 {
+            error!("error on bpf_obj_get: {}", io::Error::last_os_error());
+            return Err(Error::IO(io::Error::last_os_error()));
+        }
+        let map_info = unsafe {
+            let mut info = mem::zeroed::<bpf_map_info>();
+            let mut info_len = mem::size_of_val(&info) as u32;
+            if bpf_sys::bpf_obj_get_info_by_fd(fd, &mut info as *mut _ as *mut _, &mut info_len)
+                != 0
+            {
+                error!(
+                    "error on bpf_obj_get_info_by_fd: {}",
+                    io::Error::last_os_error()
+                );
+                return Err(Error::IO(io::Error::last_os_error()));
+            }
+            info
+        };
+
+        let name = unsafe {
+            CStr::from_ptr(&map_info.name as *const _)
+                .to_string_lossy()
+                .into_owned()
+        };
+        Ok(Map {
+            name,
+            kind: map_info.type_,
+            fd,
+            config: bpf_map_def {
+                type_: map_info.type_,
+                key_size: map_info.key_size,
+                value_size: map_info.value_size,
+                max_entries: map_info.max_entries,
+                map_flags: map_info.map_flags,
+            },
+            section_data: false,
+            pin_file: Some(Box::from(file)),
+        })
+    }
+
+    /// Pin map to BPF FS
+    ///
+    /// # Example
+    /// ```no_run
+    /// use redbpf::Module;
+    /// use redbpf::load::Loader;
+    /// let mut loaded = Loader::load_file("file.elf").expect("error loading probe");
+    /// loaded.map_mut("persist_map").expect("map not found").pin("/sys/fs/bpf/persist_map").expect("error on pinning");
+    /// ```
+    pub fn pin(&mut self, file: impl AsRef<Path>) -> Result<()> {
+        let file = file.as_ref();
+        if self.pin_file.is_some() {
+            error!("already pinned");
+            return Err(Error::Map);
+        }
+        pin_bpf_obj(self.fd, file)?;
+        self.pin_file = Some(Box::from(file));
+        Ok(())
+    }
+
+    /// Unpin map
+    ///
+    /// # Example
+    /// ```no_run
+    /// use redbpf::Module;
+    /// use redbpf::load::Loader;
+    /// let mut loaded = Loader::load_file("file.elf").expect("error loading probe");
+    /// let persist_map = loaded.map_mut("persist_map").expect("map not found");
+    /// persist_map.pin("/sys/fs/bpf/persist_map").expect("error on pinning");
+    /// // do some stuff...
+    /// persist_map.unpin().expect("error on unpinning");
+    /// ```
+    pub fn unpin(&mut self) -> Result<()> {
+        if self.pin_file.is_none() {
+            error!("not pinned");
+            return Err(Error::Map);
+        }
+        unpin_bpf_obj(self.pin_file.as_ref().unwrap())?;
+        self.pin_file = None;
+        Ok(())
+    }
+}
 
 impl Drop for Map {
     fn drop(&mut self) {
