@@ -56,8 +56,8 @@ pub mod xdp;
 pub use bpf_sys::uname;
 use bpf_sys::{
     bpf_attach_type_BPF_SK_SKB_STREAM_PARSER, bpf_attach_type_BPF_SK_SKB_STREAM_VERDICT, bpf_insn,
-    bpf_map_def, bpf_map_type_BPF_MAP_TYPE_ARRAY, bpf_map_type_BPF_MAP_TYPE_PERCPU_ARRAY,
-    bpf_prog_type, BPF_ANY,
+    bpf_map_def, bpf_map_info, bpf_map_type_BPF_MAP_TYPE_ARRAY,
+    bpf_map_type_BPF_MAP_TYPE_PERCPU_ARRAY, bpf_prog_type, BPF_ANY,
 };
 use goblin::elf::{reloc::RelocSection, section_header as hdr, Elf, SectionHeader, Sym};
 
@@ -65,12 +65,13 @@ use libc::{self, pid_t};
 use std::collections::HashMap as RSHashMap;
 use std::ffi::{CStr, CString};
 use std::fs;
-use std::io;
+use std::io::{self, ErrorKind};
 use std::marker::PhantomData;
 use std::mem;
 use std::mem::MaybeUninit;
 use std::ops::{Deref, DerefMut};
 use std::os::unix::io::RawFd;
+use std::path::{Path, PathBuf};
 use std::ptr;
 
 pub use crate::error::{Error, Result};
@@ -121,16 +122,32 @@ struct ProgramData {
     fd: Option<RawFd>,
 }
 
+struct KProbeAttachmentPoint {
+    fn_name: String,
+    offset: u64,
+    pfd: RawFd, // file descriptor of perf event
+}
+
+struct UProbeAttachmentPoint {
+    fn_name: Option<String>,
+    offset: u64,
+    target: String,
+    pid: Option<pid_t>,
+    pfd: RawFd, // file descriptor of perf event
+}
+
 /// Type to work with `kprobes` or `kretprobes`.
 pub struct KProbe {
     common: ProgramData,
     attach_type: ProbeAttachType,
+    attachment_points: Vec<KProbeAttachmentPoint>,
 }
 
 /// Type to work with `uprobes` or `uretprobes`.
 pub struct UProbe {
     common: ProgramData,
     attach_type: ProbeAttachType,
+    attachment_points: Vec<UProbeAttachmentPoint>,
 }
 
 /// Type to work with `socket filters`.
@@ -164,6 +181,7 @@ pub struct Map {
     fd: RawFd,
     config: bpf_map_def,
     section_data: bool,
+    pin_file: Option<Box<Path>>,
 }
 
 pub struct HashMap<'a, K: Clone, V: Clone> {
@@ -265,18 +283,22 @@ impl Program {
             "kprobe" => Program::KProbe(KProbe {
                 common,
                 attach_type: ProbeAttachType::Entry,
+                attachment_points: Vec::new(),
             }),
             "kretprobe" => Program::KProbe(KProbe {
                 common,
                 attach_type: ProbeAttachType::Return,
+                attachment_points: Vec::new(),
             }),
             "uprobe" => Program::UProbe(UProbe {
                 common,
                 attach_type: ProbeAttachType::Entry,
+                attachment_points: Vec::new(),
             }),
             "uretprobe" => Program::UProbe(UProbe {
                 common,
                 attach_type: ProbeAttachType::Return,
+                attachment_points: Vec::new(),
             }),
             "tracepoint" => Program::TracePoint(TracePoint { common }),
             "socketfilter" => Program::SocketFilter(SocketFilter { common }),
@@ -392,6 +414,83 @@ impl Program {
     }
 }
 
+impl Drop for ProgramData {
+    fn drop(&mut self) {
+        if self.fd.is_some() {
+            unsafe {
+                let _ = libc::close(self.fd.unwrap());
+            }
+        }
+    }
+}
+
+fn pin_bpf_obj(fd: RawFd, file: impl AsRef<Path>) -> Result<()> {
+    let mut file: PathBuf = PathBuf::from(file.as_ref());
+    if file.exists() {
+        error!("pinned path already exists: {:?}", file);
+        return Err(Error::IO(io::Error::from(ErrorKind::AlreadyExists)));
+    }
+    if file.is_relative() {
+        file = Path::new(".").join(file);
+    }
+    let dir = file.parent().unwrap();
+    let existing_ancestor: Option<&Path> = dir.ancestors().find(|x| x.exists());
+    if existing_ancestor.is_none() {
+        if file.is_absolute() {
+            error!("root directory does not exist");
+        } else {
+            error!("current working directory does not exist");
+        }
+        return Err(Error::IO(io::Error::from(ErrorKind::NotFound)));
+    }
+    unsafe {
+        let path = existing_ancestor.unwrap();
+        let cpath = CString::new(path.to_str().unwrap()).unwrap();
+        let mut stat = mem::zeroed::<libc::statfs>();
+        if libc::statfs(cpath.as_ptr(), &mut stat as *mut _) != 0 {
+            error!("error on statfs {:?}: {}", path, io::Error::last_os_error());
+            return Err(Error::IO(io::Error::last_os_error()));
+        }
+        if stat.f_type != libc::BPF_FS_MAGIC {
+            error!("not BPF FS");
+            return Err(Error::IO(io::Error::from(ErrorKind::PermissionDenied)));
+        }
+    };
+    fs::create_dir_all(dir)?;
+    unsafe {
+        let cpathname = CString::new(file.to_str().unwrap())?;
+        if bpf_sys::bpf_obj_pin(fd, cpathname.as_ptr()) != 0 {
+            error!("error on bpf_obj_pin: {}", io::Error::last_os_error());
+            Err(Error::IO(io::Error::last_os_error()))
+        } else {
+            Ok(())
+        }
+    }
+}
+
+fn unpin_bpf_obj(file: impl AsRef<Path>) -> Result<()> {
+    let _ = fs::remove_file(file)?;
+    Ok(())
+}
+
+impl Drop for KProbeAttachmentPoint {
+    fn drop(&mut self) {
+        unsafe {
+            let _ = perf::detach_perf_event(self.pfd);
+            let _ = libc::close(self.pfd);
+        }
+    }
+}
+
+impl Drop for UProbeAttachmentPoint {
+    fn drop(&mut self) {
+        unsafe {
+            let _ = perf::detach_perf_event(self.pfd);
+            let _ = libc::close(self.pfd);
+        }
+    }
+}
+
 impl KProbe {
     /// Attach the `kprobe` or `kretprobe`.
     ///
@@ -415,8 +514,43 @@ impl KProbe {
 
                 ProbeAttachType::Return => perf::open_kretprobe_perf_event(fn_name, offset)?,
             };
-            perf::attach_perf_event(fd, pfd)
+            let ret = perf::attach_perf_event(fd, pfd);
+            if ret.is_ok() {
+                self.attachment_points.push(KProbeAttachmentPoint {
+                    fn_name: fn_name.to_owned(),
+                    offset,
+                    pfd,
+                });
+            } else {
+                libc::close(pfd);
+            }
+            ret
         }
+    }
+
+    /// Detach the `kprobe` or `kretprobe`
+    ///
+    /// This method is not needed to be called manually because all attachment
+    /// points are detached and closed automatically when `KProbe` is
+    /// dropped. But this method provides a feature for detaching a bpf program
+    /// from kprobe event selectively.
+    ///
+    /// # Example
+    /// ```no_run
+    /// use redbpf::Module;
+    /// let mut module = Module::parse(&std::fs::read("file.elf").unwrap()).unwrap();
+    /// for kprobe in module.kprobes_mut() {
+    ///     kprobe.attach_kprobe(&kprobe.name(), 0).unwrap();
+    ///     // do some stuff...
+    ///     kprobe.detach_kprobe(&kprobe.name(), 0).unwrap();
+    /// }
+    /// ```
+    pub fn detach_kprobe(&mut self, fn_name: &str, offset: u64) -> Result<()> {
+        // bpf program is detached from perf event and the perf event is closed
+        // by dropping KProbeAttachmentPoint
+        self.attachment_points
+            .retain(|ap| !(ap.fn_name == fn_name && ap.offset == offset));
+        Ok(())
     }
 
     pub fn name(&self) -> String {
@@ -485,8 +619,54 @@ impl UProbe {
                     perf::open_uretprobe_perf_event(&path, offset + sym_offset, pid)?
                 }
             };
-            perf::attach_perf_event(fd, pfd)
+            let ret = perf::attach_perf_event(fd, pfd);
+            if ret.is_ok() {
+                self.attachment_points.push(UProbeAttachmentPoint {
+                    fn_name: fn_name.map(String::from),
+                    offset,
+                    target: target.to_owned(),
+                    pid,
+                    pfd,
+                });
+            } else {
+                libc::close(pfd);
+            }
+            ret
         }
+    }
+
+    /// Detach the `uprobe` or `uretprobe`
+    ///
+    /// This method is not needed to be called manually because all attachment
+    /// points are detached and closed automatically when `UProbe` is
+    /// dropped. But this method provides a feature for detaching a bpf program
+    /// from uprobe event selectively.
+    ///
+    /// # Example
+    /// ```no_run
+    /// use redbpf::Module;
+    /// let mut module = Module::parse(&std::fs::read("file.elf").unwrap()).unwrap();
+    /// let uprobe = module.uprobe_mut("count_strlen").expect("bpf program not found");
+    /// uprobe.attach_uprobe(Some(&uprobe.name()), 0, "/lib/x86_64-linux-gnu/libc-2.30.so", None).unwrap();
+    /// // do some stuff...
+    /// uprobe.detach_uprobe(Some(&uprobe.name()), 0, "/lib/x86_64-linux-gnu/libc-2.30.so", None);
+    /// ```
+    pub fn detach_uprobe(
+        &mut self,
+        fn_name: Option<&str>,
+        offset: u64,
+        target: &str,
+        pid: Option<pid_t>,
+    ) -> Result<()> {
+        // bpf program is detached from perf event and the perf event is closed
+        // by dropping UProbeAttachmentPoint
+        self.attachment_points.retain(|ap| {
+            !(ap.fn_name.as_deref() == fn_name
+                && ap.offset == offset
+                && ap.target == target
+                && ap.pid == pid)
+        });
+        Ok(())
     }
 
     pub fn name(&self) -> String {
@@ -741,6 +921,10 @@ impl Module {
         self.programs.iter().find(|p| p.name() == name)
     }
 
+    pub fn program_mut(&mut self, name: &str) -> Option<&mut Program> {
+        self.programs.iter_mut().find(|p| p.name() == name)
+    }
+
     pub fn kprobes(&self) -> impl Iterator<Item = &KProbe> {
         use Program::*;
         self.programs.iter().filter_map(|prog| match prog {
@@ -755,6 +939,10 @@ impl Module {
             KProbe(p) | KRetProbe(p) => Some(p),
             _ => None,
         })
+    }
+
+    pub fn kprobe_mut(&mut self, name: &str) -> Option<&mut KProbe> {
+        self.kprobes_mut().find(|p| p.common.name == name)
     }
 
     pub fn uprobes(&self) -> impl Iterator<Item = &UProbe> {
@@ -773,6 +961,10 @@ impl Module {
         })
     }
 
+    pub fn uprobe_mut(&mut self, name: &str) -> Option<&mut UProbe> {
+        self.uprobes_mut().find(|p| p.common.name == name)
+    }
+
     pub fn xdps(&self) -> impl Iterator<Item = &XDP> {
         use Program::*;
         self.programs.iter().filter_map(|prog| match prog {
@@ -787,6 +979,10 @@ impl Module {
             XDP(p) => Some(p),
             _ => None,
         })
+    }
+
+    pub fn xdp_mut(&mut self, name: &str) -> Option<&mut XDP> {
+        self.xdps_mut().find(|p| p.common.name == name)
     }
 
     pub fn socket_filters(&self) -> impl Iterator<Item = &SocketFilter> {
@@ -805,6 +1001,10 @@ impl Module {
         })
     }
 
+    pub fn socket_filter_mut(&mut self, name: &str) -> Option<&mut SocketFilter> {
+        self.socket_filters_mut().find(|p| p.common.name == name)
+    }
+
     pub fn trace_points(&self) -> impl Iterator<Item = &TracePoint> {
         use Program::*;
         self.programs.iter().filter_map(|prog| match prog {
@@ -821,7 +1021,11 @@ impl Module {
         })
     }
 
-    pub fn stream_parser(&self) -> impl Iterator<Item = &StreamParser> {
+    pub fn trace_point_mut(&mut self, name: &str) -> Option<&mut TracePoint> {
+        self.trace_points_mut().find(|p| p.common.name == name)
+    }
+
+    pub fn stream_parsers(&self) -> impl Iterator<Item = &StreamParser> {
         use Program::*;
         self.programs.iter().filter_map(|prog| match prog {
             StreamParser(p) => Some(p),
@@ -829,7 +1033,7 @@ impl Module {
         })
     }
 
-    pub fn stream_parser_mut(&mut self) -> impl Iterator<Item = &mut StreamParser> {
+    pub fn stream_parsers_mut(&mut self) -> impl Iterator<Item = &mut StreamParser> {
         use Program::*;
         self.programs.iter_mut().filter_map(|prog| match prog {
             StreamParser(p) => Some(p),
@@ -837,7 +1041,11 @@ impl Module {
         })
     }
 
-    pub fn stream_verdict(&self) -> impl Iterator<Item = &StreamVerdict> {
+    pub fn stream_parser_mut(&mut self, name: &str) -> Option<&mut StreamParser> {
+        self.stream_parsers_mut().find(|p| p.common.name == name)
+    }
+
+    pub fn stream_verdicts(&self) -> impl Iterator<Item = &StreamVerdict> {
         use Program::*;
         self.programs.iter().filter_map(|prog| match prog {
             StreamVerdict(p) => Some(p),
@@ -845,12 +1053,16 @@ impl Module {
         })
     }
 
-    pub fn stream_verdict_mut(&mut self) -> impl Iterator<Item = &mut StreamVerdict> {
+    pub fn stream_verdicts_mut(&mut self) -> impl Iterator<Item = &mut StreamVerdict> {
         use Program::*;
         self.programs.iter_mut().filter_map(|prog| match prog {
             StreamVerdict(p) => Some(p),
             _ => None,
         })
+    }
+
+    pub fn stream_verdict_mut(&mut self, name: &str) -> Option<&mut StreamVerdict> {
+        self.stream_verdicts_mut().find(|p| p.common.name == name)
     }
 }
 
@@ -976,7 +1188,112 @@ impl Map {
             fd,
             config,
             section_data: false,
+            pin_file: None,
         })
+    }
+
+    /// Create `Map` from a file which represents pinned map
+    ///
+    /// # Example
+    /// ```no_run
+    /// use redbpf::{Array, Map};
+    /// let map = Map::from_pin_file("/sys/fs/bpf/persist_map").expect("error on creating map from file");
+    /// let array = Array::<u64>::new(&map).expect("error on creating array");
+    /// ```
+    pub fn from_pin_file(file: impl AsRef<Path>) -> Result<Map> {
+        let file = file.as_ref();
+        let fd = unsafe {
+            let cpathname = CString::new(file.to_str().unwrap())?;
+            bpf_sys::bpf_obj_get(cpathname.as_ptr())
+        };
+        if fd < 0 {
+            error!("error on bpf_obj_get: {}", io::Error::last_os_error());
+            return Err(Error::IO(io::Error::last_os_error()));
+        }
+        let map_info = unsafe {
+            let mut info = mem::zeroed::<bpf_map_info>();
+            let mut info_len = mem::size_of_val(&info) as u32;
+            if bpf_sys::bpf_obj_get_info_by_fd(fd, &mut info as *mut _ as *mut _, &mut info_len)
+                != 0
+            {
+                error!(
+                    "error on bpf_obj_get_info_by_fd: {}",
+                    io::Error::last_os_error()
+                );
+                return Err(Error::IO(io::Error::last_os_error()));
+            }
+            info
+        };
+
+        let name = unsafe {
+            CStr::from_ptr(&map_info.name as *const _)
+                .to_string_lossy()
+                .into_owned()
+        };
+        Ok(Map {
+            name,
+            kind: map_info.type_,
+            fd,
+            config: bpf_map_def {
+                type_: map_info.type_,
+                key_size: map_info.key_size,
+                value_size: map_info.value_size,
+                max_entries: map_info.max_entries,
+                map_flags: map_info.map_flags,
+            },
+            section_data: false,
+            pin_file: Some(Box::from(file)),
+        })
+    }
+
+    /// Pin map to BPF FS
+    ///
+    /// # Example
+    /// ```no_run
+    /// use redbpf::Module;
+    /// use redbpf::load::Loader;
+    /// let mut loaded = Loader::load_file("file.elf").expect("error loading probe");
+    /// loaded.map_mut("persist_map").expect("map not found").pin("/sys/fs/bpf/persist_map").expect("error on pinning");
+    /// ```
+    pub fn pin(&mut self, file: impl AsRef<Path>) -> Result<()> {
+        let file = file.as_ref();
+        if self.pin_file.is_some() {
+            error!("already pinned");
+            return Err(Error::Map);
+        }
+        pin_bpf_obj(self.fd, file)?;
+        self.pin_file = Some(Box::from(file));
+        Ok(())
+    }
+
+    /// Unpin map
+    ///
+    /// # Example
+    /// ```no_run
+    /// use redbpf::Module;
+    /// use redbpf::load::Loader;
+    /// let mut loaded = Loader::load_file("file.elf").expect("error loading probe");
+    /// let persist_map = loaded.map_mut("persist_map").expect("map not found");
+    /// persist_map.pin("/sys/fs/bpf/persist_map").expect("error on pinning");
+    /// // do some stuff...
+    /// persist_map.unpin().expect("error on unpinning");
+    /// ```
+    pub fn unpin(&mut self) -> Result<()> {
+        if self.pin_file.is_none() {
+            error!("not pinned");
+            return Err(Error::Map);
+        }
+        unpin_bpf_obj(self.pin_file.as_ref().unwrap())?;
+        self.pin_file = None;
+        Ok(())
+    }
+}
+
+impl Drop for Map {
+    fn drop(&mut self) {
+        unsafe {
+            let _ = libc::close(self.fd);
+        }
     }
 }
 
@@ -1401,7 +1718,7 @@ impl StreamParser {
     ///
     /// let loaded = Loader::load(b"echo.elf").expect("error loading BPF program");
     /// let mut echo_sockmap = SockMap::new(loaded.map("echo_sockmap").expect("sockmap not found")).unwrap();
-    /// loaded.stream_parser().next().unwrap().attach_sockmap(&echo_sockmap).expect("Attaching sockmap failed");
+    /// loaded.stream_parsers().next().unwrap().attach_sockmap(&echo_sockmap).expect("Attaching sockmap failed");
     /// ```
     pub fn attach_sockmap(&self, sock_map: &SockMap) -> Result<()> {
         let attach_fd = sock_map.base.fd;
@@ -1432,7 +1749,7 @@ impl StreamVerdict {
     ///
     /// let loaded = Loader::load(b"echo.elf").expect("error loading BPF program");
     /// let mut echo_sockmap = SockMap::new(loaded.map("echo_sockmap").expect("sockmap not found")).unwrap();
-    /// loaded.stream_verdict().next().unwrap().attach_sockmap(&echo_sockmap).expect("Attaching sockmap failed");
+    /// loaded.stream_verdicts().next().unwrap().attach_sockmap(&echo_sockmap).expect("Attaching sockmap failed");
     /// ```
     pub fn attach_sockmap(&self, sock_map: &SockMap) -> Result<()> {
         let attach_fd = sock_map.base.fd;

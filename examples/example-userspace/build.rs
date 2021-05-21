@@ -17,4 +17,5 @@ fn main() {
         .for_each(|file| {
             println!("cargo:rerun-if-changed={}", file);
         });
+    println!("cargo:rerun-if-changed=../example-probes/Cargo.toml");
 }

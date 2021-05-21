@@ -93,7 +93,7 @@ unsafe fn open_perf_buffer(pid: i32, cpu: i32, group: RawFd, flags: u32) -> Resu
     }
 }
 
-pub(crate) unsafe fn attach_perf_event(prog_fd: libc::c_int, pfd: libc::c_int) -> Result<()> {
+pub(crate) unsafe fn attach_perf_event(prog_fd: RawFd, pfd: RawFd) -> Result<()> {
     if ioctl(pfd, PERF_EVENT_IOC_SET_BPF, prog_fd) < 0 {
         return Err(Error::IO(io::Error::last_os_error()));
     }
@@ -101,6 +101,14 @@ pub(crate) unsafe fn attach_perf_event(prog_fd: libc::c_int, pfd: libc::c_int) -
     if ioctl(pfd, PERF_EVENT_IOC_ENABLE, 0) < 0 {
         return Err(Error::IO(io::Error::last_os_error()));
     }
+    Ok(())
+}
+
+pub(crate) unsafe fn detach_perf_event(pfd: RawFd) -> Result<()> {
+    if ioctl(pfd, PERF_EVENT_IOC_DISABLE, 0) != 0 {
+        return Err(Error::IO(io::Error::last_os_error()));
+    }
+
     Ok(())
 }
 
