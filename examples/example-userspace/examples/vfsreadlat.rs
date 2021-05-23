@@ -72,7 +72,7 @@ fn main() {
         .finish();
     tracing::subscriber::set_global_default(subscriber).unwrap();
 
-    if unsafe { libc::getuid() } != 0 {
+    if unsafe { libc::geteuid() } != 0 {
         error!("You must be root to use eBPF!");
         process::exit(1);
     }

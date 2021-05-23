@@ -18,7 +18,7 @@ use tokio::signal;
 use probes::knock::{Connection, KnockAttempt, PortSequence, MAX_SEQ_LEN};
 
 fn main() {
-    if unsafe { libc::getuid() } != 0 {
+    if unsafe { libc::geteuid() } != 0 {
         println!("redbpf-tcp-knock: You must be root to use eBPF!");
         process::exit(-1);
     }
