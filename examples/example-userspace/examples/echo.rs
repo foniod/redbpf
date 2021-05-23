@@ -21,7 +21,7 @@ enum Command {
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
-    if unsafe { libc::getuid() != 0 } {
+    if unsafe { libc::geteuid() != 0 } {
         eprintln!("You must be root to use eBPF!");
         process::exit(1);
     }
