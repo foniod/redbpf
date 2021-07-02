@@ -45,3 +45,13 @@ required-features = ["probes"]
 name = "biolatpcts"
 path = "src/biolatpcts/main.rs"
 required-features = ["probes"]
+
+[[bin]]
+name = "sharemap1"
+path = "src/sharemap1/main.rs"
+required-features = ["probes"]
+
+[[bin]]
+name = "sharemap2"
+path = "src/sharemap2/main.rs"
+required-features = ["probes"]
