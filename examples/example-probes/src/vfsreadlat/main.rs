@@ -5,11 +5,11 @@ use redbpf_probes::kprobe::prelude::*;
 
 program!(0xFFFFFFFE, "GPL");
 
-#[map("timestamp")]
-static mut timestamp: HashMap<u64, VFSEvent> = HashMap::with_max_entries(10240);
+#[map(link_section = "maps/timestamp")]
+static mut TIMESTAMP: HashMap<u64, VFSEvent> = HashMap::with_max_entries(10240);
 
-#[map("pid")]
-static mut pid: PerfMap<VFSEvent> = PerfMap::with_max_entries(10240);
+#[map(link_section = "maps/pid")]
+static mut PID: PerfMap<VFSEvent> = PerfMap::with_max_entries(10240);
 
 #[kprobe("vfs_read")]
 fn vfs_read_enter(_regs: Registers) {
@@ -24,7 +24,7 @@ fn vfs_read_enter(_regs: Registers) {
         latency: 0,
     };
     unsafe {
-        timestamp.set(&t, &event);
+        TIMESTAMP.set(&t, &event);
     };
 }
 
@@ -32,11 +32,11 @@ fn vfs_read_enter(_regs: Registers) {
 fn vfs_read_exit(regs: Registers) {
     let t = bpf_get_current_pid_tgid() & 0xFFFFFFFF;
     unsafe {
-        match timestamp.get_mut(&t) {
+        match TIMESTAMP.get_mut(&t) {
             Some(event) => {
-                timestamp.delete(&t);
+                TIMESTAMP.delete(&t);
                 event.latency = bpf_ktime_get_ns() - event.timestamp;
-                pid.insert(regs.ctx, &event);
+                PID.insert(regs.ctx, &event);
             }
             None => {}
         }
