@@ -10,12 +10,12 @@ Cargo subcommand for working with Rust eBPF programs.
 
 # Overview
 
-`cargo-bpf` is part of the [`redbpf`](https://github.com/redsift/redbpf)
+`cargo-bpf` is part of the [`redbpf`](https://github.com/foniod/redbpf)
 project. In addition to `cargo-bpf`, the `redbpf` project includes
-[`redbpf-probes`](https://ingraind.org/api/redbpf_probes/) and
-[`redbpf-macros`](https://ingraind.org/api/redbpf_macros/), which
-provide an idiomatic Rust API to write programs that can be compiled to eBPF
-bytecode and executed by the linux in-kernel eBPF virtual machine.
+[`redbpf-probes`](../../redbpf_probes/) and
+[`redbpf-macros`](../../redbpf_macros/), which provide an idiomatic Rust API to
+write programs that can be compiled to eBPF bytecode and executed by the linux
+in-kernel eBPF virtual machine.
 
 # Installation
 
@@ -235,7 +235,7 @@ fn main() {
         let target_dir = m
             .value_of("TARGET_DIR")
             .map(PathBuf::from)
-            .unwrap_or_else(||current_dir.join("target"));
+            .unwrap_or_else(|| current_dir.join("target"));
         let programs = m
             .values_of("NAME")
             .map(|i| i.map(String::from).collect())

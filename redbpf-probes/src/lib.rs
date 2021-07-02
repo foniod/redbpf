@@ -10,19 +10,19 @@ Rust API to write eBPF programs.
 
 # Overview
 
-`redbpf-probes` is part of the [redbpf](https://github.com/redsift/redbpf)
+`redbpf-probes` is part of the [redbpf](https://github.com/foniod/redbpf)
 project. It provides an idiomatic Rust API to write programs that can be
 compiled to eBPF bytecode and executed by the linux in-kernel eBPF virtual
 machine.
 
 This crate is expected to be used with the companion
-[`redbpf-macros`](https://ingraind.org/api/redbpf_macros/) crate - a
-collection of procedural macros used to reduce the amount of boilerplate
-needed to produce eBPF programs.
+[`redbpf-macros`](../../redbpf_macros/) crate - a collection of procedural
+macros used to reduce the amount of boilerplate needed to produce eBPF
+programs.
 
-To streamline the process of working with eBPF programs even further,
-`redbpf` also provides [`cargo-bpf`](https://ingraind.org/api/cargo_bpf/) -
-a cargo subcommand to simplify creating and building eBPF programs.
+To streamline the process of working with eBPF programs even further, `redbpf`
+also provides [`cargo-bpf`](../../cargo_bpf/) - a cargo subcommand to simplify
+creating and building eBPF programs.
 
 # Example
 
