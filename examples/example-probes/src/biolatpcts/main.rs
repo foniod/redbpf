@@ -7,8 +7,6 @@
 #![no_std]
 #![no_main]
 use core::cmp;
-use core::mem;
-use core::ptr;
 
 use redbpf_probes::kprobe::prelude::*;
 
@@ -20,13 +18,13 @@ use example_probes::bindings::{request, NSEC_PER_MSEC, NSEC_PER_USEC};
 
 program!(0xFFFFFFFE, "GPL");
 
-#[map("lat_100ms")]
+#[map(link_section = "maps/lat_100ms")]
 static mut LAT_100MS: PerCpuArray<u64> = PerCpuArray::with_max_entries(100);
 
-#[map("lat_1ms")]
+#[map(link_section = "maps/lat_1ms")]
 static mut LAT_1MS: PerCpuArray<u64> = PerCpuArray::with_max_entries(100);
 
-#[map("lat_10us")]
+#[map(link_section = "maps/lat_10us")]
 static mut LAT_10US: PerCpuArray<u64> = PerCpuArray::with_max_entries(100);
 
 #[kprobe("blk_account_io_done")]
@@ -42,7 +40,7 @@ fn blk_account_io_done(regs: Registers) {
     let slot = cmp::min(dur / (100 * NSEC_PER_MSEC) as u64, 99);
     unsafe {
         match LAT_100MS.get_mut(slot as u32) {
-            Some(mut val) => *val += 1,
+            Some(val) => *val += 1,
             _ => (),
         }
     }
@@ -53,7 +51,7 @@ fn blk_account_io_done(regs: Registers) {
     let slot = cmp::min(dur / NSEC_PER_MSEC as u64, 99);
     unsafe {
         match LAT_1MS.get_mut(slot as u32) {
-            Some(mut val) => *val += 1,
+            Some(val) => *val += 1,
             _ => (),
         }
     }
@@ -64,7 +62,7 @@ fn blk_account_io_done(regs: Registers) {
     let slot = cmp::min(dur / (10 * NSEC_PER_USEC) as u64, 99);
     unsafe {
         match LAT_10US.get_mut(slot as u32) {
-            Some(mut val) => *val += 1,
+            Some(val) => *val += 1,
             _ => (),
         }
     }
