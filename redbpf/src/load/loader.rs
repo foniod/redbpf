@@ -97,11 +97,11 @@ pub struct Loaded {
 
 impl Loaded {
     pub fn map(&self, name: &str) -> Option<&Map> {
-        self.module.maps.iter().find(|m| m.name == name)
+        self.module.map(name)
     }
 
     pub fn map_mut(&mut self, name: &str) -> Option<&mut Map> {
-        self.module.maps.iter_mut().find(|m| m.name == name)
+        self.module.map_mut(name)
     }
 
     pub fn program(&self, name: &str) -> Option<&Program> {
