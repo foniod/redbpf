@@ -55,8 +55,8 @@ use syn::parse::{Parse, ParseStream};
 use syn::punctuated::Punctuated;
 use syn::token::Comma;
 use syn::{
-    parse_macro_input, parse_quote, parse_str, Expr, ExprLit, File, ItemFn, ItemStatic, Lit, Meta,
-    Result,
+    parse_macro_input, parse_quote, parse_str, AttributeArgs, Expr, ExprLit, File, ItemFn,
+    ItemStatic, Lit, Meta, NestedMeta, Result,
 };
 
 fn inline_string_literal(e: &Expr) -> (TokenStream2, TokenStream2) {
@@ -156,7 +156,7 @@ pub fn impl_network_buffer_array(_: TokenStream) -> TokenStream {
 }
 
 /// Attribute macro that must be used when creating [eBPF
-/// maps](https://ingraind.org/api/redbpf_probes/maps/index.html).
+/// maps](../../redbpf_probes/maps/index.html).
 ///
 /// The default `#[map]` places the map into a section of the resulting
 /// ELF binary called `maps/<item_name>`.
@@ -186,44 +186,65 @@ pub fn impl_network_buffer_array(_: TokenStream) -> TokenStream {
 /// ```
 #[proc_macro_attribute]
 pub fn map(attrs: TokenStream, item: TokenStream) -> TokenStream {
-    let section_name = if attrs.is_empty() {
-        let item = item.clone();
-        let item = parse_macro_input!(item as ItemStatic);
-        format!("maps/{}", item.ident.to_string())
-    } else {
-        match syn::parse::<Meta>(attrs.clone()) {
-            // First try #[map(section_name = "..")]
-            Ok(Meta::NameValue(mnv)) => {
-                if !mnv.path.is_ident("link_section") {
-                    panic!("expected #[map(link_section = \"...\")]");
-                }
-                match mnv.lit {
-                    Lit::Str(lit_str) => lit_str.value(),
-                    _ => panic!("expected #[map(link_section = \"...\")]"),
+    let mut link_section: Option<String> = None;
+    for attr in parse_macro_input!(attrs as AttributeArgs) {
+        let mut allowed = false;
+        match attr {
+            NestedMeta::Meta(meta) => {
+                if let Meta::NameValue(mnv) = meta {
+                    if let Some(id) = mnv.path.get_ident() {
+                        // In case of #[map(link_section = "...", something_else = "...")]
+                        match id.to_string().as_str() {
+                            "link_section" => {
+                                if let Lit::Str(name) = mnv.lit {
+                                    if link_section.is_some() {
+                                        panic!(
+                                            "#[map(link_section = \"...\")] is used more than once"
+                                        );
+                                    }
+                                    link_section = Some(name.value());
+                                    allowed = true;
+                                }
+                            }
+                            _ => panic!("expected `link_section' as metadata of #[map]"),
+                        }
+                    }
                 }
             }
-            // Fallback to deprecated #[map("..")]
-            _ => match syn::parse::<Expr>(attrs) {
-                Ok(Expr::Lit(ExprLit {
-                    lit: Lit::Str(s), ..
-                })) => {
+            NestedMeta::Lit(lit) => {
+                // Fallback to deprecated #[map("...")]
+                if let Lit::Str(name) = lit {
+                    if link_section.is_some() {
+                        panic!("#[map(link_section = \"...\")] is specified multiple times");
+                    }
                     #[cfg(RUSTC_IS_NIGHTLY)]
-                    Diagnostic::new(Level::Warning, "`#[map(\"..\")` has been deprecated in favor of `#[map]` or `#[map(link_section = \"..\")]`")
-                        .emit();
-                    format!("maps/{}", s.value())
+                    Diagnostic::new(Level::Warning, "`#[map(\"..\")` has been deprecated in favor of `#[map]` or `#[map(link_section = \"..\")]`").emit();
+                    link_section = Some(format!("maps/{}", name.value()));
+                    allowed = true;
                 }
-                _ => panic!("expected #[map(\"...\")]"),
-            },
+            }
+        }
+
+        if !allowed {
+            panic!("expected #[map(link_section = \"...\")]");
+        }
+    }
+    let static_item = {
+        let item = item.clone();
+        parse_macro_input!(item as ItemStatic)
+    };
+    let section_name = link_section.unwrap_or_else(|| {
+        // In case of just #[map] without any metadata
+        format!("maps/{}", static_item.ident.to_string())
+    });
+    let tokens = {
+        let item = TokenStream2::from(item);
+        quote! {
+            #[no_mangle]
+            #[link_section = #section_name]
+            #item
         }
     };
-
-    let item = TokenStream2::from(item);
-    let tokens = quote! {
-        #[no_mangle]
-        #[link_section = #section_name]
-        #item
-    };
-
     tokens.into()
 }
 
