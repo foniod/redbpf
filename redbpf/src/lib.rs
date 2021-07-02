@@ -98,6 +98,35 @@ pub struct Module {
     pub version: u32,
 }
 
+/// A builder of [Module](struct.Module.html)
+///
+/// In most cases
+/// [`redbpf::load::Loader::load`](./load/struct.Loader.html#method.load) or
+/// [`redbpf::Module::parse`](struct.Module.html#method.parse) is enough to
+/// achieve your goal. These functions parse maps and programs from the ELF
+/// relocatable file and then load them into kernel directly. But sometimes you
+/// need to manipulate the maps or the programs before load them. That's why
+/// `ModuleBuilder` exists.
+///
+/// By `ModuleBuilder` you can achieve one goal at this moment: sharing maps
+/// among multiple independent BPF programs and their corresponding userspace
+/// programs by calling
+/// [`ModuleBuilder::replace_map`](struct.ModuleBuilder.html#method.replace_map)
+///
+/// cf. Here, "independent BPF programs" means that each BPF program had been
+/// compiled into a different ELF relocatable file. You don't have to deal with
+/// `ModuleBuilder` if all BPF programs are compiled into one ELF relocatable
+/// file.
+pub struct ModuleBuilder<'a> {
+    object: Elf<'a>,
+    programs: RSHashMap<usize, Program>,
+    map_builders: RSHashMap<usize, MapBuilder<'a>>,
+    symval_to_map_builders: RSHashMap<u64, MapBuilder<'a>>,
+    rels: Vec<RelocationInfo>,
+    license: String,
+    version: u32,
+}
+
 enum ProbeAttachType {
     Entry,
     Return,
@@ -182,6 +211,12 @@ pub struct Map {
     config: bpf_map_def,
     section_data: bool,
     pin_file: Option<Box<Path>>,
+}
+
+enum MapBuilder<'a> {
+    Normal { name: String, def: bpf_map_def },
+    SectionData { name: String, bytes: &'a [u8] },
+    ExistingMap(Map),
 }
 
 pub struct HashMap<'a, K: Clone, V: Clone> {
@@ -819,102 +854,15 @@ impl SocketFilter {
 
 impl Module {
     pub fn parse(bytes: &[u8]) -> Result<Module> {
-        let object = Elf::parse(&bytes[..])?;
-        let strtab = &object.strtab;
-        let symtab = object.syms.to_vec();
-        let shdr_relocs = &object.shdr_relocs;
+        ModuleBuilder::parse(bytes)?.to_module()
+    }
 
-        let mut rels = vec![];
-        let mut programs = RSHashMap::new();
-        // maps: section header index => map
-        // symval_to_maps: symbol value => map
-        let mut maps = RSHashMap::new();
-        let mut symval_to_maps = RSHashMap::new();
+    pub fn map(&self, name: &str) -> Option<&Map> {
+        self.maps.iter().find(|m| m.name == name)
+    }
 
-        let mut license = String::new();
-        let mut version = 0u32;
-
-        for (shndx, shdr) in object.section_headers.iter().enumerate() {
-            let (kind, name) = get_split_section_name(&object, &shdr, shndx)?;
-
-            let section_type = shdr.sh_type;
-            let content = data(&bytes, &shdr);
-
-            match (section_type, kind, name) {
-                (hdr::SHT_REL, _, _) => add_relocation(&mut rels, shndx, &shdr, shdr_relocs),
-                (hdr::SHT_PROGBITS, Some("version"), _) => version = get_version(&content),
-                (hdr::SHT_PROGBITS, Some("license"), _) => {
-                    license = zero::read_str(content).to_string()
-                }
-                (hdr::SHT_PROGBITS, Some(name), None)
-                    if name == ".bss"
-                        || name.starts_with(".data")
-                        || name.starts_with(".rodata") =>
-                {
-                    // load these as ARRAY maps containing one item: the section data. Then during
-                    // relocation make instructions point inside the maps.
-                    maps.insert(
-                        shndx,
-                        Map::with_section_data(
-                            name,
-                            content,
-                            if name.starts_with(".rodata") {
-                                bpf_sys::BPF_F_RDONLY_PROG
-                            } else {
-                                0
-                            },
-                        )?,
-                    );
-                }
-                (hdr::SHT_PROGBITS, Some("maps"), Some(name)) => {
-                    // Maps are immediately bcc_create_map'd
-                    maps.insert(shndx, Map::load(name, &content)?);
-                }
-                (hdr::SHT_PROGBITS, Some("maps"), None) => {
-                    // Somehow clang direct compiled binary (in C) uses this approach to define maps.
-                    // More specifically, the maps contains all map definitions (except names).
-                    let maps_syms = symtab.iter().filter(|sym| sym.st_shndx == shndx);
-
-                    for sym in maps_syms {
-                        let offset = sym.st_value as usize;
-                        let name = strtab.get(sym.st_name).ok_or(Error::ElfError)??;
-                        let cur_content = &content[offset..];
-                        symval_to_maps.insert(sym.st_value, Map::load(name, cur_content)?);
-                    }
-                }
-                (hdr::SHT_PROGBITS, Some(kind @ "kprobe"), Some(name))
-                | (hdr::SHT_PROGBITS, Some(kind @ "kretprobe"), Some(name))
-                | (hdr::SHT_PROGBITS, Some(kind @ "uprobe"), Some(name))
-                | (hdr::SHT_PROGBITS, Some(kind @ "uretprobe"), Some(name))
-                | (hdr::SHT_PROGBITS, Some(kind @ "xdp"), Some(name))
-                | (hdr::SHT_PROGBITS, Some(kind @ "socketfilter"), Some(name))
-                | (hdr::SHT_PROGBITS, Some(kind @ "streamparser"), Some(name))
-                | (hdr::SHT_PROGBITS, Some(kind @ "streamverdict"), Some(name)) => {
-                    programs.insert(shndx, Program::new(kind, name, &content)?);
-                }
-                _ => {}
-            }
-        }
-
-        // Rewrite programs with relocation data
-        for rel in rels.iter() {
-            if programs.contains_key(&rel.target_sec_idx) {
-                rel.apply(&mut programs, &maps, &symtab).or_else(|_| {
-                    // means that not normal case, we should rely on symbol value instead of section header index
-                    rel.apply_with_symmap(&mut programs, &symval_to_maps, &symtab)
-                })?;
-            }
-        }
-
-        let programs = programs.drain().map(|(_, v)| v).collect();
-        let mut maps: Vec<Map> = maps.drain().map(|(_, v)| v).collect();
-        maps.extend(symval_to_maps.drain().map(|(_, v)| v));
-        Ok(Module {
-            programs,
-            maps,
-            license,
-            version,
-        })
+    pub fn map_mut(&mut self, name: &str) -> Option<&mut Map> {
+        self.maps.iter_mut().find(|m| m.name == name)
     }
 
     pub fn program(&self, name: &str) -> Option<&Program> {
@@ -1066,16 +1014,222 @@ impl Module {
     }
 }
 
+impl<'a> ModuleBuilder<'a> {
+    /// Parse binary data of ELF relocatable file
+    ///
+    /// # Example
+    /// ```no_run
+    /// # static ELF_BINARY: [u8; 128] = [0u8; 128];
+    /// # fn probe_code() -> &'static [u8] { &ELF_BINARY }
+    /// use redbpf::ModuleBuilder;
+    /// let mut builder = ModuleBuilder::parse(probe_code()).expect("error on ModuleBuilder::parse");
+    /// ```
+    pub fn parse(bytes: &'a [u8]) -> Result<Self> {
+        let object = Elf::parse(bytes)?;
+        let strtab = &object.strtab;
+        let symtab = object.syms.to_vec();
+        let shdr_relocs = &object.shdr_relocs;
+
+        let mut rels = vec![];
+        let mut programs = RSHashMap::new();
+        // maps: section header index => map
+        let mut map_builders = RSHashMap::new();
+        // symval_to_maps: symbol value => map
+        let mut symval_to_map_builders = RSHashMap::new();
+
+        let mut license = String::new();
+        let mut version = 0u32;
+
+        for (shndx, shdr) in object.section_headers.iter().enumerate() {
+            let (kind, name) = get_split_section_name(&object, &shdr, shndx)?;
+
+            let section_type = shdr.sh_type;
+            let content = data(&bytes, &shdr);
+            match (section_type, kind, name) {
+                (hdr::SHT_REL, _, _) => add_relocation(&mut rels, shndx, &shdr, shdr_relocs),
+                (hdr::SHT_PROGBITS, Some("version"), _) => version = get_version(&content),
+                (hdr::SHT_PROGBITS, Some("license"), _) => {
+                    license = zero::read_str(content).to_string()
+                }
+                (hdr::SHT_PROGBITS, Some(name), None)
+                    if name == ".bss"
+                        || name.starts_with(".data")
+                        || name.starts_with(".rodata") =>
+                {
+                    let map_builder = MapBuilder::with_section_data(name, &content)?;
+                    map_builders.insert(shndx, map_builder);
+                }
+                (hdr::SHT_PROGBITS, Some("maps"), Some(name)) => {
+                    let map_builder = MapBuilder::parse(name, &content)?;
+                    map_builders.insert(shndx, map_builder);
+                }
+                (hdr::SHT_PROGBITS, Some("maps"), None) => {
+                    // Somehow clang direct compiled binary (in C) uses this approach to define maps.
+                    // More specifically, the maps contains all map definitions (except names).
+                    let maps_syms = symtab.iter().filter(|sym| sym.st_shndx == shndx);
+
+                    for sym in maps_syms {
+                        let offset = sym.st_value as usize;
+                        let name = strtab.get(sym.st_name).ok_or(Error::ElfError)??;
+                        let cur_content = &content[offset..];
+                        let map_builder = MapBuilder::parse(name, cur_content)?;
+                        symval_to_map_builders.insert(sym.st_value, map_builder);
+                    }
+                }
+                (hdr::SHT_PROGBITS, Some(kind @ "kprobe"), Some(name))
+                | (hdr::SHT_PROGBITS, Some(kind @ "kretprobe"), Some(name))
+                | (hdr::SHT_PROGBITS, Some(kind @ "uprobe"), Some(name))
+                | (hdr::SHT_PROGBITS, Some(kind @ "uretprobe"), Some(name))
+                | (hdr::SHT_PROGBITS, Some(kind @ "xdp"), Some(name))
+                | (hdr::SHT_PROGBITS, Some(kind @ "socketfilter"), Some(name))
+                | (hdr::SHT_PROGBITS, Some(kind @ "streamparser"), Some(name))
+                | (hdr::SHT_PROGBITS, Some(kind @ "streamverdict"), Some(name)) => {
+                    let prog = Program::new(kind, name, &content)?;
+                    programs.insert(shndx, prog);
+                }
+                _ => {}
+            }
+        }
+
+        Ok(ModuleBuilder {
+            object,
+            programs,
+            map_builders,
+            symval_to_map_builders,
+            rels,
+            license,
+            version,
+        })
+    }
+
+    /// Create [`Module`](struct.Module.html) from `ModuleBuilder`
+    ///
+    /// When this method is called, `ModuleBuilder` is moved out so the
+    /// instance can not be used any more.
+    ///
+    /// # Example
+    /// ```no_run
+    /// # let arr = [0u8; 128];
+    /// # let bytes = &arr;
+    /// use redbpf::ModuleBuilder;
+    /// let module = ModuleBuilder::parse(bytes).expect("error on ModuleBuilder::parse").to_module();
+    /// ```
+    pub fn to_module(mut self) -> Result<Module> {
+        let symtab = self.object.syms.to_vec();
+        let mut maps = RSHashMap::new();
+        for (shndx, map_builder) in self.map_builders.into_iter() {
+            let map = map_builder.to_map()?;
+            maps.insert(shndx, map);
+        }
+
+        let mut symval_to_maps = RSHashMap::new();
+        for (symval, map_builder) in self.symval_to_map_builders.into_iter() {
+            let map = map_builder.to_map()?;
+            symval_to_maps.insert(symval, map);
+        }
+
+        // Rewrite programs with relocation data
+        for rel in self.rels.iter() {
+            if self.programs.contains_key(&rel.target_sec_idx) {
+                if let Err(_) = rel.apply(&mut self.programs, &maps, &symtab) {
+                    // means that not normal case, we should rely on symbol value instead of section header index
+                    rel.apply_with_symmap(&mut self.programs, &symval_to_maps, &symtab)?;
+                }
+            }
+        }
+
+        let programs = self.programs.drain().map(|(_, v)| v).collect();
+        let mut maps: Vec<Map> = maps.drain().map(|(_, v)| v).collect();
+        maps.extend(symval_to_maps.drain().map(|(_, v)| v));
+
+        Ok(Module {
+            programs,
+            maps,
+            license: self.license,
+            version: self.version,
+        })
+    }
+
+    /// Replace a map whose name is `map_name` with a `new` [`Map`](struct.Map.html)
+    ///
+    /// This method can fail if there does not exist a map whose name is
+    /// `map_name` or definitions of `new` map and a map whose name is
+    /// `map_name` do not match each other. The compared definition includes
+    /// key size, value size, map type and the max entry number.
+    ///
+    /// # Example
+    /// ```no_run
+    /// # let arr = [0u8; 128];
+    /// # let bytes = &arr;
+    /// use redbpf::{ModuleBuilder, Map};
+    /// let mut builder = ModuleBuilder::parse(bytes).expect("error on ModuleBuilder::parse");
+    /// builder.replace_map("sharedmap", Map::from_pin_file("/sys/fs/bpf/sharedmap").expect("error on Map::from_pin_file")).expect("error on ModuleBuilder::replace_map");
+    /// let mut module = builder.to_module().expect("error on ModuleBuilder::to_module");
+    /// ```
+    pub fn replace_map(&mut self, map_name: &str, new: Map) -> Result<&mut Self> {
+        for (_, map_builder) in self.map_builders.iter_mut() {
+            match map_builder {
+                MapBuilder::Normal { name, def } => {
+                    if name == map_name {
+                        if !(def.type_ == new.config.type_
+                            && def.key_size == new.config.key_size
+                            && def.value_size == new.config.value_size
+                            && def.max_entries == new.config.max_entries)
+                        {
+                            error!("map definition does not match");
+                            return Err(Error::Map);
+                        }
+                        *map_builder = MapBuilder::with_existing_map(new)?;
+                        return Ok(self);
+                    }
+                }
+                MapBuilder::SectionData { name, .. } => {
+                    if name == map_name {
+                        if !new.section_data {
+                            error!("map is not for section data");
+                            return Err(Error::Map);
+                        }
+                        *map_builder = MapBuilder::with_existing_map(new)?;
+                        return Ok(self);
+                    }
+                }
+                MapBuilder::ExistingMap(map) => {
+                    if map.name == map_name {
+                        if !(map.config.type_ == new.config.type_
+                            && map.config.key_size == new.config.key_size
+                            && map.config.value_size == new.config.value_size
+                            && map.config.max_entries == new.config.max_entries)
+                        {
+                            error!("map definition does not match");
+                            return Err(Error::Map);
+                        }
+                        *map_builder = MapBuilder::with_existing_map(new)?;
+                        return Ok(self);
+                    }
+                }
+            }
+        }
+        error!("map of which name is `{}' not found", map_name);
+        Err(Error::Map)
+    }
+}
+
+fn get_section_name<'o>(object: &'o Elf, shdr: &SectionHeader) -> Result<&'o str> {
+    let name = object
+        .shdr_strtab
+        .get_unsafe(shdr.sh_name)
+        .ok_or_else(|| Error::Section(format!("Section name not found")))?;
+    Ok(name)
+}
+
 #[inline]
 fn get_split_section_name<'o>(
     object: &'o Elf<'_>,
     shdr: &'o SectionHeader,
     shndx: usize,
 ) -> Result<(Option<&'o str>, Option<&'o str>)> {
-    let name = object
-        .shdr_strtab
-        .get_unsafe(shdr.sh_name)
-        .ok_or_else(|| Error::Section(format!("Section name not found: {}", shndx)))?;
+    let name = get_section_name(object, shdr)
+        .or_else(|_| Err(Error::Section(format!("Section name not found: {}", shndx))))?;
 
     let mut names = name.splitn(2, '/');
 
@@ -1293,6 +1447,43 @@ impl Drop for Map {
     fn drop(&mut self) {
         unsafe {
             let _ = libc::close(self.fd);
+        }
+    }
+}
+
+impl<'a> MapBuilder<'a> {
+    fn parse(name: &str, bytes: &[u8]) -> Result<Self> {
+        let def = unsafe { ptr::read_unaligned(bytes.as_ptr() as *const bpf_map_def) };
+        Ok(MapBuilder::Normal {
+            def,
+            name: name.to_string(),
+        })
+    }
+
+    fn with_section_data(name: &str, bytes: &'a [u8]) -> Result<Self> {
+        Ok(MapBuilder::SectionData {
+            name: name.to_string(),
+            bytes,
+        })
+    }
+
+    fn with_existing_map(map: Map) -> Result<Self> {
+        Ok(MapBuilder::ExistingMap(map))
+    }
+
+    fn to_map(self) -> Result<Map> {
+        match self {
+            MapBuilder::Normal { name, def } => Map::with_map_def(name.as_ref(), def),
+            MapBuilder::SectionData { name, bytes } => Map::with_section_data(
+                name.as_ref(),
+                bytes,
+                if name.starts_with(".rodata") {
+                    bpf_sys::BPF_F_RDONLY_PROG
+                } else {
+                    0
+                },
+            ),
+            MapBuilder::ExistingMap(map) => Ok(map),
         }
     }
 }
