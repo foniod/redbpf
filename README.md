@@ -11,17 +11,17 @@ A Rust eBPF toolchain.
 The redbpf project is a collection of tools and libraries to build eBPF
 programs using Rust. It includes:
 
-- [redbpf](https://ingraind.org/api/redbpf/) - a user space library that can be
+- [redbpf](https://foniod.org/api/redbpf/) - a user space library that can be
   used to load eBPF programs
 
-- [redbpf-probes](https://ingraind.org/api/redbpf_probes/) - an idiomatic Rust
+- [redbpf-probes](https://foniod.org/api/redbpf_probes/) - an idiomatic Rust
   API to write eBPF programs that can be loaded by the linux kernel
 
-- [redbpf-macros](https://ingraind.org/api/redbpf_macros/) - companion crate to
+- [redbpf-macros](https://foniod.org/api/redbpf_macros/) - companion crate to
   `redbpf-probes` which provides convenient procedural macros useful when
   writing eBPF programs
 
-- [cargo-bpf](https://ingraind.org/api/cargo_bpf/) - a cargo subcommand for
+- [cargo-bpf](https://foniod.org/api/cargo_bpf/) - a cargo subcommand for
   creating, building and debugging eBPF programs
 
 # Requirements
@@ -62,13 +62,13 @@ Then install the dependencies running:
 # Getting started
 
 The easiest way to get started is using `cargo-bpf`, see the
-[documentation](https://ingraind.org/api/cargo_bpf/) for more info.
+[documentation](https://foniod.org/api/cargo_bpf/) for more info.
 
-[redbpf-tools](https://github.com/redsift/redbpf/tree/master/redbpf-tools) is a
+[redbpf-tools](https://github.com/foniod/redbpf/tree/master/redbpf-tools) is a
 `cargo-bpf` generated crate that includes simple examples you can use to
 understand how to structure your programs.
 
-Finally the [ingraind project](https://github.com/redsift/ingraind)
+Finally the [foniod project](https://github.com/foniod/foniod)
 includes more concrete examples of redbpf programs.
 
 # Building from source
@@ -104,15 +104,14 @@ at your option.
 # Contribution
 
 This project is for everyone. We ask that our users and contributors
-take a few minutes to review our [code of conduct](https://github.com/ingraind/project/blob/main/CODE_OF_CONDUCT.md).
+take a few minutes to review our [code of conduct](https://github.com/foniod/project/blob/main/CODE_OF_CONDUCT.md).
 
 Unless you explicitly state otherwise, any contribution intentionally submitted
 for inclusion in the work by you, as defined in the Apache-2.0 license, shall
 be dual licensed as above, without any additional terms or conditions.
 
-For further advice on getting started, please consult the
-[Contributor's
-Guide](https://github.com/ingraind/project/blob/main/CONTRIBUTING.md). Please
+For further advice on getting started, please consult the [Contributor's
+Guide](https://github.com/foniod/project/blob/main/CONTRIBUTING.md). Please
 note that all contributions MUST contain a [Developer Certificate of
-Origin](https://github.com/ingraind/project/blob/developer-certificate-of-origin/CONTRIBUTING.md#developer-certificate-of-origin)
+Origin](https://github.com/foniod/project/blob/developer-certificate-of-origin/CONTRIBUTING.md#developer-certificate-of-origin)
 sign-off line.

@@ -8,10 +8,9 @@
 /*!
 Linux Socket Filtering API.
 
-This module exposes the original Socket Filtering API. While still useful,
-you can often use
-[`XDP`](https://ingraind.org/api/redbpf_probes/xdp/index.html)
-for faster performance and a nicer API.
+This module exposes the original Socket Filtering API. While still useful, you
+can often use [`XDP`](../../api/redbpf_probes/xdp/index.html) for faster
+performance and a nicer API.
 
 # Example
 

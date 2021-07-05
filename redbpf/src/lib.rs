@@ -11,15 +11,15 @@ Rust API to load BPF programs.
 
 The redbpf crate provides an idiomatic Rust API to load and interact with BPF
 programs. It is part of the larger [redbpf
-project](https://github.com/redsift/redbpf).
+project](https://github.com/foniod/redbpf).
 
 BPF programs used with `redbpf` are typically created and built with
-[`cargo-bpf`](https://ingraind.org/api/cargo_bpf/), and use the
-[`redbpf-probes`](https://ingraind.org/api/redbpf_probes/) and
-[`redbpf-macros`](https://ingraind.org/api/redbpf_macros/) APIs.
+[`cargo-bpf`](../../cargo_bpf/), and use the
+[`redbpf-probes`](../../redbpf_probes/) and
+[`redbpf-macros`](../../redbpf_macros/) APIs.
 
 For full featured examples on how to use redbpf see
-<https://github.com/redsift/redbpf/tree/master/redbpf-tools>.
+<https://github.com/foniod/redbpf/tree/master/redbpf-tools>.
 
 # Example
 

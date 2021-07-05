@@ -2,9 +2,9 @@
 name = "redbpf"
 version = "1.3.0"
 description = "eBPF build and runtime library"
-repository = "https://github.com/redsift/redbpf"
-documentation = "https://ingraind.org/api//redbpf/"
-authors = ["Peter Parkanyi <peter@redsift.io>", "Alessandro Decina <alessandro.d@gmail.com>"]
+repository = "https://github.com/foniod/redbpf"
+documentation = "https://foniod.org/api/redbpf/"
+authors = ["Peter Parkanyi <p@symmetree.dev>", "Alessandro Decina <alessandro.d@gmail.com>", "Junyeong Jeong <rhdxmr@gmail.com>"]
 edition = "2018"
 license = "MIT OR Apache-2.0"
 keywords = ["bpf", "ebpf", "build", "bindgen", "redbpf"]

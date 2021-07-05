@@ -2,6 +2,8 @@
 name = "example-probes"
 version = "0.1.0"
 edition = '2018'
+repository = "https://github.com/foniod/redbpf"
+authors = ["Peter Parkanyi <p@symmetree.dev>", "Junyeong Jeong <rhdxmr@gmail.com>"]
 
 [build-dependencies]
 cargo-bpf = { version = "", path = "../../cargo-bpf", default-features = false, features = ["bindings"] }

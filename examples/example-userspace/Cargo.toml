@@ -1,8 +1,9 @@
 [package]
 name = "example-userspace"
 version = "0.1.0"
-authors = ["Junyeong Jeong <rhdxmr@gmail.com>"]
+authors = ["Peter Parkanyi <p@symmetree.dev>", "Junyeong Jeong <rhdxmr@gmail.com>"]
 edition = "2018"
+repository = "https://github.com/foniod/redbpf"
 
 [build-dependencies]
 cargo-bpf = { version = "", path = "../../cargo-bpf", default-features = false, features = ["build"] }
