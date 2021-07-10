@@ -13,10 +13,11 @@
 
 use futures::stream::StreamExt;
 use std::env;
-
 use std::process;
 use std::ptr;
 use tokio::signal::ctrl_c;
+use tracing::{error, Level};
+use tracing_subscriber::FmtSubscriber;
 
 use redbpf::load::Loader;
 use redbpf::HashMap;
@@ -25,8 +26,12 @@ use probes::tcp_lifetime::{SocketAddr, TCPLifetime};
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
+    let subscriber = FmtSubscriber::builder()
+        .with_max_level(Level::TRACE)
+        .finish();
+    tracing::subscriber::set_global_default(subscriber).unwrap();
     if unsafe { libc::geteuid() != 0 } {
-        eprintln!("You must be root to use eBPF!");
+        error!("You must be root to use eBPF!");
         process::exit(1);
     }
 
@@ -61,7 +66,7 @@ async fn main() {
                     }
                 }
                 _ => {
-                    eprintln!("unknown event = {}", name);
+                    error!("unknown event = {}", name);
                 }
             }
         }

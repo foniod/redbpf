@@ -9,6 +9,8 @@ use tokio::io::AsyncReadExt;
 use tokio::net::TcpListener;
 use tokio::sync::mpsc;
 use tokio::task;
+use tracing::{error, Level};
+use tracing_subscriber::FmtSubscriber;
 
 use probes::echo::IdxMapKey;
 use redbpf::load::Loader;
@@ -21,8 +23,13 @@ enum Command {
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
+    let subscriber = FmtSubscriber::builder()
+        .with_max_level(Level::TRACE)
+        .finish();
+    tracing::subscriber::set_global_default(subscriber).unwrap();
+
     if unsafe { libc::geteuid() != 0 } {
-        eprintln!("You must be root to use eBPF!");
+        error!("You must be root to use eBPF!");
         process::exit(1);
     }
 
@@ -63,7 +70,7 @@ async fn main() {
                     tx.send(Command::Delete { key }).await.unwrap();
                 });
             } else {
-                eprintln!("error: not an IPv4 address: {:?}", client_addr);
+                error!("error: not an IPv4 address: {:?}", client_addr);
             }
         }
     });

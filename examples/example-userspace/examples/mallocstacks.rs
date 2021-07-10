@@ -9,6 +9,8 @@ use std::sync::{Arc, Mutex};
 use tokio;
 use tokio::runtime;
 use tokio::signal;
+use tracing::{error, Level};
+use tracing_subscriber::FmtSubscriber;
 
 use redbpf::load::{Loaded, Loader};
 use redbpf::{BpfStackFrames, StackTrace};
@@ -60,18 +62,22 @@ fn start_perf_event_handler(mut loaded: Loaded, acc: Acc) {
 }
 
 fn main() {
+    let subscriber = FmtSubscriber::builder()
+        .with_max_level(Level::TRACE)
+        .finish();
+    tracing::subscriber::set_global_default(subscriber).unwrap();
     if unsafe { libc::geteuid() } != 0 {
-        eprintln!("You must be root to use eBPF!");
+        error!("You must be root to use eBPF!");
         process::exit(1);
     }
 
     let args: Vec<String> = env::args().collect();
     let pid = args.get(1).unwrap_or_else(|| {
-        eprintln!("PID must be specified");
+        error!("PID must be specified");
         process::exit(1);
     });
     let pid = pid.parse::<pid_t>().unwrap_or_else(|err| {
-        eprintln!("Invalid PID: {}", err);
+        error!("Invalid PID: {}", err);
         process::exit(1);
     });
 
@@ -110,7 +116,6 @@ fn main() {
 }
 
 fn probe_code() -> &'static [u8] {
-    println!(env!("OUT_DIR"));
     include_bytes!(concat!(
         env!("OUT_DIR"),
         "/target/bpf/programs/mallocstacks/mallocstacks.elf"

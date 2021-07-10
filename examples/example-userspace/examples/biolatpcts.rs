@@ -5,6 +5,8 @@
 use std::cmp;
 use std::time::Duration;
 use tokio::time::sleep;
+use tracing::{error, Level};
+use tracing_subscriber::FmtSubscriber;
 
 use redbpf::load::Loader;
 use redbpf::PerCpuArray;
@@ -66,8 +68,12 @@ fn calc_lat_pct(
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> ! {
+    let subscriber = FmtSubscriber::builder()
+        .with_max_level(Level::TRACE)
+        .finish();
+    tracing::subscriber::set_global_default(subscriber).unwrap();
     if unsafe { libc::geteuid() != 0 } {
-        eprintln!("You must be root to use eBPF!");
+        error!("You must be root to use eBPF!");
         std::process::exit(1);
     }
 
