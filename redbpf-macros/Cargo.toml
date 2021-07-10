@@ -16,6 +16,7 @@ proc-macro = true
 proc-macro2 = "1.0"
 syn = {version = "1.0", features = ["full"] }
 quote = "1.0"
+uuid = { version = "0.8.2", features = ["v4"] }
 
 [build-dependencies]
 rustc_version = "0.3.0"
