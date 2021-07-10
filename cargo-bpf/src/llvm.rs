@@ -1,18 +1,18 @@
 use anyhow::{anyhow, Result};
 use llvm_sys::bit_writer::LLVMWriteBitcodeToFile;
 use llvm_sys::core::*;
-use llvm_sys::debuginfo::LLVMStripModuleDebugInfo;
 use llvm_sys::ir_reader::LLVMParseIRInContext;
 use llvm_sys::prelude::*;
+use llvm_sys::support::LLVMParseCommandLineOptions;
 use llvm_sys::target::*;
 use llvm_sys::target_machine::*;
 use llvm_sys::transforms::ipo::LLVMAddAlwaysInlinerPass;
 use llvm_sys::transforms::pass_manager_builder::*;
 use llvm_sys::{LLVMAttributeFunctionIndex, LLVMInlineAsmDialect::*};
-use llvm_sys::support::LLVMParseCommandLineOptions;
 use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
 use std::path::Path;
+use std::process::Command;
 use std::ptr;
 
 pub unsafe fn init() {
@@ -82,13 +82,7 @@ unsafe fn inject_exit_call(context: LLVMContextRef, func: LLVMValueRef, builder:
     let last = LLVMGetLastInstruction(block);
     LLVMPositionBuilderBefore(builder, last);
     let c_str = CString::new("").unwrap();
-    LLVMBuildCall(
-        builder,
-        exit,
-        ptr::null_mut(),
-        0,
-        c_str.as_ptr(),
-    );
+    LLVMBuildCall(builder, exit, ptr::null_mut(), 0, c_str.as_ptr());
 }
 
 pub unsafe fn compile(input: &Path, output: &Path, bc_output: Option<&Path>) -> Result<()> {
@@ -99,6 +93,21 @@ pub unsafe fn compile(input: &Path, output: &Path, bc_output: Option<&Path>) -> 
     LLVMDisposeModule(module);
 
     ret
+}
+
+/// Strip debug sections from resulting ELF relocatable file
+///
+/// This removes sections of which name start with `.debug` and their
+/// associated relocation sections. But .BTF related sections are not stripped.
+///
+/// cf) `llvm_sys::debuginfo::LLVMStripModuleDebugInfo` removes BTF sections so do not call it.
+pub(crate) fn strip_debug(target: impl AsRef<Path>) -> Result<()> {
+    Command::new("llvm-strip")
+        .arg("-g")
+        .arg(target.as_ref())
+        .status()
+        .map(|_| ())
+        .or_else(|e| Err(anyhow!("llvm-strip failed: {}", e)))
 }
 
 pub unsafe fn process_ir(context: LLVMContextRef, module: LLVMModuleRef) -> Result<()> {

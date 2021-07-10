@@ -145,6 +145,9 @@ fn build_probe(cargo: &Path, package: &Path, target_dir: &Path, probe: &str) -> 
         )
     })?;
 
+    // stripping debug sections is optional process. So don't care its failure.
+    let _ = llvm::strip_debug(target);
+
     Ok(())
 }
 
@@ -175,7 +178,12 @@ pub fn build(
 
 pub fn cmd_build(programs: Vec<String>, target_dir: PathBuf) -> Result<(), CommandError> {
     let current_dir = std::env::current_dir().unwrap();
-    Ok(build(Path::new("cargo"), &current_dir, &target_dir, programs)?)
+    Ok(build(
+        Path::new("cargo"),
+        &current_dir,
+        &target_dir,
+        programs,
+    )?)
 }
 
 pub fn probe_files(package: &Path) -> Result<Vec<String>, Error> {
