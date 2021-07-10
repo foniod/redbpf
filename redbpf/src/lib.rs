@@ -1091,7 +1091,7 @@ impl<'a> ModuleBuilder<'a> {
 
                     for sym in maps_syms {
                         let offset = sym.st_value as usize;
-                        let name = strtab.get(sym.st_name).ok_or(Error::ElfError)??;
+                        let name = strtab.get_at(sym.st_name).ok_or(Error::ElfError)?;
                         let cur_content = &content[offset..];
                         let map_builder = MapBuilder::parse(name, cur_content)?;
                         symval_to_map_builders.insert(sym.st_value, map_builder);

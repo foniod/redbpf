@@ -37,8 +37,7 @@ impl<'a> ElfSymbols<'a> {
         self.elf.dynsyms.iter().find(|sym| {
             self.elf
                 .dynstrtab
-                .get(sym.st_name)
-                .and_then(|n| n.ok())
+                .get_at(sym.st_name)
                 .map(|n| n == sym_name)
                 .unwrap_or(false)
         })
@@ -48,8 +47,7 @@ impl<'a> ElfSymbols<'a> {
         self.elf.syms.iter().find(|sym| {
             self.elf
                 .strtab
-                .get(sym.st_name)
-                .and_then(|n| n.ok())
+                .get_at(sym.st_name)
                 .map(|n| n == sym_name)
                 .unwrap_or(false)
         })
