@@ -54,9 +54,10 @@ use syn::parse::{Parse, ParseStream};
 use syn::punctuated::Punctuated;
 use syn::token::Comma;
 use syn::{
-    parse_macro_input, parse_quote, parse_str, AttributeArgs, Expr, ExprLit, File, ItemFn,
-    ItemStatic, Lit, Meta, NestedMeta, Result,
+    parse_macro_input, parse_quote, parse_str, AttributeArgs, Expr, ExprLit, File, GenericArgument,
+    ItemFn, ItemStatic, Lit, Meta, NestedMeta, PathArguments, Result, Type,
 };
+use uuid::Uuid;
 
 fn inline_string_literal(e: &Expr) -> (TokenStream2, TokenStream2) {
     let bytes = match e {
@@ -236,7 +237,7 @@ pub fn map(attrs: TokenStream, item: TokenStream) -> TokenStream {
         // In case of just #[map] without any metadata
         format!("maps/{}", static_item.ident.to_string())
     });
-    let tokens = {
+    let mut tokens = {
         let item = TokenStream2::from(item);
         quote! {
             #[no_mangle]
@@ -244,6 +245,56 @@ pub fn map(attrs: TokenStream, item: TokenStream) -> TokenStream {
             #item
         }
     };
+    let mut key_type: Option<GenericArgument> = None;
+    let mut value_type: Option<GenericArgument> = None;
+    if let Type::Path(path) = *static_item.ty {
+        if let Some(seg) = path.path.segments.last() {
+            if let PathArguments::AngleBracketed(bracket) = &seg.arguments {
+                // <K, V> or <V>
+                let map_type_name = seg.ident.to_string();
+                match map_type_name.as_ref() {
+                    "Array" | "PerCpuArray" => {
+                        if bracket.args.len() == 1 {
+                            key_type = Some(parse_quote!(u32));
+                            value_type = Some(bracket.args.first().unwrap().clone());
+                        }
+                    }
+                    "HashMap" => {
+                        if bracket.args.len() == 2 {
+                            key_type = Some(bracket.args.first().unwrap().clone());
+                            value_type = Some(bracket.args.last().unwrap().clone());
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+    if key_type.is_some() && value_type.is_some() {
+        let mod_name = format!("_{}", Uuid::new_v4().to_simple().to_string());
+        let mod_ident = syn::Ident::new(&mod_name, static_item.ident.span());
+        let ktype = key_type.unwrap();
+        let vtype = value_type.unwrap();
+        tokens.extend(quote! {
+            mod #mod_ident {
+                #[allow(unused_imports)]
+                use super::*;
+                use core::mem;
+
+                #[repr(C)]
+                struct MapBtf {
+                    key_type: #ktype,
+                    value_type: #vtype,
+                }
+                // `impl Sync` is needed to allow pointer types of keys and values
+                unsafe impl Sync for MapBtf {}
+                const N: usize = mem::size_of::<MapBtf>();
+                #[used]
+                #[link_section = #section_name]
+                static MAP_BTF: MapBtf = unsafe { mem::transmute::<[u8; N], MapBtf>([0u8; N])};
+            }
+        });
+    }
     tokens.into()
 }
 
