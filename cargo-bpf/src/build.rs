@@ -111,6 +111,7 @@ fn build_probe(cargo: &Path, package: &Path, target_dir: &Path, probe: &str) -> 
             "--emit=llvm-bc -C panic=abort -C lto -C link-arg=-nostartfiles -C opt-level=3"
                 .split(' '),
         )
+        .arg("-g") // To generate .BTF section
         .arg("-o")
         .arg(artifacts_dir.join(probe).to_str().unwrap())
         .status()?
