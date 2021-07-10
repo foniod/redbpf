@@ -21,6 +21,7 @@ pub enum Error {
     ProgramAlreadyLoaded,
     ProgramNotLoaded,
     ElfError,
+    BTF(String),
 }
 
 pub type Result<T> = ::std::result::Result<T, Error>;
