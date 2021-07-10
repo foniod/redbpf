@@ -44,6 +44,7 @@ for kprobe in loader.kprobes_mut() {
 #[macro_use]
 extern crate lazy_static;
 
+mod btf;
 pub mod cpus;
 mod error;
 #[cfg(feature = "load")]
@@ -55,9 +56,10 @@ pub mod xdp;
 
 pub use bpf_sys::uname;
 use bpf_sys::{
-    bpf_attach_type_BPF_SK_SKB_STREAM_PARSER, bpf_attach_type_BPF_SK_SKB_STREAM_VERDICT, bpf_insn,
-    bpf_map_def, bpf_map_info, bpf_map_type_BPF_MAP_TYPE_ARRAY,
-    bpf_map_type_BPF_MAP_TYPE_PERCPU_ARRAY, bpf_prog_type, BPF_ANY,
+    bpf_attach_type_BPF_SK_SKB_STREAM_PARSER, bpf_attach_type_BPF_SK_SKB_STREAM_VERDICT,
+    bpf_create_map_attr, bpf_create_map_xattr, bpf_insn, bpf_map_def, bpf_map_info,
+    bpf_map_type_BPF_MAP_TYPE_ARRAY, bpf_map_type_BPF_MAP_TYPE_PERCPU_ARRAY, bpf_prog_type,
+    BPF_ANY,
 };
 use goblin::elf::{reloc::RelocSection, section_header as hdr, Elf, SectionHeader, Sym};
 
@@ -67,19 +69,19 @@ use std::ffi::{CStr, CString};
 use std::fs;
 use std::io::{self, ErrorKind};
 use std::marker::PhantomData;
-use std::mem;
-use std::mem::MaybeUninit;
+use std::mem::{self, MaybeUninit};
 use std::ops::{Deref, DerefMut};
 use std::os::unix::io::RawFd;
 use std::path::{Path, PathBuf};
 use std::ptr;
 
+use crate::btf::{MapBtfTypeId, BTF};
 pub use crate::error::{Error, Result};
 pub use crate::perf::*;
 use crate::symbols::*;
 use crate::uname::get_kernel_internal_version;
 
-use tracing::error;
+use tracing::{debug, error};
 
 #[cfg(target_arch = "aarch64")]
 pub type DataPtr = *const u8;
@@ -125,6 +127,9 @@ pub struct ModuleBuilder<'a> {
     rels: Vec<RelocationInfo>,
     license: String,
     version: u32,
+    // BTF should survive until all maps are created with it. So keep it
+    #[allow(dead_code)]
+    btf: Option<BTF>,
 }
 
 enum ProbeAttachType {
@@ -214,8 +219,15 @@ pub struct Map {
 }
 
 enum MapBuilder<'a> {
-    Normal { name: String, def: bpf_map_def },
-    SectionData { name: String, bytes: &'a [u8] },
+    Normal {
+        name: String,
+        def: bpf_map_def,
+        btf_type_id: Option<MapBtfTypeId>,
+    },
+    SectionData {
+        name: String,
+        bytes: &'a [u8],
+    },
     ExistingMap(Map),
 }
 
@@ -1039,7 +1051,8 @@ impl<'a> ModuleBuilder<'a> {
 
         let mut license = String::new();
         let mut version = 0u32;
-
+        // BTF is optional
+        let btf = BTF::parse(&object, bytes).ok();
         for (shndx, shdr) in object.section_headers.iter().enumerate() {
             let (kind, name) = get_split_section_name(&object, &shdr, shndx)?;
 
@@ -1060,7 +1073,15 @@ impl<'a> ModuleBuilder<'a> {
                     map_builders.insert(shndx, map_builder);
                 }
                 (hdr::SHT_PROGBITS, Some("maps"), Some(name)) => {
-                    let map_builder = MapBuilder::parse(name, &content)?;
+                    let mut map_builder = MapBuilder::parse(name, &content)?;
+                    if let Some(ref btf) = btf {
+                        if let Ok(sec_name) = get_section_name(&object, shdr) {
+                            if let Some(map_btf_type_id) = btf.get_map_type_ids(sec_name) {
+                                debug!("Map `{}' has BTF info. {:?}", name, map_btf_type_id);
+                                let _ = map_builder.set_btf(map_btf_type_id);
+                            }
+                        }
+                    }
                     map_builders.insert(shndx, map_builder);
                 }
                 (hdr::SHT_PROGBITS, Some("maps"), None) => {
@@ -1099,6 +1120,7 @@ impl<'a> ModuleBuilder<'a> {
             rels,
             license,
             version,
+            btf,
         })
     }
 
@@ -1169,7 +1191,11 @@ impl<'a> ModuleBuilder<'a> {
     pub fn replace_map(&mut self, map_name: &str, new: Map) -> Result<&mut Self> {
         for (_, map_builder) in self.map_builders.iter_mut() {
             match map_builder {
-                MapBuilder::Normal { name, def } => {
+                MapBuilder::Normal {
+                    name,
+                    def,
+                    btf_type_id: _,
+                } => {
                     if name == map_name {
                         if !(def.type_ == new.config.type_
                             && def.key_size == new.config.key_size
@@ -1288,7 +1314,7 @@ impl RelocationInfo {
 impl Map {
     pub fn load(name: &str, code: &[u8]) -> Result<Map> {
         let config: bpf_map_def = *zero::read(code);
-        Map::with_map_def(name, config)
+        Map::with_map_def(name, config, None)
     }
 
     fn with_section_data(name: &str, data: &[u8], flags: u32) -> Result<Map> {
@@ -1301,6 +1327,7 @@ impl Map {
                 max_entries: 1,
                 map_flags: flags,
             },
+            None,
         )?;
         map.section_data = true;
         // for BSS we don't need to copy the data, it's already 0-initialized
@@ -1320,17 +1347,28 @@ impl Map {
         Ok(map)
     }
 
-    fn with_map_def(name: &str, config: bpf_map_def) -> Result<Map> {
-        let cname = CString::new(name)?;
+    fn with_map_def(
+        name: &str,
+        config: bpf_map_def,
+        btf_type_id: Option<MapBtfTypeId>,
+    ) -> Result<Map> {
         let fd = unsafe {
-            bpf_sys::bpf_create_map_name(
-                config.type_,
-                cname.as_ptr(),
-                config.key_size as i32,
-                config.value_size as i32,
-                config.max_entries as i32,
-                config.map_flags as u32,
-            )
+            let cname = CString::new(name)?;
+            let mut attr_uninit = MaybeUninit::<bpf_create_map_attr>::zeroed();
+            let attr_ptr = attr_uninit.as_mut_ptr();
+            (*attr_ptr).name = cname.as_ptr();
+            (*attr_ptr).map_type = config.type_;
+            (*attr_ptr).map_flags = config.map_flags;
+            (*attr_ptr).key_size = config.key_size;
+            (*attr_ptr).value_size = config.value_size;
+            (*attr_ptr).max_entries = config.max_entries;
+            if let Some(type_id) = btf_type_id {
+                (*attr_ptr).btf_fd = type_id.btf_fd as u32;
+                (*attr_ptr).btf_key_type_id = type_id.key_type_id;
+                (*attr_ptr).btf_value_type_id = type_id.value_type_id;
+            }
+            let attr = attr_uninit.assume_init();
+            bpf_create_map_xattr(&attr)
         };
         if fd < 0 {
             return Err(Error::Map);
@@ -1457,6 +1495,7 @@ impl<'a> MapBuilder<'a> {
         Ok(MapBuilder::Normal {
             def,
             name: name.to_string(),
+            btf_type_id: None,
         })
     }
 
@@ -1471,9 +1510,30 @@ impl<'a> MapBuilder<'a> {
         Ok(MapBuilder::ExistingMap(map))
     }
 
+    fn set_btf(&mut self, type_id: MapBtfTypeId) -> Result<&mut Self> {
+        match self {
+            MapBuilder::Normal { btf_type_id, .. } => {
+                *btf_type_id = Some(type_id);
+                Ok(self)
+            }
+            MapBuilder::SectionData { .. } => {
+                error!("map for section data does not support BTF");
+                Err(Error::Map)
+            }
+            MapBuilder::ExistingMap(_) => {
+                error!("can not set BTF type id to already existing map");
+                Err(Error::Map)
+            }
+        }
+    }
+
     fn to_map(self) -> Result<Map> {
         match self {
-            MapBuilder::Normal { name, def } => Map::with_map_def(name.as_ref(), def),
+            MapBuilder::Normal {
+                name,
+                def,
+                btf_type_id,
+            } => Map::with_map_def(name.as_ref(), def, btf_type_id),
             MapBuilder::SectionData { name, bytes } => Map::with_section_data(
                 name.as_ref(),
                 bytes,
