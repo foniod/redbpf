@@ -90,6 +90,7 @@ fn main() {
         .header("libbpf_xdp.h")
         .header("libbpf/src/bpf.h")
         .header("libbpf/src/libbpf.h")
+        .header("libbpf/include/uapi/linux/btf.h")
         .clang_arg("-Ilibbpf/src")
         .clang_arg("-Ilibbpf/include/uapi")
         .clang_arg("-Ilibbpf/include")
