@@ -1,3 +1,43 @@
+// Copyright 2021 Authors of redBPF
+//
+// Licensed under the Apache License, Version 2.0, <LICENSE-APACHE or
+// http://apache.org/licenses/LICENSE-2.0> or the MIT license <LICENSE-MIT or
+// http://opensource.org/licenses/MIT>, at your option. This file may not be
+// copied, modified, or distributed except according to those terms.
+/*!
+BPF for tc utility
+
+tc supports attaching BPF programs to `clsact` qdisc as a direct action. You
+can write BPF programs and BPF maps using `redBPF`.
+
+# Example
+
+```no_run
+#![no_std]
+#![no_main]
+
+use redbpf_macros::map;
+use redbpf_probes::tc::prelude::*;
+
+program!(0xFFFFFFFE, "GPL");
+
+#[map(link_section = "maps")]
+static mut blocked_packets: TcHashMap<u16, u64> =
+    TcHashMap::<u16, u64>::with_max_entries(1024, TcMapPinning::GlobalNamespace);
+
+#[tc_action]
+fn block_ports(skb: SkBuff) -> TcActionResult {
+    // do some stuff ...
+    let port = 714;
+    if let Some(count) = unsafe { blocked_packets.get(&port) } {
+        *count += 1;
+        Ok(TcAction::Shot)
+    } else {
+        Ok(TcAction::Ok)
+    }
+}
+```
+*/
 use crate::socket::SocketError;
 
 /// Possible actions in tc programs
