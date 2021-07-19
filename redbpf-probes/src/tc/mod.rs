@@ -41,10 +41,11 @@ pub enum TcAction {
 
 /// Result type for tc action programs.
 pub type TcActionResult = Result<TcAction, SocketError>;
+pub mod maps;
 
 pub mod prelude {
+    pub use super::maps::*;
     pub use super::*;
-
     pub use crate::bindings::*;
     pub use crate::helpers::*;
     pub use crate::maps::*;
