@@ -68,7 +68,7 @@ fn main() {
         .header("libbpf/src/libbpf.h")
         .clang_arg("-Ilibbpf/include/uapi")
         .clang_arg("-Ilibbpf/include")
-        .whitelist_type("bpf_map_def")
+        .allowlist_type("bpf_map_def")
         .generate()
         .expect("Unable to generate bindings");
     bindings
