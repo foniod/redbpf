@@ -1,3 +1,6 @@
+#ifndef __VMLINUX_H__
+// If __VMLINUX_H__ macro is not set, it means that redbpf-tools generates rust
+// bindings of the Linux kernel structs using kernel headers.
 #define KBUILD_MODNAME "cargo_bpf_bindings"
 #include <linux/kconfig.h>
 #include <linux/types.h>
@@ -10,3 +13,4 @@
 #define asm_inline asm
 #endif
 #include <linux/blkdev.h>
+#endif

@@ -47,6 +47,58 @@ pub fn block_port_80(ctx: XdpContext) -> XdpResult {
 }
 ```
 
+# Methods of generating rust bindings
+
+Rust bindings for structs and enums of the Linux kernel are used by BPF
+programs. redBPF provides two methods for generating the rust bindings.
+
+1. Generate rust bindings from the Linux kernel headers that are pre-installed
+in the system. The Linux kernel headers are located by
+[`bpf_sys::headers`](../../bpf_sys/headers/index.html).
+
+2. Generate rust bindings from `vmlinux.h`. It is generated on the spot by
+[`bpf_sys::type_gen`](../../bpf_sys/type_gen/index.html). The vmlinux is an
+image of the Linux kernel so all data types including internal structs and
+enums can be dumped into C source code from the vmlinux image.
+
+Users of redBPF can select a preferred method for generating rust bindings by
+setting environment variables explained as below.
+
+# Rules about method selection
+
+In order to select a method between two methods, three environment variables
+are involved: `KERNEL_SOURCE`, `KERNEL_VERSION` and `REDBPF_VMLINUX`.
+
+Case 1. No setting
+
+If none of the three environment variables are set, both two methods of
+generating rust bindings will be tried. First, the method with the Linux kernel
+headers is tried. If it fails, then the method with vmlinux is tried as
+fallback.
+
+Case 2. When `REDBPF_VMLINUX` is set
+
+`REDBPF_VMLINUX` takes precedence over `KERNEL_SOURCE` and `KERNEL_VERSION`
+environment variables. So the method of generating rust bindings of the Linux
+kernel data structures for BPF programs is to vmlinux.h that is generated from
+vmlinux image. No pre-installed kernel headers are required in this case.
+
+Case 3. `REDBPF_VMLINUX` is not set, but any of `KERNEL_SOURCE` or
+`KERNEL_VERSION` environment variables are set
+
+The method of generating rust bindings of the Linux kernel data structures for
+BPF programs is to use the kernel headers in the specified path. In this case
+vmlinux is not required at all.
+
+# Possible `REDBPF_VMLINUX` values
+
+1. A path to the custom vmlinux. e.g) `REDBPF_VMLINUX=/boot/my-vmlinux-5.11.0`
+
+2. Special treatment for `REDBPF_VMLINUX=system`. If `system` is given, redBPF
+tries to probe vmlinux from the well-known system paths and uses it
+
+3. `REDBPF_VMLINUX` not set. The behavior of redBPF depends on whether
+`KERNEL_SOURCE` and `KERNEL_VERSION` environment variables are given or not.
 */
 #![deny(clippy::all)]
 #![no_std]
