@@ -8,15 +8,7 @@
 #![deny(clippy::all)]
 use std::env;
 use std::path::PathBuf;
-
-const KERNEL_HEADERS: [&str; 6] = [
-    "arch/x86/include/generated/uapi",
-    "arch/x86/include/uapi",
-    "arch/x86/include/",
-    "include/generated/uapi",
-    "include/uapi",
-    "include",
-];
+use std::process::Command;
 
 pub mod uname {
     include!(concat!(env!("CARGO_MANIFEST_DIR"), "/src/uname.rs"));
@@ -37,65 +29,36 @@ fn rerun_if_changed_dir(dir: &str) {
 }
 
 fn main() {
+    println!(
+        "cargo:rustc-link-search=native={}",
+        env::var("OUT_DIR").unwrap()
+    );
     println!("cargo:rustc-link-lib=static=bpf");
+    println!("cargo:rustc-link-lib=elf");
+    println!("cargo:rustc-link-lib=z");
     for dir in &["libbpf", "libelf"] {
         rerun_if_changed_dir(dir);
     }
     println!("cargo:rerun-if-changed=bpfsys-musl.h");
     println!("cargo:rerun-if-changed=libbpf_xdp.h");
 
-    let target = env::var("TARGET").unwrap();
     let out_dir = env::var("OUT_DIR").unwrap();
     let out_path = PathBuf::from(out_dir);
 
-    let mut libbpf = cc::Build::new();
-    libbpf
-        .flag("-Wno-sign-compare")
-        .flag("-Wno-int-conversion")
-        .flag("-Wno-unused-parameter")
-        .flag("-Wno-unused-result")
-        .flag("-Wno-format-truncation")
-        .flag("-Wno-missing-field-initializers")
-        .include("libbpf/include/uapi")
-        .include("libbpf/include")
-        .include("libelf")
-        .include(".");
-    if target.contains("musl") {
-        for include in
-            headers::prefix_kernel_headers(&KERNEL_HEADERS).expect("couldn't find kernel headers")
-        {
-            libbpf.include(include);
-        }
-        libbpf
-            .define("COMPAT_NEED_REALLOCARRAY", "1")
-            .flag("-include")
-            .flag("bpfsys-musl.h");
-    }
-    libbpf
-        .flag("-include")
-        .flag("linux/stddef.h")
-        .file("libbpf/src/bpf.c")
-        .file("libbpf/src/bpf_prog_linfo.c")
-        .file("libbpf/src/btf.c")
-        .file("libbpf/src/libbpf.c")
-        .file("libbpf/src/libbpf_errno.c")
-        .file("libbpf/src/libbpf_probes.c")
-        .file("libbpf/src/netlink.c")
-        .file("libbpf/src/nlattr.c")
-        .file("libbpf/src/str_error.c")
-        .file("libbpf/src/xsk.c")
-        .compile("libbpf.a");
-
+    // -fPIE is passed because Fedora 35 requires it. Other distros like Ubuntu
+    // 21.04, Alpine 3.14 also works find with it
+    Command::new("make").args(format!("-C libbpf/src BUILD_STATIC_ONLY=1 OBJDIR={}/libbpf DESTDIR={out_dir} INCLUDEDIR= LIBDIR= UAPIDIR=", out_dir=env::var("OUT_DIR").unwrap()).split(" ")).arg("CFLAGS=-g -O2 -Werror -Wall -fPIE").arg("install").status().unwrap();
     let bindings = bindgen::Builder::default()
         .header("libbpf_xdp.h")
         .header("libbpf/src/bpf.h")
         .header("libbpf/src/libbpf.h")
         .header("libbpf/include/uapi/linux/btf.h")
+        .header("libbpf/src/btf.h")
         .clang_arg("-Ilibbpf/src")
         .clang_arg("-Ilibbpf/include/uapi")
         .clang_arg("-Ilibbpf/include")
         // blacklist `bpf_map_def` to avoid conflict with libbpf_map_def.rs
-        .blacklist_type("bpf_map_def")
+        .blocklist_type("bpf_map_def")
         .generate()
         .expect("Unable to generate bindings");
     bindings
