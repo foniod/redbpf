@@ -19,3 +19,5 @@ include!(concat!(env!("OUT_DIR"), "/libbpf_bindings.rs"));
 include!(concat!(env!("OUT_DIR"), "/libbpf_map_def.rs"));
 unsafe impl ::zero::Pod for bpf_map_def {}
 unsafe impl ::zero::Pod for bpf_insn {}
+
+pub mod type_gen;
