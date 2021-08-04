@@ -62,7 +62,7 @@ pub fn prefix_kernel_headers(headers: &[&str]) -> Option<Vec<String>> {
 }
 
 pub fn running_kernel_version() -> Option<String> {
-    env::var(ENV_SOURCE_VERSION).ok().or_else(|| {
+    get_custom_header_version().or_else(|| {
         uname::uname()
             .ok()
             .map(|u| uname::to_str(&u.release).to_string())
@@ -104,7 +104,7 @@ pub fn build_kernel_version() -> Result<KernelVersion, Box<dyn Error>> {
 }
 
 fn kernel_headers_path() -> Result<KernelHeaders, HeadersError> {
-    let source_path = env::var(ENV_SOURCE_PATH).ok().map(PathBuf::from);
+    let source_path = get_custom_header_path();
     let split_source_path = source_path.clone().and_then(split_kernel_headers);
 
     if split_source_path.is_some() {
@@ -151,4 +151,18 @@ fn split_kernel_headers(path: PathBuf) -> Option<KernelHeaders> {
     };
 
     Some(KernelHeaders { source, build })
+}
+
+/// Get user defined custom path of the Linux kernel header directory
+///
+/// It returns `KERNEL_SOURCE` environment variable if it is set
+pub fn get_custom_header_path() -> Option<PathBuf> {
+    Some(PathBuf::from(env::var(ENV_SOURCE_PATH).ok()?))
+}
+
+/// Get user defined custom version of the Linux kernel header
+///
+/// It returns `KERNEL_VERSION` environment variable if it is set
+pub fn get_custom_header_version() -> Option<String> {
+    env::var(ENV_SOURCE_VERSION).ok()
 }

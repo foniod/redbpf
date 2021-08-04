@@ -1,9 +1,14 @@
-
 use std::env;
 use std::fs::File;
 use std::io::{self, Write};
 use std::path::PathBuf;
+use tracing::{debug, warn, Level};
+use tracing_subscriber::FmtSubscriber;
 
+use bpf_sys::{
+    headers::{get_custom_header_path, get_custom_header_version},
+    type_gen::get_custom_vmlinux_path,
+};
 use cargo_bpf_lib::bindgen as bpf_bindgen;
 
 fn create_module(path: PathBuf, name: &str, bindings: &str) -> io::Result<()> {
@@ -35,6 +40,10 @@ fn rerun_if_changed_dir(dir: &str) {
 }
 
 fn main() {
+    let subscriber = FmtSubscriber::builder()
+        .with_max_level(Level::TRACE)
+        .finish();
+    tracing::subscriber::set_global_default(subscriber).unwrap();
     rerun_if_changed_dir("include");
 
     if env::var("CARGO_FEATURE_PROBES").is_err() {
@@ -42,12 +51,27 @@ fn main() {
     }
 
     let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
-
-    let mut builder = bpf_bindgen::builder().header("include/bindings.h");
+    let mut builder = if get_custom_vmlinux_path().is_some() {
+        debug!("Generating custom bindings with BTF of vmlinux");
+        bpf_bindgen::get_builder_vmlinux(out_dir.join("vmlinux.h")).unwrap()
+    } else if get_custom_header_path().is_some() || get_custom_header_version().is_some() {
+        debug!("Generating custom bindings with pre-installed kernel headers");
+        bpf_bindgen::get_builder_kernel_headers().unwrap()
+    } else {
+        debug!("Try generating custom bindings with pre-installed kernel headers");
+        bpf_bindgen::get_builder_kernel_headers()
+            .or_else(|e| {
+                warn!("error on bpf_bindgen::get_builder_kernel_headers: {:?}", e);
+                debug!("try bpf_bindgen::get_builder_vmlinux");
+                bpf_bindgen::get_builder_vmlinux(out_dir.join("vmlinux.h"))
+            })
+            .unwrap()
+    };
+    builder = builder.header("include/bindings.h");
     let types = ["request", "req_opf"];
 
     for ty in types.iter() {
-        builder = builder.whitelist_type(ty);
+        builder = builder.allowlist_type(ty);
     }
 
     let mut bindings = builder

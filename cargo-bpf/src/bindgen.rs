@@ -15,21 +15,55 @@ use std::str;
 pub use crate::accessors::generate_read_accessors;
 use crate::build_constants::{kernel_headers, BUILD_FLAGS};
 use crate::CommandError;
+use bpf_sys::type_gen::vmlinux_btf_dump;
 
-pub fn builder() -> Builder {
-    let kernel_headers = kernel_headers().expect("couldn't find kernel headers");
+/// Get `bindgen::Builder` that generates bindings using pre-installed kernel
+/// headers
+///
+/// Necessary include-directories for kernel headers are set to
+/// `bindgen::Builder`. So that users of this function can include kernel
+/// headers.
+pub fn get_builder_kernel_headers() -> Result<Builder, String> {
+    let kernel_headers =
+        kernel_headers().or_else(|_| Err("kernel headers not found".to_string()))?;
     let mut flags: Vec<String> = kernel_headers
         .iter()
         .map(|dir| format!("-I{}", dir))
         .collect();
     flags.extend(BUILD_FLAGS.iter().map(|f| f.to_string()));
 
-    bindgen::builder()
+    Ok(bindgen::builder()
         .clang_args(&flags)
         .use_core()
         .ctypes_prefix("::cty")
         .opaque_type("xregs_state")
+        .parse_callbacks(Box::new(Callbacks)))
+}
+
+/// Get `bindgen::Builder` that generates bindings using BTF of vmlinux
+///
+/// `c_dump_file` is a path of C header file where structs and enums will be
+/// written by
+/// [`VmlinuxBtfDump`](../../bpf-sys/type-gen/struct.VmlinuxBtfDump.html). It
+/// is just a temporary file that will be read by `bindgen` to generate rust
+/// bindings in the end. The file name of `c_dump_file` is used as an
+/// include-guard. e.g., if `c_dump_file` is "vmlinux.h" then the guard macro
+/// is `__VMLINUX_H__`
+pub fn get_builder_vmlinux(c_dump_file: impl AsRef<Path>) -> Result<Builder, String> {
+    vmlinux_btf_dump()
+        .or_else(|e| Err(format!("error on vmlinux_btf_dump: {:?}", e)))?
+        .generate(c_dump_file.as_ref())
+        .or_else(|e| Err(format!("error on VmlinuxBtfDump::generate: {:?}", e)))?;
+
+    Ok(bindgen::builder()
+        .use_core()
+        .ctypes_prefix("::cty")
         .parse_callbacks(Box::new(Callbacks))
+        .header(c_dump_file.as_ref().to_str().unwrap()))
+}
+
+pub fn builder() -> Builder {
+    get_builder_kernel_headers().unwrap()
 }
 
 pub fn generate(builder: &Builder, extra_args: &[&str]) -> Result<String, String> {
