@@ -1,3 +1,15 @@
+#[cfg(feature = "llvm-sys-110")]
+use llvm_sys_110 as llvm_sys;
+#[cfg(feature = "llvm-sys-120")]
+use llvm_sys_120 as llvm_sys;
+
+cfg_if::cfg_if! {
+    if #[cfg(feature = "llvm-sys-110")] {
+        #[rustversion::since(1.52)]
+        compile_error!("Can not use LLVM11 with Rust >= 1.52");
+    }
+}
+
 use anyhow::{anyhow, Result};
 use llvm_sys::bit_writer::LLVMWriteBitcodeToFile;
 use llvm_sys::core::*;
@@ -139,9 +151,6 @@ pub unsafe fn process_ir(context: LLVMContextRef, module: LLVMModuleRef) -> Resu
         }
         func = LLVMGetNextFunction(func);
     }
-
-    // This removes .BTF sections. Do not call it.
-    // LLVMStripModuleDebugInfo(module);
 
     Ok(())
 }
