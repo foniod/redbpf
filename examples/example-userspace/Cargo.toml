@@ -4,12 +4,15 @@ version = "0.1.0"
 authors = ["Peter Parkanyi <p@symmetree.dev>", "Junyeong Jeong <rhdxmr@gmail.com>"]
 edition = "2018"
 repository = "https://github.com/foniod/redbpf"
+description = "Example probes for redBPF"
+license = "MIT OR Apache-2.0"
+keywords = ["bpf", "ebpf", "build", "bindgen", "redbpf"]
 
 [build-dependencies]
 cargo-bpf = { version = "*", path = "../../cargo-bpf", default-features = false, features = ["build"] }
 
 [dependencies]
-probes = { path = "../example-probes", package = "example-probes" }
+probes = { version = "*", path = "../example-probes", package = "example-probes" }
 libc = "0.2"
 tokio = { version = "^1.0.1", features = ["rt", "signal", "time", "io-util", "net", "sync"] }
 redbpf = { version = "*", path = "../../redbpf", features = ["load"] }

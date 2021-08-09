@@ -4,6 +4,9 @@ version = "0.1.0"
 edition = '2018'
 repository = "https://github.com/foniod/redbpf"
 authors = ["Peter Parkanyi <p@symmetree.dev>", "Junyeong Jeong <rhdxmr@gmail.com>"]
+description = "Example probes for redBPF"
+license = "MIT OR Apache-2.0"
+keywords = ["bpf", "ebpf", "build", "bindgen", "redbpf"]
 
 [build-dependencies]
 cargo-bpf = { version = "*", path = "../../cargo-bpf", default-features = false, features = ["bindings"] }
