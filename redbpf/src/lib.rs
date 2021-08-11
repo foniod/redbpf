@@ -291,6 +291,7 @@ pub struct PerCpuArray<'a, T: Clone> {
 
 // TODO Use PERF_MAX_STACK_DEPTH
 const BPF_MAX_STACK_DEPTH: usize = 127;
+const BPF_FS_MAGIC: i64 = 0xcafe4a11;
 
 #[repr(C)]
 pub struct BpfStackFrames {
@@ -498,7 +499,7 @@ fn pin_bpf_obj(fd: RawFd, file: impl AsRef<Path>) -> Result<()> {
             error!("error on statfs {:?}: {}", path, io::Error::last_os_error());
             return Err(Error::IO(io::Error::last_os_error()));
         }
-        if stat.f_type != libc::BPF_FS_MAGIC {
+        if stat.f_type as i64 != BPF_FS_MAGIC {
             error!("not BPF FS");
             return Err(Error::IO(io::Error::from(ErrorKind::PermissionDenied)));
         }

@@ -12,22 +12,27 @@ The redbpf project is a collection of tools and libraries to build eBPF
 programs using Rust. It includes:
 
 - [redbpf](https://foniod.org/api/redbpf/) - a user space library that can be
-  used to load eBPF programs
+  used to load eBPF programs or access eBPF maps.
 
 - [redbpf-probes](https://foniod.org/api/redbpf_probes/) - an idiomatic Rust
   API to write eBPF programs that can be loaded by the linux kernel
 
 - [redbpf-macros](https://foniod.org/api/redbpf_macros/) - companion crate to
   `redbpf-probes` which provides convenient procedural macros useful when
-  writing eBPF programs
+  writing eBPF programs. For example, `#[map]` for defining a map, `#[kprobe]`
+  for defining a BPF program that can be attached to kernel functions.
 
 - [cargo-bpf](https://foniod.org/api/cargo_bpf/) - a cargo subcommand for
   creating, building and debugging eBPF programs
 
 # Requirements
 
-In order to use redbpf you need LLVM 11 and the headers for the kernel you want
-to target.
+In order to use redBPF, you need
+- LLVM 12 or LLVM 11
+- either the Linux kernel's headers or `vmlinux`, you want to target
+
+LLVM 12 is used as a default when compiling BPF programs, but you can use LLVM
+11 as follows: `cargo build --no-default-features --features llvm11`
 
 ## Linux kernel
 
@@ -41,23 +46,28 @@ long as you run `make prepare` first.
 On Debian, Ubuntu and derivatives you can install the dependencies running:
 
 	sudo apt-get -y install build-essential zlib1g-dev \
-			llvm-11-dev libclang-11-dev linux-headers-$(uname -r)
+			llvm-12-dev libclang-12-dev linux-headers-$(uname -r)
 
-If your distribution doesn't have LLVM 11, you can add the [official LLVM
+If your distribution doesn't have LLVM 12, you can add the [official LLVM
 APT repository](https://apt.llvm.org) to your `sources.list`.
 
 ## Installing dependencies on RPM based distributions
 
-First ensure that your distro includes LLVM 11:
+First ensure that your distro includes LLVM 12:
 
 	yum info llvm-devel | grep Version
-	Version      : 11.0.0
+	Version      : 12.0.0
 
-If you don't have vesion 11, you can get it from the Fedora 33 repository.
+If you don't have vesion 12, you can get it from the Fedora 34 repository.
 
 Then install the dependencies running:
 
 	yum install clang llvm-devel zlib-devel kernel-devel
+
+## Build images
+
+You can refer to `Dockerfile`s that are ready for building redBPF and foniod:
+[build-images](https://github.com/foniod/build-images)
 
 # Getting started
 
