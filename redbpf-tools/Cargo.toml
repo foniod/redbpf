@@ -6,11 +6,11 @@ edition = "2018"
 repository = "https://github.com/foniod/redbpf"
 
 [build-dependencies]
-cargo-bpf = { version = "^2.0.0-rc1", path = "../cargo-bpf", default-features = false, features = ["build"] }
+cargo-bpf = { path = "../cargo-bpf", default-features = false, features = ["build"] }
 
 [dependencies]
 probes = { path = "./probes" }
-redbpf = {  version = "^2.0.0-rc1", path = "../redbpf", features = ["load"] }
+redbpf = { path = "../redbpf", features = ["load"] }
 tokio = { version = "^1.0.1", features = ["rt", "macros", "signal", "time"] }
 futures = "0.3"
 getopts = "0.2"
