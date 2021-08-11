@@ -6,16 +6,16 @@ authors = ["Alessandro Decina <alessandro.d@gmail.com>", "Peter Parkanyi <p@symm
 repository = "https://github.com/foniod/redbpf"
 
 [build-dependencies]
-cargo-bpf = { version = "^2.0.0-rc1", path = "../../cargo-bpf", default-features = false, features = ["bindings"] }
+cargo-bpf = { path = "../../cargo-bpf", default-features = false, features = ["bindings"] }
 glob = "0.3.0"
-bpf-sys = { version = "*", path = "../../bpf-sys" }
+bpf-sys = { path = "../../bpf-sys" }
 tracing = "0.1.26"
 tracing-subscriber = "0.2.18"
 
 [dependencies]
 cty = "0.2"
-redbpf-macros = { version = "^2.0.0-rc1", path = "../../redbpf-macros" }
-redbpf-probes = { version = "^2.0.0-rc1", path = "../../redbpf-probes" }
+redbpf-macros = { path = "../../redbpf-macros" }
+redbpf-probes = { path = "../../redbpf-probes" }
 
 [features]
 default = []
