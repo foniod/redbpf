@@ -70,7 +70,7 @@ jobs:
     - name: Publish release
       run: |
         cargo login ${{ secrets.CARGO_REGISTRY_TOKEN }}
-        for i in bpf-sys cargo-bpf redbpf redbpf-macros redbpf-probes; do
+        for i in bpf-sys redbpf cargo-bpf redbpf-macros redbpf-probes; do
           while ! (cd $i; cargo publish -v --no-verify); do
             sleep 10
           done
