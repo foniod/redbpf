@@ -13,17 +13,43 @@ on:
   pull_request:
 
 env:
-  BASE_IMAGE: ghcr.io/${{ github.repository_owner }}/ingraind-build
+  BASE_IMAGE: ghcr.io/${{ github.repository_owner }}/foniod-build
 
 jobs:
+  ubuntu-2104-build-test:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Build host info
+      run: |
+        uname -a
+        cat /etc/os-release
+    - name: Initialize git submodules
+      run: |
+        git submodule update --init --recursive
+    - name: Run RedBPF build with kernel headers on ubuntu-21.04 container
+      run: |
+        docker run --privileged \
+        -v $PWD:/build \
+        -w /build \
+        $BASE_IMAGE:latest-ubuntu-21.04 \
+        /bin/bash -c 'cargo clean && export KERNEL_VERSION=$(ls --indicator-style=none /lib/modules/) && echo KERNEL_VERSION=$KERNEL_VERSION && cargo build && cargo build --examples'
+    - name: Run RedBPF build with vmlinux on ubuntu-21.04 container
+      run: |
+        docker run --privileged \
+        -v $PWD:/build \
+        -w /build \
+        $BASE_IMAGE:latest-ubuntu-21.04 \
+        /bin/bash -c 'cargo clean && /lib/modules/*/build/scripts/extract-vmlinux /boot/vmlinuz > /boot/vmlinux && export REDBPF_VMLINUX=/boot/vmlinux && cargo build && cargo build --examples'
+
   ubuntu-2004-build-test:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
-    - name: System info
+    - name: Build host info
       run: |
         uname -a
-        lsb_release -a
+        cat /etc/os-release
     - name: Initialize git submodules
       run: |
         git submodule update --init --recursive
@@ -33,33 +59,83 @@ jobs:
         -v $PWD:/build \
         -w /build \
         $BASE_IMAGE:latest-ubuntu-20.04 \
-        /bin/bash -c 'export KERNEL_VERSION=$(ls --indicator-style=none /lib/modules/); echo KERNEL_VERSION=$KERNEL_VERSION; cargo build && cargo build --examples'
+        /bin/bash -c 'cargo clean && export KERNEL_VERSION=$(ls --indicator-style=none /lib/modules/) && echo KERNEL_VERSION=$KERNEL_VERSION && cargo build && cargo build --examples'
 
-  fedora-35-build-test:
+  ubuntu-1804-build-test:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
-    - name: System info
+    - name: Build host info
       run: |
         uname -a
-        lsb_release -a
+        cat /etc/os-release
     - name: Initialize git submodules
       run: |
         git submodule update --init --recursive
-    - name: Run RedBPF build on fedora-35 container
+    - name: Run RedBPF build with kernel v4.19 on ubuntu-18.04 container
       run: |
         docker run --privileged \
         -v $PWD:/build \
         -w /build \
-        $BASE_IMAGE:latest-fedora-rawhide \
-        /bin/bash -c 'export KERNEL_VERSION=$(ls --indicator-style=none /lib/modules/); echo KERNEL_VERSION=$KERNEL_VERSION; cargo build && cargo build --examples'
+        $BASE_IMAGE:latest-ubuntu-18.04 \
+        /bin/bash -c 'cargo clean && export KERNEL_VERSION=$(ls --indicator-style=none /lib/modules/) && echo KERNEL_VERSION=$KERNEL_VERSION && cargo build && cargo build --examples'
 
-  publish: 
+  fedora-34-build-test:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Build host info
+      run: |
+        uname -a
+        cat /etc/os-release
+    - name: Initialize git submodules
+      run: |
+        git submodule update --init --recursive
+    - name: Run RedBPF build with kernel headers on fedora-34 container
+      # Run 'make prepare' to prevent generated/autoconf.h from being removed
+      # when 'make -qp' is executed by bpf_sys::headers::build_kernel_version
+      run: |
+        docker run --privileged \
+        -v $PWD:/build \
+        -w /build \
+        $BASE_IMAGE:latest-fedora-34 \
+        /bin/bash -c 'make -C /lib/modules/*/build prepare; cargo clean && export KERNEL_VERSION=$(ls --indicator-style=none /lib/modules/) && echo KERNEL_VERSION=$KERNEL_VERSION && cargo build && cargo build --examples'
+    - name: Run RedBPF build with vmlinux on fedora-34 container
+      run: |
+        docker run --privileged \
+        -v $PWD:/build \
+        -w /build \
+        $BASE_IMAGE:latest-fedora-34 \
+        /bin/bash -c 'cargo clean && /lib/modules/*/build/scripts/extract-vmlinux /lib/modules/*/vmlinuz > /boot/vmlinux && export REDBPF_VMLINUX=/boot/vmlinux && cargo build && cargo build --examples'
+
+  alpine-314-build-test:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Build host info
+      run: |
+        uname -a
+        cat /etc/os-release
+    - name: Initialize git submodules
+      run: |
+        git submodule update --init --recursive
+    - name: Run RedBPF build on alpine-3.14 container
+      run: |
+        docker run --privileged \
+        -v $PWD:/build \
+        -w /build \
+        $BASE_IMAGE:latest-alpine \
+        sh -c 'cargo clean && export KERNEL_VERSION=$(ls --indicator-style=none /lib/modules/) RUSTFLAGS=-Ctarget-feature=-crt-static && echo KERNEL_VERSION=$KERNEL_VERSION && cargo +1.51 build --no-default-features --features llvm11 && cargo +1.51 build --no-default-features --features llvm11 --examples'
+
+  publish:
     runs-on: ubuntu-latest
     if: startsWith( github.ref, 'refs/tags/v')
     needs:
-    - fedora-35-build-test
+    - fedora-34-build-test
+    - ubuntu-2104-build-test
     - ubuntu-2004-build-test
+    - ubuntu-1804-build-test
+    - alpine-314-build-test
 
     steps:
     - uses: actions/checkout@v2
