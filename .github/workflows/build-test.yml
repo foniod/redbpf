@@ -57,9 +57,9 @@ jobs:
   publish: 
     runs-on: ubuntu-latest
     if: startsWith( github.ref, 'refs/tags/v')
-    #needs:
-    #- fedora-35-build-test
-    #- ubuntu-2004-build-test
+    needs:
+    - fedora-35-build-test
+    - ubuntu-2004-build-test
 
     steps:
     - uses: actions/checkout@v2
