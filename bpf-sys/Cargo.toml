@@ -1,6 +1,6 @@
 [package]
 name = "bpf-sys"
-version = "2.0.0-rc1"
+version = "2.0.0-rc2"
 description = "Bindings for libbpf"
 repository = "https://github.com/foniod/redbpf"
 documentation = "https://foniod.org/api/bpf_sys/"

@@ -1,6 +1,6 @@
 [package]
 name = "redbpf"
-version = "2.0.0-rc1"
+version = "2.0.0-rc2"
 description = "eBPF build and runtime library"
 repository = "https://github.com/foniod/redbpf"
 documentation = "https://foniod.org/api/redbpf/"
@@ -14,7 +14,7 @@ readme = "README.md"
 maintenance = { status = "actively-developed" }
 
 [dependencies]
-bpf-sys = { path = "../bpf-sys", version = "2.0.0-rc1" }
+bpf-sys = { path = "../bpf-sys", version = "2.0.0-rc2" }
 goblin = "0.4"
 zero = "0.1"
 libc = "0.2"
