@@ -81,7 +81,7 @@ pub use crate::perf::*;
 use crate::symbols::*;
 use crate::uname::get_kernel_internal_version;
 
-use tracing::{debug, error};
+use tracing::{debug, error, warn};
 
 #[cfg(target_arch = "aarch64")]
 pub type DataPtr = *const u8;
@@ -442,23 +442,51 @@ impl Program {
         attr.insns_cnt = self.data().code.len() as u64;
         attr.license = clicense.as_ptr();
         attr.__bindgen_anon_1.kern_version = kernel_version;
-        attr.log_level = 1;
+        attr.log_level = 0;
 
-        unsafe {
-            let mut buf_vec = vec![0; 64 * 1024];
-            let log_buffer: MutDataPtr = buf_vec.as_mut_ptr();
-            let buf_size = buf_vec.capacity() * mem::size_of_val(&*log_buffer);
-            let fd = bpf_sys::bpf_load_program_xattr(&attr, log_buffer, buf_size as u64);
-            if fd < 0 {
-                let cstr = CStr::from_ptr(log_buffer);
-                error!("error loading BPF program {}", cstr.to_str().unwrap());
-                Err(Error::BPF)
-            } else {
-                // free should be called to prevent memory leakage
-                self.data_mut().fd = Some(fd);
-                Ok(())
-            }
+        // do not pass log buffer. it is filled with verifier's log but
+        // insufficient buffer size can cause ENOSPC error. pass log buffer
+        // only after bpf_load_program_xattr fails
+        let fd = unsafe { bpf_sys::bpf_load_program_xattr(&attr, ptr::null_mut(), 0) };
+        if fd >= 0 {
+            self.data_mut().fd = Some(fd);
+            return Ok(());
         }
+        // unknown error. print log from bpf verifier and give up loading BPF program
+        attr.log_level = 1;
+        let mut printed = false;
+        let mut vec_len = 64 * 1024;
+        while !printed {
+            let mut buf_vec = vec![0; vec_len];
+            let log_buffer: MutDataPtr = buf_vec.as_mut_ptr();
+            let buf_size = buf_vec.capacity() * mem::size_of_val(unsafe { &*log_buffer });
+            let fd = unsafe { bpf_sys::bpf_load_program_xattr(&attr, log_buffer, buf_size as u64) };
+            if fd >= 0 {
+                warn!(
+                    "bpf_load_program_xattr had failed but it unexpectedly succeeded while reproducing the error"
+                );
+                self.data_mut().fd = Some(fd);
+                return Ok(());
+            }
+            if let Some(libc::ENOSPC) = io::Error::last_os_error().raw_os_error() {
+                // If the size of the buffer is not large
+                // enough to store all verifier messages, errno
+                // is set to ENOSPC. So, pass the bigger log
+                // buffer.
+                vec_len *= 2;
+                continue;
+            }
+
+            let cstr = unsafe { CStr::from_ptr(log_buffer) };
+            error!(
+                "error loading BPF program `{}' with bpf_load_program_xattr: {}",
+                &self.data().name,
+                cstr.to_str().unwrap()
+            );
+            printed = true;
+        }
+
+        Err(Error::BPF)
     }
 }
 
