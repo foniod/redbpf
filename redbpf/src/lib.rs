@@ -57,9 +57,9 @@ pub mod xdp;
 pub use bpf_sys::uname;
 use bpf_sys::{
     bpf_attach_type_BPF_SK_SKB_STREAM_PARSER, bpf_attach_type_BPF_SK_SKB_STREAM_VERDICT,
-    bpf_create_map_attr, bpf_create_map_xattr, bpf_insn, bpf_map_def, bpf_map_info,
-    bpf_map_type_BPF_MAP_TYPE_ARRAY, bpf_map_type_BPF_MAP_TYPE_PERCPU_ARRAY, bpf_prog_type,
-    BPF_ANY,
+    bpf_create_map_attr, bpf_create_map_xattr, bpf_insn, bpf_load_program_xattr, bpf_map_def,
+    bpf_map_info, bpf_map_type_BPF_MAP_TYPE_ARRAY, bpf_map_type_BPF_MAP_TYPE_PERCPU_ARRAY,
+    bpf_prog_type, BPF_ANY,
 };
 use goblin::elf::{reloc::RelocSection, section_header as hdr, Elf, SectionHeader, Sym};
 
@@ -447,11 +447,35 @@ impl Program {
         // do not pass log buffer. it is filled with verifier's log but
         // insufficient buffer size can cause ENOSPC error. pass log buffer
         // only after bpf_load_program_xattr fails
-        let fd = unsafe { bpf_sys::bpf_load_program_xattr(&attr, ptr::null_mut(), 0) };
+        let fd = unsafe { bpf_load_program_xattr(&attr, ptr::null_mut(), 0) };
         if fd >= 0 {
             self.data_mut().fd = Some(fd);
             return Ok(());
         }
+
+        // At kernel v5.11, BPF switched from rlimit-based to memcg-based
+        // memory accounting. So before that kernel version, memlock rlimit was
+        // used for the memory accounting and bpf() syscall returned -EPERM on
+        // exceeding the limit.
+        if let Some(libc::EPERM) = io::Error::last_os_error().raw_os_error() {
+            let mut uninit = MaybeUninit::<libc::rlimit>::zeroed();
+            let p = uninit.as_mut_ptr();
+            unsafe {
+                if libc::getrlimit(libc::RLIMIT_MEMLOCK, p) == 0 {
+                    (*p).rlim_max = libc::RLIM_INFINITY;
+                    (*p).rlim_cur = (*p).rlim_max;
+                    let rlim = uninit.assume_init();
+                    if libc::setrlimit(libc::RLIMIT_MEMLOCK, &rlim) == 0 {
+                        let fd = bpf_load_program_xattr(&attr, ptr::null_mut(), 0);
+                        if fd >= 0 {
+                            self.data_mut().fd = Some(fd);
+                            return Ok(());
+                        }
+                    }
+                }
+            }
+        }
+
         // unknown error. print log from bpf verifier and give up loading BPF program
         attr.log_level = 1;
         let mut printed = false;
@@ -1381,8 +1405,8 @@ impl Map {
         config: bpf_map_def,
         btf_type_id: Option<MapBtfTypeId>,
     ) -> Result<Map> {
-        let fd = unsafe {
-            let cname = CString::new(name)?;
+        let cname = CString::new(name)?;
+        let attr = unsafe {
             let mut attr_uninit = MaybeUninit::<bpf_create_map_attr>::zeroed();
             let attr_ptr = attr_uninit.as_mut_ptr();
             (*attr_ptr).name = cname.as_ptr();
@@ -1396,21 +1420,41 @@ impl Map {
                 (*attr_ptr).btf_key_type_id = type_id.key_type_id;
                 (*attr_ptr).btf_value_type_id = type_id.value_type_id;
             }
-            let attr = attr_uninit.assume_init();
-            bpf_create_map_xattr(&attr)
+            attr_uninit.assume_init()
         };
+        let mut fd = unsafe { bpf_create_map_xattr(&attr) };
+        // At kernel v5.11, BPF switched from rlimit-based to memcg-based
+        // memory accounting. So before that kernel version, memlock rlimit was
+        // used for the memory accounting and bpf() syscall returned -EPERM on
+        // exceeding the limit.
         if fd < 0 {
-            return Err(Error::Map);
+            if let Some(libc::EPERM) = io::Error::last_os_error().raw_os_error() {
+                let mut uninit = MaybeUninit::<libc::rlimit>::zeroed();
+                let p = uninit.as_mut_ptr();
+                unsafe {
+                    if libc::getrlimit(libc::RLIMIT_MEMLOCK, p) == 0 {
+                        (*p).rlim_max = libc::RLIM_INFINITY;
+                        (*p).rlim_cur = (*p).rlim_max;
+                        let rlim = uninit.assume_init();
+                        if libc::setrlimit(libc::RLIMIT_MEMLOCK, &rlim) == 0 {
+                            fd = bpf_create_map_xattr(&attr);
+                        }
+                    }
+                }
+            }
         }
-
-        Ok(Map {
-            name: name.to_string(),
-            kind: config.type_,
-            fd,
-            config,
-            section_data: false,
-            pin_file: None,
-        })
+        if fd >= 0 {
+            Ok(Map {
+                name: name.to_string(),
+                kind: config.type_,
+                fd,
+                config,
+                section_data: false,
+                pin_file: None,
+            })
+        } else {
+            Err(Error::Map)
+        }
     }
 
     /// Create `Map` from a file which represents pinned map
