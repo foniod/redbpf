@@ -5,10 +5,10 @@ use redbpf_probes::uprobe::prelude::*;
 
 program!(0xFFFFFFFE, "GPL");
 
-#[map("stack_trace")]
+#[map]
 static mut stack_trace: StackTrace = StackTrace::with_max_entries(10240);
 
-#[map("malloc_event")]
+#[map]
 static mut malloc_event: PerfMap<MallocEvent> = PerfMap::with_max_entries(1024);
 
 #[uprobe]
