@@ -343,13 +343,12 @@ impl StackTrace {
         }
     }
 
-    pub unsafe fn stack_id(&mut self, ctx: *mut pt_regs, flag: u64) -> Result<c_int, c_int> {
+    pub unsafe fn stack_id(&mut self, ctx: *mut pt_regs, flag: u64) -> Result<i64, i64> {
         let ret = bpf_get_stackid(ctx as _, &mut self.def as *mut _ as _, flag);
-        // TODO return i64
         if ret >= 0 {
-            Ok(ret as i32)
+            Ok(ret)
         } else {
-            Err(ret as i32)
+            Err(ret)
         }
     }
 }
@@ -402,11 +401,10 @@ impl ProgramArray {
     /// (i.e. index is superior to the number of entries in the array), or
     /// if the maximum number of tail calls has been reached for this chain of
     /// programs.
-    pub unsafe fn tail_call<C>(&mut self, ctx: *mut C, index: u32) -> Result<(), i32> {
+    pub unsafe fn tail_call<C>(&mut self, ctx: *mut C, index: u32) -> Result<(), i64> {
         let ret = bpf_tail_call(ctx as *mut _, &mut self.def as *mut _ as *mut c_void, index);
         if ret < 0 {
-            // TODO return i64
-            return Err(ret as i32);
+            return Err(ret);
         }
 
         Ok(())

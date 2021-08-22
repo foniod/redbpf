@@ -96,7 +96,7 @@ pub fn bpf_ktime_get_ns() -> u64 {
 // For tracing programs, safely attempt to read `mem::size_of::<T>()` bytes from
 // address src.
 #[inline]
-pub unsafe fn bpf_probe_read<T>(src: *const T) -> Result<T, i32> {
+pub unsafe fn bpf_probe_read<T>(src: *const T) -> Result<T, i64> {
     let mut v: MaybeUninit<T> = MaybeUninit::uninit();
     let ret = gen::bpf_probe_read(
         v.as_mut_ptr() as *mut c_void,
@@ -104,8 +104,7 @@ pub unsafe fn bpf_probe_read<T>(src: *const T) -> Result<T, i32> {
         src as *const c_void,
     );
     if ret < 0 {
-        // TODO return i64
-        return Err(ret as i32);
+        return Err(ret);
     }
 
     Ok(v.assume_init())
@@ -130,7 +129,7 @@ pub fn bpf_perf_event_output(
     flags: u64,
     data: *const c_void,
     size: u64,
-) -> i32 {
+) -> i64 {
     unsafe {
         let f: unsafe extern "C" fn(
             ctx: *mut c_void,
@@ -138,7 +137,7 @@ pub fn bpf_perf_event_output(
             flags: u64,
             data: *const c_void,
             size: u64,
-        ) -> i32 = ::core::mem::transmute(25usize);
+        ) -> i64 = ::core::mem::transmute(25usize);
         f(ctx, map, flags, data, size)
     }
 }

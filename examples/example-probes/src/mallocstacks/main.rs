@@ -15,7 +15,6 @@ static mut malloc_event: PerfMap<MallocEvent> = PerfMap::with_max_entries(1024);
 fn malloc(regs: Registers) {
     let mut mev = MallocEvent {
         stackid: 0,
-        _padding: 0,
         size: regs.parm1(),
     };
 

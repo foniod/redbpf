@@ -23,7 +23,7 @@ struct AllocSize {
     frames: BpfStackFrames,
 }
 
-type Acc = Arc<Mutex<HashMap<i32, AllocSize>>>;
+type Acc = Arc<Mutex<HashMap<i64, AllocSize>>>;
 
 fn handle_malloc_event(acc: Acc, loaded: &Loaded, event: Box<[u8]>) {
     let mut acc = acc.lock().unwrap();
