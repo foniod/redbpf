@@ -1,6 +1,6 @@
 [package]
 name = "cargo-bpf"
-version = "2.0.0-rc3"
+version = "2.0.0"
 description = "Cargo plugin to manage eBPF probes using redbpf"
 repository = "https://github.com/foniod/redbpf"
 documentation = "https://foniod.org/api/cargo_bpf/"
@@ -21,8 +21,8 @@ required-features = ["command-line"]
 clap = { version = "2.33", optional = true }
 bindgen = {version = "0.59.1", default-features = false, features = ["runtime"], optional = true}
 toml_edit = { version = "0.2", optional = true }
-bpf-sys = { version = "2.0.0-rc3", path = "../bpf-sys", optional = true }
-redbpf = { version = "2.0.0-rc3", path = "../redbpf", default-features = false, optional = true }
+bpf-sys = { version = "2.0.0", path = "../bpf-sys", optional = true }
+redbpf = { version = "2.0.0", path = "../redbpf", default-features = false, optional = true }
 futures = { version = "0.3", optional = true }
 tokio = { version = "^1.0.1", features = ["rt", "macros", "signal"], optional = true }
 hexdump = { version = "0.1", optional = true }
