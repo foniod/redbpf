@@ -2015,13 +2015,13 @@ impl StackTrace<'_> {
         StackTrace { base: map }
     }
 
-    pub fn get(&mut self, mut id: libc::c_int) -> Option<BpfStackFrames> {
+    pub fn get(&mut self, mut id: i64) -> Option<BpfStackFrames> {
         unsafe {
             let mut value = MaybeUninit::uninit();
 
             let ret = bpf_sys::bpf_map_lookup_elem(
                 self.base.fd,
-                &mut id as *mut libc::c_int as _,
+                &mut id as *const _ as *mut _,
                 value.as_mut_ptr() as *mut _,
             );
 
@@ -2033,12 +2033,9 @@ impl StackTrace<'_> {
         }
     }
 
-    pub fn delete(&mut self, id: libc::c_int) -> Result<()> {
+    pub fn delete(&mut self, id: i64) -> Result<()> {
         unsafe {
-            let ret = bpf_sys::bpf_map_delete_elem(
-                self.base.fd,
-                &id as *const libc::c_int as *mut libc::c_int as _,
-            );
+            let ret = bpf_sys::bpf_map_delete_elem(self.base.fd, &id as *const _ as *mut _);
 
             if ret == 0 {
                 Ok(())
