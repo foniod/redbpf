@@ -13,16 +13,16 @@ program!(0xFFFFFFFE, "GPL");
 
 const TCP_FLAG_SYN: u16 = 0x0002u16.to_be();
 
-#[map("sequence")]
+#[map]
 static mut sequence: HashMap<u8, PortSequence> = HashMap::with_max_entries(1);
 
-#[map("knocks")]
+#[map]
 static mut knocks: HashMap<u32, Knock> = HashMap::with_max_entries(1024);
 
-#[map("knock_attempts")]
+#[map]
 static mut knock_attempts: PerfMap<KnockAttempt> = PerfMap::with_max_entries(1024);
 
-#[map("connections")]
+#[map]
 static mut connections: PerfMap<Connection> = PerfMap::with_max_entries(1024);
 
 #[xdp("knock")]

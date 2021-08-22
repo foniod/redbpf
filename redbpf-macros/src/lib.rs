@@ -165,9 +165,6 @@ pub fn impl_network_buffer_array(_: TokenStream) -> TokenStream {
 /// require strict naming conventions use `#[map(link_section = "foo")]`
 /// which place the map into a section called `foo`.
 ///
-/// **NOTE:** The `#[map("foo")` (which uses link section `maps/foo`) has
-/// been deprecated in favor of `#[map]` or `#[map(link_section = "maps/foo")]`
-///
 /// # Example
 ///
 /// ```no_run
@@ -212,15 +209,9 @@ pub fn map(attrs: TokenStream, item: TokenStream) -> TokenStream {
                 }
             }
             NestedMeta::Lit(lit) => {
-                // Fallback to deprecated #[map("...")]
+                // panic if #[map("...")] is declared
                 if let Lit::Str(name) = lit {
-                    if link_section.is_some() {
-                        panic!("#[map(link_section = \"...\")] is specified multiple times");
-                    }
-                    #[cfg(RUSTC_IS_NIGHTLY)]
-                    Diagnostic::new(Level::Warning, "`#[map(\"..\")` has been deprecated in favor of `#[map]` or `#[map(link_section = \"..\")]`").emit();
-                    link_section = Some(format!("maps/{}", name.value()));
-                    allowed = true;
+                    panic!("expected #[map(link_section = \"maps/{}\")]", name.value());
                 }
             }
         }

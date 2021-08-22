@@ -8,13 +8,13 @@ const REQ_OP_WRITE: u32 = 1;
 
 program!(0xFFFFFFFE, "GPL");
 
-#[map("start")]
+#[map]
 static mut start: HashMap<*const request, u64> = HashMap::with_max_entries(10240);
 
-#[map("processes")]
+#[map]
 static mut processes: HashMap<*const request, Process> = HashMap::with_max_entries(10240);
 
-#[map("counts")]
+#[map]
 static mut counts: HashMap<CounterKey, Counter> = HashMap::with_max_entries(10240);
 
 #[kprobe]

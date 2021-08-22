@@ -6,9 +6,6 @@
 // copied, modified, or distributed except according to those terms.
 
 use futures::prelude::*;
-use mio::unix::EventedFd;
-use mio::{Evented, PollOpt, Ready, Token};
-use std::io;
 use std::os::unix::io::RawFd;
 use std::pin::Pin;
 use std::slice;
@@ -18,39 +15,6 @@ use tokio::io::Interest;
 use tracing::error;
 
 use crate::{Event, PerfMap};
-
-// TODO Remove MapIo and upgrade mio.
-// It is pub-visibility so removing this is semver breaking change. Since mio
-// v0.7, `Evented` is not provided, new version of mio can not be used now.
-#[deprecated]
-pub struct MapIo(RawFd);
-
-#[allow(deprecated)]
-impl Evented for MapIo {
-    fn register(
-        &self,
-        poll: &mio::Poll,
-        token: Token,
-        interest: Ready,
-        opts: PollOpt,
-    ) -> io::Result<()> {
-        EventedFd(&self.0).register(poll, token, interest, opts)
-    }
-
-    fn reregister(
-        &self,
-        poll: &mio::Poll,
-        token: Token,
-        interest: Ready,
-        opts: PollOpt,
-    ) -> io::Result<()> {
-        EventedFd(&self.0).reregister(poll, token, interest, opts)
-    }
-
-    fn deregister(&self, poll: &mio::Poll) -> io::Result<()> {
-        EventedFd(&self.0).deregister(poll)
-    }
-}
 
 pub struct PerfMessageStream {
     poll: AsyncFd<RawFd>,
