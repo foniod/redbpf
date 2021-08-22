@@ -51,15 +51,8 @@ pub enum TcAction {
     /// Terminate the packet processing pipeline and allows the packet to
     /// proceed
     Ok = 0,
-    /// Terminate the packet processing pipeline and start classification from
-    /// the beginning
-    #[deprecated(note = "linux kernel commit `5cf8ca0e` (linux v4.3) removed this from cls_bpf")]
-    Reclassify,
     /// Terminate the packet processing pipeline and drops the packet
     Shot = 2,
-    /// Iterate to the next action, if available
-    #[deprecated(note = "linux kernel commit `5cf8ca0e` (linux v4.3) removed this from cls_bpf")]
-    Pipe,
     /// TC_ACT_SHOT will indicate to the kernel that the skb was released
     /// through kfree_skb() and return NET_XMIT_DROP to the callers for
     /// immediate feedback, whereas TC_ACT_STOLEN will release the skb through
