@@ -36,9 +36,8 @@ fn main() {
     println!("cargo:rustc-link-lib=static=bpf");
     println!("cargo:rustc-link-lib=elf");
     println!("cargo:rustc-link-lib=z");
-    for dir in &["libbpf", "libelf"] {
-        rerun_if_changed_dir(dir);
-    }
+
+    rerun_if_changed_dir("libbpf");
     println!("cargo:rerun-if-changed=bpfsys-musl.h");
     println!("cargo:rerun-if-changed=libbpf_xdp.h");
 
