@@ -95,7 +95,7 @@ fn generate_bindings_kernel_headers() -> Result<()> {
     let mut builder = bpf_bindgen::get_builder_kernel_headers()
         .or_else(|e| bail!("error on Builder::get_builder_kernel_headers: {}", e))?
         .header("include/redbpf_helpers.h")
-        .header("../bpf-sys/libbpf/src/bpf_helpers.h");
+        .header("include/bpf_helpers.h");
 
     for ty in types.iter().chain(xdp_types.iter()) {
         builder = builder.allowlist_type(ty);
@@ -131,7 +131,7 @@ fn generate_bindings_kernel_headers() -> Result<()> {
     let bindings = bpf_bindgen::get_builder_kernel_headers()
         .or_else(|e| bail!("error on Builder::get_builder: {}", e))?
         .header("include/redbpf_helpers.h")
-        .header("../bpf-sys/libbpf/src/bpf_helpers.h")
+        .header("include/bpf_helpers.h")
         .allowlist_var("bpf_.*")
         .generate()
         .or_else(|e| {
@@ -254,7 +254,7 @@ fn generate_bindings_vmlinux() -> Result<()> {
     // Generate bindings of BPF helper variables and convert them into functions
     let bindings = bpf_bindgen::get_builder_vmlinux(out_dir.join("vmlinux_helpers.h"))
         .or_else(|e| bail!("error on bpf_bindgen::get_builder_vmlinux: {}", e))?
-        .header("../bpf-sys/libbpf/src/bpf_helpers.h")
+        .header("include/bpf_helpers.h")
         .allowlist_var("^bpf_.*")
         .generate()
         .or_else(|e| bail!("error on Builder::generate for helper: {:?}", e))?;
@@ -271,7 +271,6 @@ fn main() {
     tracing::subscriber::set_global_default(subscriber).unwrap();
 
     rerun_if_changed_dir("include");
-    rerun_if_changed_dir("../bpf-sys/libbpf/src");
 
     if get_custom_vmlinux_path().is_some() {
         debug!("Generating bindings with BTF of vmlinux");
