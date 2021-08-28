@@ -31,11 +31,11 @@ edition = '2018'
 
 [dependencies]
 cty = "0.2"
-redbpf-macros = "1.3"
-redbpf-probes = "1.3"
+redbpf-macros = "2.0"
+redbpf-probes = "2.0"
 
 [build-dependencies]
-cargo-bpf = {{ version = "1.3", default-features = false }}
+cargo-bpf = {{ version = "2.0", default-features = false }}
 
 [features]
 default = []
