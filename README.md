@@ -95,10 +95,6 @@ Install the dependencies as documented above, then run `cargo build` as usual.
 This repository contains code from other software in the following
 directories, licensed under their own particular licenses:
 
- * `bpf-sys/libelf/*`: GPL2 + LGPL3
- * `bpf-sys/bcc/*`: Apache2, public domain
- * `include/bpf_helpers.h` LGPL2 + BSD-2
- * `include/bpf_helper_defs.h`: LGPL2 + BSD-2
  * `bpf-sys/libbpf`: LGPL2 + BSD-2
 
 Where '+' means they are dual licensed.
