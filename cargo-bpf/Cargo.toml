@@ -47,3 +47,6 @@ llvm11 = ["llvm-sys-110"]
 llvm12 = ["llvm-sys-120"]
 build-c = []
 command-line = ["build", "clap", "redbpf/load", "futures", "tokio", "hexdump"]
+
+[package.metadata.docs.rs]
+all-features = true
