@@ -36,3 +36,6 @@ default = []
 build = []
 build_cache = ["serde_derive", "serde_json", "ring"]
 load = ["futures", "tokio"]
+
+[package.metadata.docs.rs]
+all-features = true
