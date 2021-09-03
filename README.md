@@ -46,7 +46,8 @@ long as you run `make prepare` first.
 On Debian, Ubuntu and derivatives you can install the dependencies running:
 
 	sudo apt-get -y install build-essential zlib1g-dev \
-			llvm-12-dev libclang-12-dev linux-headers-$(uname -r)
+			llvm-12-dev libclang-12-dev linux-headers-$(uname -r) \
+			libelf-dev
 
 If your distribution doesn't have LLVM 12, you can add the [official LLVM
 APT repository](https://apt.llvm.org) to your `sources.list`.
