@@ -72,15 +72,23 @@ You can refer to `Dockerfile`s that are ready for building redBPF and foniod:
 
 # Getting started
 
-The easiest way to get started is using `cargo-bpf`, see the
-[documentation](https://foniod.org/api/cargo_bpf/) for more info.
+The easiest way to get started is reading a [basic tutorial](TUTORIAL.md).
+
+You can find several examples in this [directory](examples/). All example
+programs are splitted into two parts: `example-probes` and
+`example-userspace`. `example-probes` contains BPF programs that execute in
+kernel context. `example-userspace` includes userspace programs that load BPF
+programs into kernel space and communicate with BPF programs through BPF maps.
+
+Also see [documentation](https://foniod.org/api/cargo_bpf/) of `cargo-bpf`. It
+provides a CLI tool for compiling BPF programs easily.
 
 [redbpf-tools](https://github.com/foniod/redbpf/tree/master/redbpf-tools) is a
 `cargo-bpf` generated crate that includes simple examples you can use to
 understand how to structure your programs.
 
-Finally the [foniod project](https://github.com/foniod/foniod)
-includes more concrete examples of redbpf programs.
+Finally, check the [foniod project](https://github.com/foniod/foniod) that
+includes more advanced, concrete production ready examples of redbpf programs.
 
 # Building from source
 
