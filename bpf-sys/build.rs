@@ -45,8 +45,16 @@ fn main() {
     let out_path = PathBuf::from(out_dir);
 
     // -fPIE is passed because Fedora 35 requires it. Other distros like Ubuntu
-    // 21.04, Alpine 3.14 also works find with it
-    Command::new("make").args(format!("-C libbpf/src BUILD_STATIC_ONLY=1 OBJDIR={}/libbpf DESTDIR={out_dir} INCLUDEDIR= LIBDIR= UAPIDIR=", out_dir=env::var("OUT_DIR").unwrap()).split(" ")).arg("CFLAGS=-g -O2 -Werror -Wall -fPIE").arg("install").status().unwrap();
+    // 21.04, Alpine 3.14 also works fine with it
+    if !Command::new("make")
+        .args(format!("-C libbpf/src BUILD_STATIC_ONLY=1 OBJDIR={out_dir}/libbpf DESTDIR={out_dir} INCLUDEDIR= LIBDIR= UAPIDIR=", out_dir=env::var("OUT_DIR").unwrap()).split(" "))
+        .arg("CFLAGS=-g -O2 -Werror -Wall -fPIE")
+        .arg("install")
+        .status()
+        .expect("error on executing `make` command for building `libbpf` static library")
+        .success() {
+        panic!("failed to build `libbpf` static library");
+    }
     let bindings = bindgen::Builder::default()
         .header("libbpf_xdp.h")
         .header("libbpf/src/bpf.h")
