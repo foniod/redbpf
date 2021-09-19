@@ -33,8 +33,6 @@ impl std::convert::From<std::io::Error> for CommandError {
 
 #[cfg(feature = "build")]
 pub use build::*;
-#[cfg(feature = "build-c")]
-pub use build_c::*;
 #[cfg(feature = "command-line")]
 pub use load::load;
 #[cfg(feature = "command-line")]

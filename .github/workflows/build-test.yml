@@ -35,11 +35,18 @@ jobs:
 
         git config --global user.email "cncf-fonio-maintainers@lists.cncf.io"
         git config --global user.name "Foniod GitHub builder"
+
+        # clone the website repo with auth token
         git clone https://$GITHUB_TOKEN:@github.com/foniod/foniod.org publish
-        rm -rf publish/api/
-        mkdir -p publish/api/
-        cp -r target/doc/* publish/api/
-        >publish/api/index.html echo '<meta http-equiv="refresh" content="0; url=https://ingraind.org/api/redbpf/" />'
+
+        # clean up existing artifacts
+        rm -rf publish/docs/api/
+        mkdir -p publish/docs/api/
+        cp -r target/doc/* publish/docs/api/
+
+        # automatic redirect to the correct location
+        >publish/docs/api/index.html echo '<meta http-equiv="refresh" content="0; url=https://foniod.org/api/redbpf/" />'
+
         cd publish
         git add *
         git commit -a -m '[CI] Update redbpf docs'
