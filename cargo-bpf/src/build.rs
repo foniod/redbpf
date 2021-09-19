@@ -71,6 +71,32 @@ impl From<Error> for CommandError {
     }
 }
 
+#[rustversion::since(1.55)]
+fn create_rustflags() -> (String, String) {
+    let mut flags = String::new();
+    if let Ok(fl) = std::env::var("CARGO_ENCODED_RUSTFLAGS") {
+        if !fl.is_empty() {
+            flags.push_str(&fl);
+            flags.push_str("\x1f");
+        }
+    }
+    flags.push_str("-C\x1fembed-bitcode=yes");
+    ("CARGO_ENCODED_RUSTFLAGS".to_string(), flags)
+}
+
+#[rustversion::before(1.55)]
+fn create_rustflags() -> (String, String) {
+    let mut flags = String::new();
+    if let Ok(fl) = std::env::var("RUSTFLAGS") {
+        if !fl.is_empty() {
+            flags.push_str(&fl);
+            flags.push_str(" ");
+        }
+    }
+    flags.push_str("-C embed-bitcode=yes");
+    ("RUSTFLAGS".to_string(), flags)
+}
+
 fn build_probe(cargo: &Path, package: &Path, target_dir: &Path, probe: &str) -> Result<(), Error> {
     fs::create_dir_all(&target_dir)?;
     let target_dir = target_dir.canonicalize().unwrap().join("bpf");
@@ -78,12 +104,7 @@ fn build_probe(cargo: &Path, package: &Path, target_dir: &Path, probe: &str) -> 
     let _ = fs::remove_dir_all(&artifacts_dir);
     fs::create_dir_all(&artifacts_dir)?;
 
-    let mut flags = String::new();
-    if let Ok(rf) = std::env::var("RUSTFLAGS") {
-        flags.push_str(&rf);
-    }
-    flags.push_str(" -C embed-bitcode=yes");
-
+    let (env_name, env_value) = create_rustflags();
     let version = build_kernel_version()
         .map(|mut v| {
             if v.version >= 5 && v.patchlevel >= 7 {
@@ -98,7 +119,7 @@ fn build_probe(cargo: &Path, package: &Path, target_dir: &Path, probe: &str) -> 
 
     if !Command::new(cargo)
         .current_dir(package)
-        .env("RUSTFLAGS", flags)
+        .env(env_name, env_value)
         .args("rustc --release --features=probes".split(' '))
         .arg("--target-dir")
         .arg(target_dir.to_str().unwrap())
