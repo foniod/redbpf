@@ -37,7 +37,7 @@ jobs:
         git config --global user.name "Foniod GitHub builder"
 
         # clone the website repo with auth token
-        git clone https://$GITHUB_TOKEN:@github.com/foniod/foniod.org publish
+        git clone https://${{ secrets.GITHUB_TOKEN }}:@github.com/foniod/foniod.org publish
 
         # clean up existing artifacts
         rm -rf publish/docs/api/
