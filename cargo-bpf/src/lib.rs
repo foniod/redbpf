@@ -15,8 +15,6 @@ pub mod bindgen;
 mod build;
 #[cfg(feature = "build")]
 mod llvm;
-#[cfg(feature = "build-c")]
-mod build_c;
 
 #[cfg(feature = "command-line")]
 mod load;
