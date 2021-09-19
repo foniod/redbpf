@@ -45,7 +45,6 @@ bindings = ["bpf-sys", "bindgen", "syn", "quote", "proc-macro2", "tempfile"]
 build = ["bindings", "libc", "toml_edit"]
 llvm11 = ["llvm-sys-110"]
 llvm12 = ["llvm-sys-120"]
-build-c = []
 command-line = ["build", "clap", "redbpf/load", "futures", "tokio", "hexdump"]
 
 [package.metadata.docs.rs]

@@ -1,10 +1,10 @@
 #[cfg(feature = "llvm-sys-110")]
 use llvm_sys_110 as llvm_sys;
-#[cfg(feature = "llvm-sys-120")]
+#[cfg(not(feature = "llvm-sys-110"))]
 use llvm_sys_120 as llvm_sys;
 
 cfg_if::cfg_if! {
-    if #[cfg(feature = "llvm-sys-110")] {
+    if #[cfg(all(feature = "llvm-sys-110", not(feature = "llvm-sys-120")))] {
         #[rustversion::since(1.52)]
         compile_error!("Can not use LLVM11 with Rust >= 1.52");
     }
