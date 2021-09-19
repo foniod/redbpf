@@ -16,6 +16,35 @@ env:
   BASE_IMAGE: ghcr.io/${{ github.repository_owner }}/foniod-build
 
 jobs:
+  documentation:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        submodules: recursive
+    - uses: actions-rs/toolchain@v1
+      with:
+        profile: minimal
+        toolchain: stable
+    - run: |
+        docker run --privileged \
+        -v $PWD:/build \
+        -w /build \
+        $BASE_IMAGE:latest-ubuntu-21.04 \
+        /bin/bash -c 'cargo clean && export KERNEL_VERSION=$(ls --indicator-style=none /lib/modules/) && echo KERNEL_VERSION=$KERNEL_VERSION && cargo build && cargo doc --release --all-features'
+
+        git config --global user.email "cncf-fonio-maintainers@lists.cncf.io"
+        git config --global user.name "Foniod GitHub builder"
+        git clone https://$GITHUB_TOKEN:@github.com/foniod/foniod.org publish
+        rm -rf publish/api/
+        mkdir -p publish/api/
+        cp -r target/doc/* publish/api/
+        >publish/api/index.html echo '<meta http-equiv="refresh" content="0; url=https://ingraind.org/api/redbpf/" />'
+        cd publish
+        git add *
+        git commit -a -m '[CI] Update redbpf docs'
+        git push
+
   ubuntu-2104-build-test:
     runs-on: ubuntu-latest
     steps:
