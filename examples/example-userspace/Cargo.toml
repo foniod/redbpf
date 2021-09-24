@@ -9,7 +9,7 @@ license = "MIT OR Apache-2.0"
 keywords = ["bpf", "ebpf", "build", "bindgen", "redbpf"]
 
 [build-dependencies]
-cargo-bpf = { path = "../../cargo-bpf", default-features = false, features = ["build"] }
+cargo-bpf = { path = "../../cargo-bpf", default-features = false, features = ["build", "llvm12"] }
 
 [dependencies]
 probes = { path = "../example-probes", package = "example-probes" }

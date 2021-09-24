@@ -6,7 +6,7 @@ edition = "2018"
 repository = "https://github.com/foniod/redbpf"
 
 [build-dependencies]
-cargo-bpf = { path = "../cargo-bpf", default-features = false, features = ["build"] }
+cargo-bpf = { path = "../cargo-bpf", default-features = false, features = ["build", "llvm12"] }
 
 [dependencies]
 probes = { path = "./probes" }
