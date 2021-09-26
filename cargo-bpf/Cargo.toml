@@ -34,6 +34,7 @@ tempfile = { version = "3.1", optional = true}
 lazy_static = "1.0"
 glob = "0.3"
 anyhow = "1.0"
+llvm-sys-100 = { version = "100", optional = true, package = "llvm-sys" }
 llvm-sys-110 = { version = "110", optional = true, package = "llvm-sys" }
 llvm-sys-120 = { version = "120", optional = true, package = "llvm-sys" }
 cfg-if = "1.0"
@@ -43,10 +44,14 @@ rustversion = "1.0"
 default = ["command-line", "llvm12"]
 bindings = ["bpf-sys", "bindgen", "syn", "quote", "proc-macro2", "tempfile"]
 build = ["bindings", "libc", "toml_edit"]
+llvm10 = ["llvm-sys-100"]
 llvm11 = ["llvm-sys-110"]
 llvm12 = ["llvm-sys-120"]
 build-c = []
 command-line = ["build", "clap", "redbpf/load", "futures", "tokio", "hexdump"]
 
 [package.metadata.docs.rs]
-all-features = true
+all-features = false
+no-default-features = true
+features = ["command-line", "llvm10"]
+rustdoc-args = ["--cfg", "docsrs"]

@@ -1,12 +1,18 @@
-#[cfg(feature = "llvm-sys-110")]
-use llvm_sys_110 as llvm_sys;
-#[cfg(feature = "llvm-sys-120")]
-use llvm_sys_120 as llvm_sys;
-
 cfg_if::cfg_if! {
-    if #[cfg(feature = "llvm-sys-110")] {
+    if #[cfg(feature = "llvm-sys-120")] {
+        use llvm_sys_120 as llvm_sys;
+    } else if #[cfg(feature = "llvm-sys-110")] {
+        use llvm_sys_110 as llvm_sys;
+        #[cfg(not(docsrs))]
         #[rustversion::since(1.52)]
         compile_error!("Can not use LLVM11 with Rust >= 1.52");
+    } else if #[cfg(feature = "llvm-sys-100")] {
+        use llvm_sys_100 as llvm_sys;
+        #[cfg(not(docsrs))]
+        #[rustversion::since(1.47)]
+        compile_error!("Can not use LLVM10 with Rust >= 1.47");
+    } else {
+        compile_error!("At least one of `llvm12`, `llvm11` and `llvm10` features should be specified");
     }
 }
 
