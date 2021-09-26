@@ -7,6 +7,7 @@
 
 use crate::uname;
 
+use glob;
 use std::{
     env,
     error::Error,
@@ -153,11 +154,29 @@ fn split_kernel_headers(path: PathBuf) -> Option<KernelHeaders> {
     Some(KernelHeaders { source, build })
 }
 
+/// List all available kernel header paths under /lib/modules
+pub fn available_kernel_header_paths() -> Vec<PathBuf> {
+    glob::glob(&format!("{}/*", LIB_MODULES))
+        .expect("error on glob")
+        .into_iter()
+        .filter_map(|res| {
+            res.as_ref().map_or(None, |ref path| {
+                split_kernel_headers(path.to_path_buf()).map(|_| path.to_path_buf())
+            })
+        })
+        .collect()
+}
+
 /// Get user defined custom path of the Linux kernel header directory
 ///
 /// It returns `KERNEL_SOURCE` environment variable if it is set
 pub fn get_custom_header_path() -> Option<PathBuf> {
     Some(PathBuf::from(env::var(ENV_SOURCE_PATH).ok()?))
+}
+
+/// Set user defined custom path of the Linux kernel header directory
+pub fn set_custom_header_path(path: impl AsRef<Path>) {
+    env::set_var(ENV_SOURCE_PATH, path.as_ref().as_os_str())
 }
 
 /// Get user defined custom version of the Linux kernel header
