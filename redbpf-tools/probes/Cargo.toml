@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = '2018'
 authors = ["Alessandro Decina <alessandro.d@gmail.com>", "Peter Parkanyi <p@symmetree.dev>", "Junyeong Jeong <rhdxmr@gmail.com>"]
 repository = "https://github.com/foniod/redbpf"
+publish = false
 
 [build-dependencies]
 cargo-bpf = { path = "../../cargo-bpf", default-features = false, features = ["bindings"] }
