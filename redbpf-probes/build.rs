@@ -18,7 +18,10 @@ use std::path::PathBuf;
 use std::process::Command;
 use syn::visit::Visit;
 
-use bpf_sys::headers::{get_custom_header_path, get_custom_header_version};
+use bpf_sys::headers::{
+    available_kernel_header_paths, get_custom_header_path, get_custom_header_version,
+    set_custom_header_path,
+};
 use bpf_sys::type_gen::get_custom_vmlinux_path;
 use cargo_bpf_lib::bindgen as bpf_bindgen;
 use syn::{
@@ -270,6 +273,13 @@ fn main() {
         .finish();
     tracing::subscriber::set_global_default(subscriber).unwrap();
 
+    if let Ok(_) = env::var("DOCS_RS") {
+        let mut paths = available_kernel_header_paths();
+        paths.sort();
+        if let Some(path) = paths.pop() {
+            set_custom_header_path(path);
+        }
+    }
     rerun_if_changed_dir("include");
 
     if get_custom_vmlinux_path().is_some() {
