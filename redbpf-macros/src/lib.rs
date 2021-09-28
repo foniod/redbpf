@@ -315,7 +315,7 @@ fn wrap_kprobe(item: ItemFn) -> ItemFn {
     parse_quote! {
         fn #outer_ident(ctx: *mut c_void) -> i32 {
             let regs = ::redbpf_probes::registers::Registers::from(ctx);
-            let _ = #ident(regs);
+            let _ = unsafe { #ident(regs) };
             return 0;
 
             #item
@@ -424,7 +424,7 @@ pub fn xdp(attrs: TokenStream, item: TokenStream) -> TokenStream {
     let wrapper = parse_quote! {
         fn #outer_ident(ctx: *mut ::redbpf_probes::bindings::xdp_md) -> ::redbpf_probes::xdp::XdpAction {
             let ctx = ::redbpf_probes::xdp::XdpContext { ctx };
-            return match #ident(ctx) {
+            return match unsafe { #ident(ctx) } {
                 Ok(action) => action,
                 Err(_) => ::redbpf_probes::xdp::XdpAction::Pass
             };
@@ -460,7 +460,7 @@ pub fn socket_filter(attrs: TokenStream, item: TokenStream) -> TokenStream {
     let wrapper = parse_quote! {
         fn #outer_ident(skb: *const ::redbpf_probes::bindings::__sk_buff) -> i32 {
             let skb = ::redbpf_probes::socket_filter::SkBuff { skb };
-            return match #ident(skb) {
+            return match unsafe { #ident(skb) } {
                 Ok(::redbpf_probes::socket_filter::SkBuffAction::SendToUserspace) => -1,
                 _ => 0
             };
@@ -503,7 +503,7 @@ pub fn stream_parser(attrs: TokenStream, item: TokenStream) -> TokenStream {
         fn #outer_ident(skb: *const ::redbpf_probes::bindings::__sk_buff) -> i32 {
             let skb = ::redbpf_probes::socket::SkBuff { skb };
             use ::redbpf_probes::sockmap::StreamParserAction::*;
-            return match #ident(skb) {
+            return match unsafe { #ident(skb) } {
                 Ok(MessageLength(len)) if len > 0 => len as i32,
                 Ok(MoreDataWanted) => 0,
                 Ok(SendToUserspace) => -86,  // -ESTRPIPE
@@ -546,7 +546,7 @@ pub fn stream_verdict(attrs: TokenStream, item: TokenStream) -> TokenStream {
             let skb = ::redbpf_probes::socket::SkBuff { skb };
             use ::redbpf_probes::socket::SkAction;
 
-            return match #ident(skb) {
+            return match unsafe { #ident(skb) } {
                 SkAction::Pass => ::redbpf_probes::bindings::sk_action_SK_PASS,
                 SkAction::Drop => ::redbpf_probes::bindings::sk_action_SK_DROP,
             } as i32;
@@ -568,7 +568,7 @@ pub fn tc_action(attrs: TokenStream, item: TokenStream) -> TokenStream {
     let wrapper = parse_quote! {
         fn #outer_ident(skb: *const ::redbpf_probes::bindings::__sk_buff) -> i32 {
             let skb = ::redbpf_probes::socket::SkBuff { skb };
-            return match #ident(skb) {
+            return match unsafe { #ident(skb) } {
                 Ok(act) => act as i32,
                 Err(_) => -1
             };
