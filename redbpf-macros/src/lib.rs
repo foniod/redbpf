@@ -309,6 +309,58 @@ fn probe_impl(ty: &str, attrs: TokenStream, item: ItemFn, mut name: String) -> T
     tokens.into()
 }
 
+fn probe_pair_impl(pre: &str, attrs: TokenStream, item: ItemFn, mut name: String) -> TokenStream {
+    if !attrs.is_empty() {
+        name = match parse_macro_input!(attrs as Expr) {
+            Expr::Lit(ExprLit {
+                lit: Lit::Str(s), ..
+            }) => s.value(),
+            _ => panic!("expected string literal"),
+        }
+    };
+
+    let ident = item.sig.ident.clone();
+    let map_ident = Ident::new(&format!("PARMS_{}", ident), Span::call_site());
+    let enter_ident = Ident::new(&format!("enter_{}", ident), Span::call_site());
+    let exit_ident = Ident::new(&format!("exit_{}", ident), Span::call_site());
+    let probe_ident = Ident::new(&format!("{}probe", pre), Span::call_site());
+    let retprobe_ident = Ident::new(&format!("{}retprobe", pre), Span::call_site());
+
+    let tokens = quote! {
+        #[map]
+        static mut #map_ident: HashMap<u64, [u64; 5]> = HashMap::with_max_entries(10240);
+
+        #[#probe_ident(#name)]
+        fn #enter_ident(regs: Registers) {
+            let pid_tgid = bpf_get_current_pid_tgid();
+            let parms = [regs.parm1(), regs.parm2(), regs.parm3(), regs.parm4(), regs.parm5()];
+            unsafe {
+                #map_ident.set(&pid_tgid, &parms);
+            }
+        }
+
+        #[#retprobe_ident(#name)]
+        fn #exit_ident(regs: Registers) {
+            let pid_tgid = bpf_get_current_pid_tgid();
+            let parms = unsafe {
+                match #map_ident.get(&pid_tgid) {
+                    Some(parms) => {
+                        let parms = *parms;
+                        #map_ident.delete(&pid_tgid);
+                        parms
+                    }
+                    None => return,
+                }
+            };
+            let _ = unsafe { #ident(regs, parms) };
+        }
+
+        #item
+    };
+
+    tokens.into()
+}
+
 fn wrap_kprobe(item: ItemFn) -> ItemFn {
     let ident = item.sig.ident.clone();
     let outer_ident = Ident::new(&format!("outer_{}", ident), Span::call_site());
@@ -345,6 +397,7 @@ pub fn kprobe(attrs: TokenStream, item: TokenStream) -> TokenStream {
 /// Attribute macro that must be used to define [`kretprobes`](https://www.kernel.org/doc/Documentation/kprobes.txt).
 ///
 /// # Example
+///
 /// ```no_run
 /// use redbpf_probes::kprobe::prelude::*;
 ///
@@ -353,10 +406,44 @@ pub fn kprobe(attrs: TokenStream, item: TokenStream) -> TokenStream {
 ///     // this is executed when clone() returns
 /// }
 /// ```
+///
+/// # Function parameters
+///
+/// In general, the `parmX` methods of the `regs` argument do **not**
+/// return the original parameter values that the function being probed
+/// was called with. The reason is that those parameters are passed
+/// via (architecture-dependent) general purpose registers, and the
+/// function code most likely overwrites some or all of those registers.
+/// RedBPF provides a convenient way to access original function parameters
+/// by declaring the retprobe with an additional array argument that
+/// receives function parameters 1-5:
+///
+/// ```no_run
+/// use redbpf_probes::kprobe::prelude::*;
+///
+/// #[kretprobe("__x64_sys_clone")]
+/// fn clone_exit(regs: Registers, parms: [u64; 5]) {
+///     // this is executed when clone() returns
+/// }
+/// ```
+///
+/// To make this possible, RedBPF generates a global map, and an entry probe
+/// corresponding to the retprobe which stores the original parameters
+/// in that map. A generated retprobe wrapper retrieves the parameters from
+/// the map, and calls the provided function with the parameter array as
+/// an argument.
+///
+/// Note that if no parameters for the current thread are found in the map
+/// (for example because the capacity of the map has been exhausted, or
+/// the retprobe was registered after the function had already been entered),
+/// **the retprobe is not called** for that function invocation.
 #[proc_macro_attribute]
 pub fn kretprobe(attrs: TokenStream, item: TokenStream) -> TokenStream {
     let item = parse_macro_input!(item as ItemFn);
     let name = item.sig.ident.to_string();
+    if item.sig.inputs.len() == 2 {
+        return probe_pair_impl("k", attrs, item, name);
+    }
     let wrapper = wrap_kprobe(item);
     probe_impl("kretprobe", attrs, wrapper, name)
 }
@@ -383,6 +470,7 @@ pub fn uprobe(attrs: TokenStream, item: TokenStream) -> TokenStream {
 /// Attribute macro that must be used to define [`uretprobes`](https://www.kernel.org/doc/Documentation/trace/uprobetracer.txt).
 ///
 /// # Example
+///
 /// ```no_run
 /// use redbpf_probes::uprobe::prelude::*;
 ///
@@ -391,10 +479,44 @@ pub fn uprobe(attrs: TokenStream, item: TokenStream) -> TokenStream {
 ///     // this is executed when getaddrinfo() returns
 /// }
 /// ```
+///
+/// # Function parameters
+///
+/// In general, the `parmX` methods of the `regs` argument do **not**
+/// return the original parameter values that the function being probed
+/// was called with. The reason is that those parameters are passed
+/// via (architecture-dependent) general purpose registers, and the
+/// function code most likely overwrites some or all of those registers.
+/// RedBPF provides a convenient way to access original function parameters
+/// by declaring the retprobe with an additional array argument that
+/// receives function parameters 1-5:
+///
+/// ```no_run
+/// use redbpf_probes::uprobe::prelude::*;
+///
+/// #[uretprobe]
+/// fn getaddrinfo(regs: Registers, parms: [u64; 5]) {
+///     // this is executed when getaddrinfo() returns
+/// }
+/// ```
+///
+/// To make this possible, RedBPF generates a global map, and an entry probe
+/// corresponding to the retprobe which stores the original parameters
+/// in that map. A generated retprobe wrapper retrieves the parameters from
+/// the map, and calls the provided function with the parameter array as
+/// an argument.
+///
+/// Note that if no parameters for the current thread are found in the map
+/// (for example because the capacity of the map has been exhausted, or
+/// the retprobe was registered after the function had already been entered),
+/// **the retprobe is not called** for that function invocation.
 #[proc_macro_attribute]
 pub fn uretprobe(attrs: TokenStream, item: TokenStream) -> TokenStream {
     let item = parse_macro_input!(item as ItemFn);
     let name = item.sig.ident.to_string();
+    if item.sig.inputs.len() == 2 {
+        return probe_pair_impl("u", attrs, item, name);
+    }
     let wrapper = wrap_kprobe(item);
     probe_impl("uretprobe", attrs, wrapper, name)
 }
