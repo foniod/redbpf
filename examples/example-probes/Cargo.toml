@@ -67,3 +67,8 @@ required-features = ["probes"]
 name = "tc-map-share"
 path = "src/tc_map_share/main.rs"
 required-features = ["probes"]
+
+[[bin]]
+name = "tasks"
+path = "src/tasks/main.rs"
+required-features = ["probes"]
