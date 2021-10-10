@@ -8,17 +8,23 @@
 use goblin::elf::sym::{st_bind, st_type, STB_GLOBAL, STT_OBJECT};
 use goblin::elf::{Elf, SectionHeader};
 use std::collections::HashMap as RSHashMap;
+use std::convert::From;
 use std::ffi::{CStr, CString};
 use std::fmt;
+use std::fs;
 use std::io;
 use std::mem;
-use std::os::unix::io::{AsRawFd, RawFd};
+use std::os::unix::io::RawFd;
 use std::ptr;
+use std::slice;
 use tracing::{debug, error, warn};
 
 use bpf_sys::{
     btf_array, btf_enum, btf_header, btf_member, btf_param, btf_type, btf_var, btf_var_secinfo,
-    BTF_INT_BOOL, BTF_INT_CHAR, BTF_INT_SIGNED, BTF_MAGIC, BTF_VAR_STATIC,
+    BTF_INT_BOOL, BTF_INT_CHAR, BTF_INT_SIGNED, BTF_KIND_ARRAY, BTF_KIND_CONST, BTF_KIND_DATASEC,
+    BTF_KIND_ENUM, BTF_KIND_FLOAT, BTF_KIND_FUNC, BTF_KIND_FUNC_PROTO, BTF_KIND_FWD, BTF_KIND_INT,
+    BTF_KIND_PTR, BTF_KIND_RESTRICT, BTF_KIND_STRUCT, BTF_KIND_TYPEDEF, BTF_KIND_UNION,
+    BTF_KIND_UNKN, BTF_KIND_VAR, BTF_KIND_VOLATILE, BTF_MAGIC, BTF_VAR_STATIC,
 };
 
 use crate::error::{Error, Result};
@@ -26,8 +32,9 @@ use crate::error::{Error, Result};
 const BTF_SECTION_NAME: &str = ".BTF";
 
 pub(crate) struct BTF {
-    fd: RawFd,
-    types: Vec<(u32, BtfType)>,
+    types: Vec<(u32, BtfType, *mut u8)>,
+    raw_bytes: Vec<u8>,
+    fd: Option<RawFd>,
 }
 
 struct BtfTypeCommon {
@@ -35,6 +42,27 @@ struct BtfTypeCommon {
     #[allow(unused)]
     name_fixed: Option<String>,
     name_raw: String,
+}
+
+#[derive(PartialEq, Eq)]
+pub(crate) enum BtfKind {
+    Unknown,
+    Integer,
+    Pointer,
+    Array,
+    Structure,
+    Union,
+    Enumeration,
+    Forward,
+    TypeDef,
+    Volatile,
+    Constant,
+    Restrict,
+    Function,
+    FunctionProtocol,
+    Variable,
+    DataSection,
+    FloatingPoint,
 }
 
 enum BtfType {
@@ -75,26 +103,49 @@ pub(crate) struct MapBtfTypeId {
     pub(crate) value_type_id: u32,
 }
 
+pub(crate) fn parse_vmlinux_btf() -> Result<BTF> {
+    let bytes = fs::read("/sys/kernel/btf/vmlinux").or_else(|e| Err(Error::IO(e)))?;
+    BTF::parse_raw(&bytes)
+}
+
 impl BTF {
-    /// Parse .BTF section
-    ///
-    /// `object` is `Elf` representing whole ELF relocatable file.
-    ///
-    /// `bytes` is binary data of whole ELF relocatable file.
-    pub(crate) fn parse(object: &Elf, bytes: &[u8]) -> Result<BTF> {
-        let mut btf_bytes = get_section_header_by_name(object, BTF_SECTION_NAME)
-            .map(|shdr| {
-                let mut v = vec![0u8; shdr.sh_size as usize];
-                v.as_mut_slice().copy_from_slice(
-                    &bytes[shdr.sh_offset as usize..(shdr.sh_offset + shdr.sh_size) as usize],
-                );
-                v.into_boxed_slice()
-            })
-            .ok_or_else(|| Error::Section("BTF section not found".to_string()))?;
-        if mem::size_of::<btf_header>() > btf_bytes.len() {
+    fn is_loaded(&self) -> bool {
+        self.fd.is_some()
+    }
+
+    /// Load BTF raw data to the Linux kernel and save `fd` of the data
+    pub(crate) fn load(&mut self) -> Result<()> {
+        if self.is_loaded() {
+            return Err(Error::BTF("BTF already loaded".to_string()));
+        }
+
+        let mut v = vec![0i8; 64 * 1024];
+        let log_buf = v.as_mut_ptr();
+        let log_buf_size = v.capacity() * mem::size_of_val(&v[0]);
+        let fd;
+        unsafe {
+            fd = bpf_sys::bpf_load_btf(
+                self.raw_bytes.as_ptr() as *const _,
+                self.raw_bytes.len() as u32,
+                log_buf,
+                log_buf_size as u32,
+                false,
+            );
+            if fd < 0 {
+                let cstr = CStr::from_ptr(log_buf);
+                error!("error on bpf_load_btf: {}", cstr.to_str().unwrap());
+                return Err(Error::IO(io::Error::last_os_error()));
+            }
+        }
+        self.fd = Some(fd);
+        Ok(())
+    }
+
+    fn parse_raw(bytes: &[u8]) -> Result<BTF> {
+        if mem::size_of::<btf_header>() > bytes.len() {
             return Err(Error::BTF("BTF section data size is too small".to_string()));
         }
-        let btf_hdr = unsafe { ptr::read_unaligned::<btf_header>(btf_bytes.as_ptr() as *const _) };
+        let btf_hdr = unsafe { ptr::read_unaligned::<btf_header>(bytes.as_ptr() as *const _) };
         if btf_hdr.magic != BTF_MAGIC as u16 {
             return Err(Error::BTF(
                 "illegal magic. not a valid BTF section".to_string(),
@@ -106,53 +157,44 @@ impl BTF {
                 btf_hdr.version
             )));
         }
-        if (btf_hdr.hdr_len + btf_hdr.str_off + btf_hdr.str_len) as usize != btf_bytes.len() {
+        if (btf_hdr.hdr_len + btf_hdr.str_off + btf_hdr.str_len) as usize != bytes.len() {
             return Err(Error::BTF("invalid binary data length".to_string()));
         }
 
-        // Vec<(data ptr, BtfType, type id)>
-        let mut btf_types = Self::parse_types(&btf_hdr, &mut btf_bytes)?;
-
-        Self::fix_datasection(&mut btf_types, object)?;
-        for (_, type_, type_id) in btf_types.iter() {
-            debug!("[{}] {:?}", type_id, type_);
-        }
-
-        let mut v = vec![0i8; 64 * 1024];
-        let log_buf = v.as_mut_ptr();
-        let log_buf_size = v.capacity() * mem::size_of_val(&v[0]);
-        let fd;
-        unsafe {
-            fd = bpf_sys::bpf_load_btf(
-                btf_bytes.as_ptr() as *const _,
-                btf_bytes.len() as u32,
-                log_buf,
-                log_buf_size as u32,
-                false,
-            );
-            if fd < 0 {
-                let cstr = CStr::from_ptr(log_buf);
-                error!("error on bpf_load_btf: {}", cstr.to_str().unwrap());
-                return Err(Error::IO(io::Error::last_os_error()));
-            }
-        }
+        let mut clone_bytes = bytes.to_vec();
+        let btf_types = Self::parse_types(&btf_hdr, &mut clone_bytes)?;
         Ok(BTF {
-            fd,
-            types: btf_types
-                .into_iter()
-                .map(|(_, type_, type_id)| (type_id, type_))
-                .collect(),
+            types: btf_types,
+            raw_bytes: clone_bytes,
+            fd: None,
         })
     }
 
-    /// Helper function for fixing BPF datasection type
+    /// Parse .BTF section
+    ///
+    /// `object` is `Elf` representing whole ELF relocatable file.
+    ///
+    /// `bytes` is binary data of whole ELF relocatable file.
+    pub(crate) fn parse_elf(object: &Elf, bytes: &[u8]) -> Result<BTF> {
+        let shdr = get_section_header_by_name(object, BTF_SECTION_NAME)
+            .ok_or_else(|| Error::BTF("section not found".to_string()))?;
+        let btf_bytes = &bytes[shdr.sh_offset as usize..(shdr.sh_offset + shdr.sh_size) as usize];
+        let mut btf = Self::parse_raw(&btf_bytes)?;
+        btf.fix_datasection(object)?;
+        for (type_id, type_, _) in btf.types.iter() {
+            debug!("[{}] {:?}", type_id, type_);
+        }
+        Ok(btf)
+    }
+
+    /// Fix up BPF datasection type
     ///
     /// the value of `size` field of a BPF datasection type is always zero at
     /// compile time. so it is required to correct the value at runtime
-    fn fix_datasection(btf_types: &mut Vec<(*mut u8, BtfType, u32)>, object: &Elf) -> Result<()> {
+    fn fix_datasection(&mut self, object: &Elf) -> Result<()> {
         // fix size of datasection
         let mut var_type_ids = vec![];
-        for (data, type_, _) in btf_types.iter_mut() {
+        for (_, type_, data) in self.types.iter_mut() {
             if let BtfType::DataSection(comm, vsis) = type_ {
                 let shdr = get_section_header_by_name(object, &comm.name_raw).ok_or_else(|| {
                     Error::Section(format!("DataSection not found: {}", &comm.name_raw))
@@ -165,9 +207,10 @@ impl BTF {
         // fix offset of var section info
         let mut var_offsets = RSHashMap::new();
         for vti in var_type_ids {
-            let var = btf_types
+            let var = self
+                .types
                 .iter()
-                .find_map(|(_, type_, type_id)| {
+                .find_map(|(type_id, type_, _)| {
                     if let BtfType::Variable(..) = type_ {
                         if &vti == type_id {
                             return Some(type_);
@@ -204,7 +247,7 @@ impl BTF {
                 var_offsets.insert(vti, sym.st_value);
             }
         }
-        for (data, type_, _) in btf_types.iter_mut() {
+        for (_, type_, data) in self.types.iter_mut() {
             if let BtfType::DataSection(_, vsis) = type_ {
                 let mut modified = false;
                 for vsi in vsis.iter_mut() {
@@ -226,7 +269,7 @@ impl BTF {
     fn parse_types(
         btf_hdr: &btf_header,
         btf_bytes: &mut [u8],
-    ) -> Result<Vec<(*mut u8, BtfType, u32)>> {
+    ) -> Result<Vec<(u32, BtfType, *mut u8)>> {
         let mut btf_types = vec![];
         let type_start = unsafe {
             btf_bytes
@@ -241,7 +284,7 @@ impl BTF {
         while type_ptr < type_end {
             let type_ = BtfType::parse(type_ptr as *mut _, str_bytes)?;
             let sz = type_.byte_len();
-            btf_types.push((type_ptr as *mut _, type_, type_id));
+            btf_types.push((type_id, type_, type_ptr as *mut _));
             type_ptr = unsafe { type_ptr.offset(sz as isize) };
             type_id += 1;
         }
@@ -251,66 +294,129 @@ impl BTF {
     fn get_type_by_id(&self, type_id: u32) -> Option<&BtfType> {
         self.types
             .iter()
-            .find_map(|(tid, type_)| if &type_id == tid { Some(type_) } else { None })
+            .find_map(|(tid, type_, _)| if &type_id == tid { Some(type_) } else { None })
     }
 
     /// Get BTF type ids of a map which is defined at `section_name` section
     ///
     /// `section_name` indicates a section of an ELF relocatable file. Normally
     /// the name starts with `maps/`.
-    pub(crate) fn get_map_type_ids(&self, section_name: &str) -> Option<MapBtfTypeId> {
+    pub(crate) fn get_map_type_ids(&self, section_name: &str) -> Result<MapBtfTypeId> {
+        if !self.is_loaded() {
+            return Err(Error::BTF("BTF is not loaded yet".to_string()));
+        }
         use BtfType::*;
-        let vsis = self.types.iter().find_map(|(_type_id, type_)| {
-            if let DataSection(common, vsis) = type_ {
-                if &common.name_raw == section_name {
-                    return Some(vsis);
-                }
-            }
-            None
-        })?;
-        vsis.iter().find_map(|vsi| {
-            if let var @ Variable(..) = self.get_type_by_id(vsi.type_)? {
-                if let Structure(struct_comm, members) = self.get_type_by_id(var.type_id()?)? {
-                    if &struct_comm.name_raw == "MapBtf" {
-                        let key_type_id = members.iter().find_map(|memb| {
-                            if &memb.name == "key_type" {
-                                Some(memb.member.type_)
-                            } else {
-                                None
-                            }
-                        })?;
-                        let value_type_id = members.iter().find_map(|memb| {
-                            if &memb.name == "value_type" {
-                                Some(memb.member.type_)
-                            } else {
-                                None
-                            }
-                        })?;
-                        return Some(MapBtfTypeId {
-                            btf_fd: self.as_raw_fd(),
-                            key_type_id,
-                            value_type_id,
-                        });
+        let vsis = self
+            .types
+            .iter()
+            .find_map(|(_type_id, type_, _)| {
+                if let DataSection(common, vsis) = type_ {
+                    if &common.name_raw == section_name {
+                        return Some(vsis);
                     }
                 }
-            }
-            None
-        })
+                None
+            })
+            .ok_or_else(|| Error::BTF("section not found".to_string()))?;
+        vsis.iter()
+            .find_map(|vsi| {
+                if let var @ Variable(..) = self.get_type_by_id(vsi.type_)? {
+                    if let Structure(struct_comm, members) = self.get_type_by_id(var.type_id()?)? {
+                        if &struct_comm.name_raw == "MapBtf" {
+                            let key_type_id = members.iter().find_map(|memb| {
+                                if &memb.name == "key_type" {
+                                    Some(memb.member.type_)
+                                } else {
+                                    None
+                                }
+                            })?;
+                            let value_type_id = members.iter().find_map(|memb| {
+                                if &memb.name == "value_type" {
+                                    Some(memb.member.type_)
+                                } else {
+                                    None
+                                }
+                            })?;
+                            return Some(MapBtfTypeId {
+                                btf_fd: self.fd.unwrap(), // self.is_loaded ensures that unwrap returns fd
+                                key_type_id,
+                                value_type_id,
+                            });
+                        }
+                    }
+                }
+                None
+            })
+            .ok_or_else(|| Error::BTF("btf id of map not found".to_string()))
+    }
+
+    pub(crate) fn find_type_id(&self, type_name: &str, kind: BtfKind) -> Option<u32> {
+        use BtfType::*;
+        self.types
+            .iter()
+            .find_map(|(type_id, type_, _)| match type_ {
+                Integer(common, _)
+                | Pointer(common)
+                | Array(common, _)
+                | Structure(common, _)
+                | Union(common, _)
+                | Enumeration(common, _)
+                | Forward(common)
+                | TypeDef(common)
+                | Volatile(common)
+                | Constant(common)
+                | Restrict(common)
+                | Function(common)
+                | FunctionProtocol(common, _)
+                | Variable(common, _)
+                | DataSection(common, _)
+                | FloatingPoint(common) => {
+                    if common.kind() == kind {
+                        if common.name_raw == type_name {
+                            return Some(*type_id);
+                        }
+                    }
+                    None
+                }
+            })
     }
 }
 
 impl Drop for BTF {
     fn drop(&mut self) {
-        unsafe {
-            let _ = libc::close(self.fd);
+        if let Some(fd) = self.fd {
+            unsafe {
+                let _ = libc::close(fd);
+            }
         }
     }
 }
 
-impl AsRawFd for BTF {
-    #[inline]
-    fn as_raw_fd(&self) -> RawFd {
-        self.fd
+impl From<u32> for BtfKind {
+    fn from(kind: u32) -> Self {
+        match kind {
+            BTF_KIND_UNKN => BtfKind::Unknown,
+            BTF_KIND_INT => BtfKind::Integer,
+            BTF_KIND_PTR => BtfKind::Pointer,
+            BTF_KIND_ARRAY => BtfKind::Array,
+            BTF_KIND_STRUCT => BtfKind::Structure,
+            BTF_KIND_UNION => BtfKind::Union,
+            BTF_KIND_ENUM => BtfKind::Enumeration,
+            BTF_KIND_FWD => BtfKind::Forward,
+            BTF_KIND_TYPEDEF => BtfKind::TypeDef,
+            BTF_KIND_VOLATILE => BtfKind::Volatile,
+            BTF_KIND_CONST => BtfKind::Constant,
+            BTF_KIND_RESTRICT => BtfKind::Restrict,
+            BTF_KIND_FUNC => BtfKind::Function,
+            BTF_KIND_FUNC_PROTO => BtfKind::FunctionProtocol,
+            BTF_KIND_VAR => BtfKind::Variable,
+            BTF_KIND_DATASEC => BtfKind::DataSection,
+            BTF_KIND_FLOAT => BtfKind::FloatingPoint,
+            // Other values can not exist because kind is bit-masked by
+            // `BtfTypeCommon::kind` method thus numbers that exceed the max
+            // value can not be evaluated.
+            _ => panic!("invalid btf kind. This should never happen: {}", kind),
+        }
     }
 }
 
@@ -325,8 +431,8 @@ impl BtfTypeCommon {
         })
     }
 
-    fn kind(&self) -> u32 {
-        (self.type_.info >> 24) & 0x0f
+    fn kind(&self) -> BtfKind {
+        BtfKind::from((self.type_.info >> 24) & 0x1f)
     }
 
     fn vlen(&self) -> u32 {
@@ -356,10 +462,10 @@ impl BtfType {
         let vlen = comm.vlen();
         use BtfType::*;
         let mut type_ = match comm.kind() {
-            1 => Integer(comm, Self::read_extra::<u32>(bytes)),
-            2 => Pointer(comm),
-            3 => Array(comm, Self::read_extra::<btf_array>(bytes)),
-            4 => Structure(comm, {
+            BtfKind::Integer => Integer(comm, Self::read_extra::<u32>(bytes)),
+            BtfKind::Pointer => Pointer(comm),
+            BtfKind::Array => Array(comm, Self::read_extra::<btf_array>(bytes)),
+            BtfKind::Structure => Structure(comm, {
                 Self::read_multiple_extra::<btf_member>(bytes, vlen)
                     .into_iter()
                     .map(|memb| BtfMember {
@@ -371,7 +477,7 @@ impl BtfType {
                     })
                     .collect()
             }),
-            5 => Union(comm, {
+            BtfKind::Union => Union(comm, {
                 Self::read_multiple_extra::<btf_member>(bytes, vlen)
                     .into_iter()
                     .map(|memb| BtfMember {
@@ -383,29 +489,38 @@ impl BtfType {
                     })
                     .collect()
             }),
-            6 => Enumeration(comm, Self::read_multiple_extra::<btf_enum>(bytes, vlen)),
-            7 => Forward(comm),
-            8 => TypeDef(comm),
-            9 => Volatile(comm),
-            10 => Constant(comm),
-            11 => Restrict(comm),
-            12 => Function(comm),
-            13 => FunctionProtocol(comm, Self::read_multiple_extra::<btf_param>(bytes, vlen)),
-            14 => Variable(comm, Self::read_extra::<btf_var>(bytes)),
-            15 => DataSection(
+            BtfKind::Enumeration => {
+                Enumeration(comm, Self::read_multiple_extra::<btf_enum>(bytes, vlen))
+            }
+            BtfKind::Forward => Forward(comm),
+            BtfKind::TypeDef => TypeDef(comm),
+            BtfKind::Volatile => Volatile(comm),
+            BtfKind::Constant => Constant(comm),
+            BtfKind::Restrict => Restrict(comm),
+            BtfKind::Function => Function(comm),
+            BtfKind::FunctionProtocol => {
+                FunctionProtocol(comm, Self::read_multiple_extra::<btf_param>(bytes, vlen))
+            }
+            BtfKind::Variable => Variable(comm, Self::read_extra::<btf_var>(bytes)),
+            BtfKind::DataSection => DataSection(
                 comm,
                 Self::read_multiple_extra::<btf_var_secinfo>(bytes, vlen),
             ),
-            16 => FloatingPoint(comm),
-            _ => {
+            BtfKind::FloatingPoint => FloatingPoint(comm),
+            BtfKind::Unknown => {
                 // it can happen normally because new BPF type can be
                 // introduced to linux kernel while redBPF does not support it
                 // yet.
                 // But we can not keep progressing from this point because the
                 // unknown type may have following data in addition to btf_type
                 // struct but we can not get to know of it.
-                error!("Unknown BTF type: {}", comm.kind());
-                return Err(Error::BTF(format!("Unknown BTF type: {}", comm.kind())));
+                error!("Unknown BTF type. btf_type data => {:?}", unsafe {
+                    slice::from_raw_parts(
+                        (&comm.type_ as *const btf_type) as *const u8,
+                        mem::size_of::<btf_type>(),
+                    )
+                },);
+                return Err(Error::BTF("Unknown BTF type".to_string()));
             }
         };
 
