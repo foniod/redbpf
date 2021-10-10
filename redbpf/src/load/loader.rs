@@ -15,7 +15,8 @@ use std::path::Path;
 use crate::load::map_io::PerfMessageStream;
 use crate::{cpus, Program};
 use crate::{
-    Error, KProbe, Map, Module, PerfMap, SocketFilter, StreamParser, StreamVerdict, UProbe, XDP,
+    Error, KProbe, Map, Module, PerfMap, SocketFilter, StreamParser, StreamVerdict, TaskIter,
+    UProbe, XDP,
 };
 
 #[derive(Debug)]
@@ -166,5 +167,17 @@ impl Loaded {
 
     pub fn stream_verdict_mut(&mut self, name: &str) -> Option<&mut StreamVerdict> {
         self.module.stream_verdict_mut(name)
+    }
+
+    pub fn task_iters(&self) -> impl Iterator<Item = &TaskIter> {
+        self.module.task_iters()
+    }
+
+    pub fn bpf_iters_mut(&mut self) -> impl Iterator<Item = &mut TaskIter> {
+        self.module.task_iters_mut()
+    }
+
+    pub fn task_iter_mut(&mut self, name: &str) -> Option<&mut TaskIter> {
+        self.module.task_iter_mut(name)
     }
 }
