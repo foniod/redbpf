@@ -20,8 +20,8 @@ use std::{
 const KCONFIG: &'static str = "include/linux/kconfig.h";
 const VERSION_H: &'static str = "include/generated/uapi/linux/version.h";
 const LIB_MODULES: &'static str = "/lib/modules";
-const ENV_SOURCE_PATH: &'static str = "KERNEL_SOURCE";
-const ENV_SOURCE_VERSION: &'static str = "KERNEL_VERSION";
+pub const ENV_SOURCE_PATH: &'static str = "KERNEL_SOURCE";
+pub const ENV_SOURCE_VERSION: &'static str = "KERNEL_VERSION";
 
 #[derive(Debug)]
 pub enum HeadersError {
