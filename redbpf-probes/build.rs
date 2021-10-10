@@ -20,9 +20,9 @@ use syn::visit::Visit;
 
 use bpf_sys::headers::{
     available_kernel_header_paths, get_custom_header_path, get_custom_header_version,
-    set_custom_header_path,
+    set_custom_header_path, ENV_SOURCE_PATH, ENV_SOURCE_VERSION,
 };
-use bpf_sys::type_gen::get_custom_vmlinux_path;
+use bpf_sys::type_gen::{get_custom_vmlinux_path, ENV_VMLINUX_PATH};
 use cargo_bpf_lib::bindgen as bpf_bindgen;
 use syn::{
     self, parse_str, punctuated::Punctuated, token::Comma, AngleBracketedGenericArguments,
@@ -281,6 +281,9 @@ fn main() {
         }
     }
     rerun_if_changed_dir("include");
+    println!("cargo:rerun-if-env-changed={}", ENV_SOURCE_PATH);
+    println!("cargo:rerun-if-env-changed={}", ENV_SOURCE_VERSION);
+    println!("cargo:rerun-if-env-changed={}", ENV_VMLINUX_PATH);
 
     if get_custom_vmlinux_path().is_some() {
         debug!("Generating bindings with BTF of vmlinux");

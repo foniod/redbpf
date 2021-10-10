@@ -34,7 +34,7 @@ use std::os::unix::io::{FromRawFd, IntoRawFd, RawFd};
 use std::path::Path;
 use std::path::PathBuf;
 use std::ptr;
-const ENV_VMLINUX_PATH: &'static str = "REDBPF_VMLINUX";
+pub const ENV_VMLINUX_PATH: &'static str = "REDBPF_VMLINUX";
 
 // only used for RAII
 struct RawFdWrapper(RawFd);
