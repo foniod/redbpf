@@ -264,6 +264,8 @@ pub fn map(attrs: TokenStream, item: TokenStream) -> TokenStream {
         let mod_ident = syn::Ident::new(&mod_name, static_item.ident.span());
         let ktype = key_type.unwrap();
         let vtype = value_type.unwrap();
+        let map_btf_name = format!("MAP_BTF_{}", static_item.ident.to_string());
+        let map_btf_ident = syn::Ident::new(&map_btf_name, static_item.ident.span());
         tokens.extend(quote! {
             mod #mod_ident {
                 #[allow(unused_imports)]
@@ -278,9 +280,9 @@ pub fn map(attrs: TokenStream, item: TokenStream) -> TokenStream {
                 // `impl Sync` is needed to allow pointer types of keys and values
                 unsafe impl Sync for MapBtf {}
                 const N: usize = mem::size_of::<MapBtf>();
-                #[used]
-                #[link_section = #section_name]
-                static MAP_BTF: MapBtf = unsafe { mem::transmute::<[u8; N], MapBtf>([0u8; N])};
+                #[no_mangle]
+                #[link_section = "maps.ext"]
+                static #map_btf_ident: MapBtf = unsafe { mem::transmute::<[u8; N], MapBtf>([0u8; N]) };
             }
         });
     }
