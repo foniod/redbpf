@@ -40,7 +40,7 @@ ubuntu-20.04() {
 ubuntu-21.04() {
     STIME=$(date +%s)
     echo "$(date) Build redbpf with kernel headers on Ubuntu 21.04"
-    docker run --privileged -v $WORKDIR:/build -w /build $IMAGE_NAME:latest-ubuntu-21.04 /bin/bash -c 'cargo clean && export KERNEL_VERSION=$(ls --indicator-style=none /lib/modules/) && echo KERNEL_VERSION=$KERNEL_VERSION && cargo build && cargo build --examples'
+    docker run --privileged -v $WORKDIR:/build -w /build $IMAGE_NAME:latest-ubuntu-21.04 /bin/bash -c 'cargo clean && export KERNEL_VERSION=$(ls --indicator-style=none /lib/modules/) && echo KERNEL_VERSION=$KERNEL_VERSION && cargo build && cargo build --examples --features=kernel5_8'
     ERR=$?
     ETIME=$(date +%s)
     echo "took $(((ETIME - STIME) / 60))m$(((ETIME - STIME) % 60))s"
@@ -51,7 +51,7 @@ ubuntu-21.04() {
 
     STIME=$(date +%s)
     echo "$(date) Build redbpf wih vmlinux on Ubuntu 21.04"
-    docker run --privileged -v $WORKDIR:/build -w /build $IMAGE_NAME:latest-ubuntu-21.04 /bin/bash -c 'cargo clean && /lib/modules/*/build/scripts/extract-vmlinux /boot/vmlinuz > /boot/vmlinux && export REDBPF_VMLINUX=/boot/vmlinux && cargo build && cargo build --examples'
+    docker run --privileged -v $WORKDIR:/build -w /build $IMAGE_NAME:latest-ubuntu-21.04 /bin/bash -c 'cargo clean && /lib/modules/*/build/scripts/extract-vmlinux /boot/vmlinuz > /boot/vmlinux && export REDBPF_VMLINUX=/boot/vmlinux && cargo build && cargo build --examples --features=kernel5_8'
     ERR=$?
     ETIME=$(date +%s)
     echo "took $(((ETIME - STIME) / 60))m$(((ETIME - STIME) % 60))s"

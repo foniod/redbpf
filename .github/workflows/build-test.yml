@@ -33,14 +33,14 @@ jobs:
         -v $PWD:/build \
         -w /build \
         $BASE_IMAGE:latest-ubuntu-21.04 \
-        /bin/bash -c 'cargo clean && export KERNEL_VERSION=$(ls --indicator-style=none /lib/modules/) && echo KERNEL_VERSION=$KERNEL_VERSION && cargo build && cargo build --examples'
+        /bin/bash -c 'cargo clean && export KERNEL_VERSION=$(ls --indicator-style=none /lib/modules/) && echo KERNEL_VERSION=$KERNEL_VERSION && cargo build && cargo build --examples --features=kernel5_8'
     - name: Run RedBPF build with vmlinux on ubuntu-21.04 container
       run: |
         docker run --privileged \
         -v $PWD:/build \
         -w /build \
         $BASE_IMAGE:latest-ubuntu-21.04 \
-        /bin/bash -c 'cargo clean && /lib/modules/*/build/scripts/extract-vmlinux /boot/vmlinuz > /boot/vmlinux && export REDBPF_VMLINUX=/boot/vmlinux && cargo build && cargo build --examples'
+        /bin/bash -c 'cargo clean && /lib/modules/*/build/scripts/extract-vmlinux /boot/vmlinuz > /boot/vmlinux && export REDBPF_VMLINUX=/boot/vmlinux && cargo build && cargo build --examples --features=kernel5_8'
 
   ubuntu-2004-build-test:
     runs-on: ubuntu-latest

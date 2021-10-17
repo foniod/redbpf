@@ -45,8 +45,6 @@ fn example_xdp_probe(ctx: XdpContext) -> XdpResult {
 extern crate proc_macro;
 extern crate proc_macro2;
 use proc_macro::TokenStream;
-#[cfg(RUSTC_IS_NIGHTLY)]
-use proc_macro::{Diagnostic, Level};
 use proc_macro2::{Ident, Span, TokenStream as TokenStream2};
 use quote::quote;
 use std::str;
@@ -700,4 +698,26 @@ pub fn tc_action(attrs: TokenStream, item: TokenStream) -> TokenStream {
     };
 
     probe_impl("tc_action", attrs, wrapper, name)
+}
+
+/// Attribute macro for defining a BPF iterator of `task`
+#[proc_macro_attribute]
+pub fn task_iter(attrs: TokenStream, item: TokenStream) -> TokenStream {
+    let item = parse_macro_input!(item as ItemFn);
+    let name = item.sig.ident.to_string();
+    let ident = item.sig.ident.clone();
+    let outer_ident = Ident::new(&format!("outer_{}", ident), Span::call_site());
+    let wrapper = parse_quote! {
+        fn #outer_ident(ctx: *mut bpf_iter__task) -> i32 {
+            let task_ctx = ::redbpf_probes::bpf_iter::context::TaskIterContext { ctx };
+            return match unsafe { #ident(task_ctx) } {
+                BPFIterAction::Ok => 0,
+                BPFIterAction::Retry => 1,
+            };
+
+            #item
+        }
+    };
+
+    probe_impl("task_iter", attrs, wrapper, name)
 }

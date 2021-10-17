@@ -57,25 +57,26 @@ pub mod xdp;
 pub use bpf_sys::uname;
 use bpf_sys::{
     bpf_attach_type_BPF_SK_SKB_STREAM_PARSER, bpf_attach_type_BPF_SK_SKB_STREAM_VERDICT,
-    bpf_create_map_attr, bpf_create_map_xattr, bpf_insn, bpf_load_program_xattr, bpf_map_def,
-    bpf_map_info, bpf_map_type_BPF_MAP_TYPE_ARRAY, bpf_map_type_BPF_MAP_TYPE_PERCPU_ARRAY,
-    bpf_prog_type, BPF_ANY,
+    bpf_attach_type_BPF_TRACE_ITER, bpf_create_map_attr, bpf_create_map_xattr, bpf_insn,
+    bpf_iter_create, bpf_link_create, bpf_load_program_xattr, bpf_map_def, bpf_map_info,
+    bpf_map_type_BPF_MAP_TYPE_ARRAY, bpf_map_type_BPF_MAP_TYPE_PERCPU_ARRAY, bpf_prog_type,
+    BPF_ANY,
 };
 use goblin::elf::{reloc::RelocSection, section_header as hdr, Elf, SectionHeader, Sym};
 
 use libc::{self, pid_t};
 use std::collections::HashMap as RSHashMap;
 use std::ffi::{CStr, CString};
-use std::fs;
-use std::io::{self, ErrorKind};
+use std::fs::{self, File};
+use std::io::{self, BufReader, ErrorKind, Read};
 use std::marker::PhantomData;
 use std::mem::{self, MaybeUninit};
 use std::ops::{Deref, DerefMut};
-use std::os::unix::io::RawFd;
+use std::os::unix::io::{FromRawFd, RawFd};
 use std::path::{Path, PathBuf};
 use std::ptr;
 
-use crate::btf::{MapBtfTypeId, BTF};
+use crate::btf::{BtfKind, MapBtfTypeId, BTF};
 pub use crate::error::{Error, Result};
 pub use crate::perf::*;
 use crate::symbols::*;
@@ -148,6 +149,7 @@ pub enum Program {
     XDP(XDP),
     StreamParser(StreamParser),
     StreamVerdict(StreamVerdict),
+    TaskIter(TaskIter),
 }
 
 struct ProgramData {
@@ -206,6 +208,32 @@ pub struct StreamParser {
 /// Type to work with `stream_verdict` BPF programs.
 pub struct StreamVerdict {
     common: ProgramData,
+}
+
+/// A structure supporting BPF iterators that handle `task`
+///
+/// # Example
+/// ```no_run
+/// # const DATA: [u8; 16] = [0u8; 16];
+/// # fn probe_code() -> &'static [u8] {
+/// #     &DATA[..]
+/// # }
+/// use redbpf::load::Loader;
+/// let mut loaded = Loader::load(probe_code()).unwrap();
+/// let tasks = loaded
+///     .task_iter_mut("dump_tgid")
+///     .expect("dump_tgid task iterator not found");
+/// for tgid in tasks
+///     .bpf_iter::<libc::pid_t>()
+///     .expect("error on Taskiter::bpf_iter")
+/// {
+///     println!("{}", tgid);
+/// }
+/// ```
+pub struct TaskIter {
+    common: ProgramData,
+    attach_btf_id: u32,
+    link_fd: Option<RawFd>,
 }
 
 #[derive(Debug)]
@@ -360,6 +388,32 @@ impl Program {
         })
     }
 
+    fn with_btf(kind: &str, name: &str, code: &[u8], btf: &BTF) -> Result<Program> {
+        let code = zero::read_array(code).to_vec();
+        let name = name.to_string();
+
+        let common = ProgramData {
+            name,
+            code,
+            fd: None,
+        };
+
+        Ok(match kind {
+            "task_iter" => {
+                let btf_id = btf
+                    .find_type_id("bpf_iter_task", BtfKind::Function)
+                    .ok_or_else(|| Error::BTF("type id of bpf_iter_task not found".to_string()))?;
+                debug!("btf_id of bpf_iter_task: {}", btf_id);
+                Program::TaskIter(TaskIter {
+                    common,
+                    attach_btf_id: btf_id,
+                    link_fd: None,
+                })
+            }
+            _ => return Err(Error::Section(kind.to_string())),
+        })
+    }
+
     fn to_prog_type(&self) -> bpf_prog_type {
         use Program::*;
 
@@ -371,6 +425,7 @@ impl Program {
             SocketFilter(_) => bpf_sys::bpf_prog_type_BPF_PROG_TYPE_SOCKET_FILTER,
             TracePoint(_) => bpf_sys::bpf_prog_type_BPF_PROG_TYPE_TRACEPOINT,
             StreamParser(_) | StreamVerdict(_) => bpf_sys::bpf_prog_type_BPF_PROG_TYPE_SK_SKB,
+            TaskIter(_) => bpf_sys::bpf_prog_type_BPF_PROG_TYPE_TRACING,
         }
     }
 
@@ -385,6 +440,7 @@ impl Program {
             TracePoint(p) => &p.common,
             StreamParser(p) => &p.common,
             StreamVerdict(p) => &p.common,
+            TaskIter(p) => &p.common,
         }
     }
 
@@ -399,6 +455,7 @@ impl Program {
             TracePoint(p) => &mut p.common,
             StreamParser(p) => &mut p.common,
             StreamVerdict(p) => &mut p.common,
+            TaskIter(p) => &mut p.common,
         }
     }
 
@@ -425,24 +482,30 @@ impl Program {
     /// }
     /// ```
     pub fn load(&mut self, kernel_version: u32, license: String) -> Result<()> {
-        if self.data().fd.is_some() {
+        if self.fd().is_some() {
             return Err(Error::ProgramAlreadyLoaded);
         }
         // Should bind CString to local variable not to make a dangling pointer
         // with .as_ptr() method
-        let cname = CString::new(self.data().name.clone())?;
+        let cname = CString::new(self.name().clone())?;
         let clicense = CString::new(license)?;
 
         let mut attr = unsafe { mem::zeroed::<bpf_sys::bpf_load_program_attr>() };
 
         attr.prog_type = self.to_prog_type();
-        attr.expected_attach_type = 0;
         attr.name = cname.as_ptr();
         attr.insns = self.data().code.as_ptr();
         attr.insns_cnt = self.data().code.len() as u64;
         attr.license = clicense.as_ptr();
-        attr.__bindgen_anon_1.kern_version = kernel_version;
         attr.log_level = 0;
+
+        if let Program::TaskIter(bpf_iter) = self {
+            attr.expected_attach_type = bpf_attach_type_BPF_TRACE_ITER;
+            attr.__bindgen_anon_2.attach_btf_id = bpf_iter.attach_btf_id;
+        } else {
+            attr.expected_attach_type = 0;
+            attr.__bindgen_anon_1.kern_version = kernel_version;
+        }
 
         // do not pass log buffer. it is filled with verifier's log but
         // insufficient buffer size can cause ENOSPC error. pass log buffer
@@ -503,8 +566,9 @@ impl Program {
 
             let cstr = unsafe { CStr::from_ptr(log_buffer) };
             error!(
-                "error loading BPF program `{}' with bpf_load_program_xattr: {}",
-                &self.data().name,
+                "error loading BPF program `{}' with bpf_load_program_xattr. ret={} os error={}: {}",
+                self.name(),
+                fd, io::Error::last_os_error(),
                 cstr.to_str().unwrap()
             );
             printed = true;
@@ -1077,6 +1141,26 @@ impl Module {
     pub fn stream_verdict_mut(&mut self, name: &str) -> Option<&mut StreamVerdict> {
         self.stream_verdicts_mut().find(|p| p.common.name == name)
     }
+
+    pub fn task_iters(&self) -> impl Iterator<Item = &TaskIter> {
+        use Program::*;
+        self.programs.iter().filter_map(|prog| match prog {
+            TaskIter(p) => Some(p),
+            _ => None,
+        })
+    }
+
+    pub fn task_iters_mut(&mut self) -> impl Iterator<Item = &mut TaskIter> {
+        use Program::*;
+        self.programs.iter_mut().filter_map(|prog| match prog {
+            TaskIter(p) => Some(p),
+            _ => None,
+        })
+    }
+
+    pub fn task_iter_mut(&mut self, name: &str) -> Option<&mut TaskIter> {
+        self.task_iters_mut().find(|p| p.common.name == name)
+    }
 }
 
 impl<'a> ModuleBuilder<'a> {
@@ -1105,7 +1189,10 @@ impl<'a> ModuleBuilder<'a> {
         let mut license = String::new();
         let mut version = 0u32;
         // BTF is optional
-        let btf = BTF::parse(&object, bytes).ok();
+        let btf: Option<BTF> = BTF::parse_elf(&object, bytes)
+            .and_then(|mut btf| btf.load().map(|_| btf))
+            .ok();
+        let mut vmlinux_btf = None;
         for (shndx, shdr) in object.section_headers.iter().enumerate() {
             let (kind, name) = get_split_section_name(&object, &shdr, shndx)?;
 
@@ -1129,7 +1216,7 @@ impl<'a> ModuleBuilder<'a> {
                     let mut map_builder = MapBuilder::parse(name, &content)?;
                     if let Some(ref btf) = btf {
                         if let Ok(sec_name) = get_section_name(&object, shdr) {
-                            if let Some(map_btf_type_id) = btf.get_map_type_ids(sec_name) {
+                            if let Ok(map_btf_type_id) = btf.get_map_type_ids(sec_name) {
                                 debug!("Map `{}' has BTF info. {:?}", name, map_btf_type_id);
                                 let _ = map_builder.set_btf(map_btf_type_id);
                             }
@@ -1159,6 +1246,23 @@ impl<'a> ModuleBuilder<'a> {
                 | (hdr::SHT_PROGBITS, Some(kind @ "streamparser"), Some(name))
                 | (hdr::SHT_PROGBITS, Some(kind @ "streamverdict"), Some(name)) => {
                     let prog = Program::new(kind, name, &content)?;
+                    programs.insert(shndx, prog);
+                }
+                (hdr::SHT_PROGBITS, Some(kind @ "task_iter"), Some(name)) => {
+                    if vmlinux_btf.is_none() {
+                        vmlinux_btf = Some(btf::parse_vmlinux_btf().map_err(|e| {
+                            // Raise an error because BPF iter programs can not run without BTF support.
+                            error!("error on btf::parse_vmlinux_btf: {:?}", e);
+                            e
+                        })?);
+                    }
+
+                    let prog =
+                        Program::with_btf(kind, name, &content, vmlinux_btf.as_ref().unwrap())
+                            .map_err(|e| {
+                                error!("error on Program::with_btf for {}/{}: {:?}", kind, name, e);
+                                e
+                            })?;
                     programs.insert(shndx, prog);
                 }
                 _ => {}
@@ -2136,6 +2240,101 @@ impl<'a> SockMap<'a> {
             Err(Error::Map)
         } else {
             Ok(())
+        }
+    }
+}
+
+/// A structure for reading data from BPF iterators
+///
+/// The data read by this structure is written by BPF iterators from the kernel
+/// context. BPF iterators use the `bpf_seq_write` BPF helper function to write
+/// data. And userspace programs can read the data by `read()` system
+/// call. `BPFIter` implements `Iterator` trait to provide a convenient way for
+/// reading data. See
+/// [`TaskIter::bpf_iter`](./struct.TaskIter.html#method.bpf_iter) that creates
+/// this structure.
+pub struct BPFIter<T> {
+    file: BufReader<File>,
+    _elem: PhantomData<T>,
+}
+
+impl<T> BPFIter<T> {
+    fn from(fd: RawFd) -> Result<Self> {
+        Ok(BPFIter {
+            file: unsafe { BufReader::new(File::from_raw_fd(fd)) },
+            _elem: PhantomData,
+        })
+    }
+
+    fn item(&mut self) -> Option<T> {
+        let mut buf = vec![0u8; mem::size_of::<T>()];
+        // read_exact handles `ErrorKind::Iterrupted`
+        self.file
+            .read_exact(&mut buf[..mem::size_of::<T>()])
+            .map_err(|e| match e.kind() {
+                ErrorKind::UnexpectedEof => {}
+                _ => error!("error on reading data from BPF iterator {}", e),
+            })
+            .ok()?;
+        let val = unsafe { ptr::read_unaligned(buf.as_ptr() as *const T) };
+        Some(val)
+    }
+}
+
+impl<T> Iterator for BPFIter<T> {
+    type Item = T;
+    fn next(&mut self) -> Option<Self::Item> {
+        self.item()
+    }
+}
+
+impl TaskIter {
+    fn create_link(&mut self) -> Result<()> {
+        let link_fd = unsafe {
+            bpf_link_create(
+                self.common.fd.unwrap(),
+                0,
+                bpf_attach_type_BPF_TRACE_ITER,
+                ptr::null(),
+            )
+        };
+        if link_fd < 0 {
+            error!("Error on bpf_link_create");
+            return Err(Error::BPF);
+        }
+        self.link_fd = Some(link_fd);
+        Ok(())
+    }
+
+    /// Create an iterator that iterates over data written by BPF iterators
+    ///
+    /// See [`BPFIter<T>`](./struct.BPFIter.html) for more information.
+    pub fn bpf_iter<T>(&mut self) -> Result<impl Iterator<Item = T>> {
+        if self.common.fd.is_none() {
+            error!("can not call TaskIter::iter before program is loaded");
+            return Err(Error::ProgramNotLoaded);
+        }
+
+        if self.link_fd.is_none() {
+            self.create_link()?;
+        }
+
+        let iter_fd = unsafe { bpf_iter_create(self.link_fd.clone().unwrap()) };
+        if iter_fd < 0 {
+            error!("Error on bpf_iter_create");
+            return Err(Error::BPF);
+        }
+
+        Ok(BPFIter::from(iter_fd)?)
+    }
+}
+
+impl Drop for TaskIter {
+    fn drop(&mut self) {
+        if let Some(link_fd) = self.link_fd {
+            unsafe {
+                let _ = libc::close(link_fd);
+            }
         }
     }
 }
