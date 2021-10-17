@@ -97,7 +97,13 @@ fn create_rustflags() -> (String, String) {
     ("RUSTFLAGS".to_string(), flags)
 }
 
-fn build_probe(cargo: &Path, package: &Path, target_dir: &Path, probe: &str) -> Result<(), Error> {
+fn build_probe(
+    cargo: &Path,
+    package: &Path,
+    target_dir: &Path,
+    probe: &str,
+    features: &Vec<String>,
+) -> Result<(), Error> {
     fs::create_dir_all(&target_dir)?;
     let target_dir = target_dir.canonicalize().unwrap().join("bpf");
     let artifacts_dir = target_dir.join("programs").join(probe);
@@ -120,7 +126,8 @@ fn build_probe(cargo: &Path, package: &Path, target_dir: &Path, probe: &str) -> 
     if !Command::new(cargo)
         .current_dir(package)
         .env(env_name, env_value)
-        .args("rustc --release --features=probes".split(' '))
+        .args("rustc --release".split(' '))
+        .arg(format!("--features={}", features.join(",")))
         .arg("--target-dir")
         .arg(target_dir.to_str().unwrap())
         .arg("--bin")
@@ -178,6 +185,22 @@ pub fn build(
     target_dir: &Path,
     mut probes: Vec<String>,
 ) -> Result<(), Error> {
+    build_with_features(
+        cargo,
+        package,
+        target_dir,
+        &mut probes,
+        &vec![String::from("probes")],
+    )
+}
+
+pub fn build_with_features(
+    cargo: &Path,
+    package: &Path,
+    target_dir: &Path,
+    probes: &mut Vec<String>,
+    features: &Vec<String>,
+) -> Result<(), Error> {
     let path = package.join("Cargo.toml");
     if !path.exists() {
         return Err(Error::MissingManifest(path));
@@ -185,13 +208,13 @@ pub fn build(
 
     if probes.is_empty() {
         let doc = load_package(package)?;
-        probes = probe_names(&doc)?
-    };
+        probes.extend(probe_names(&doc, &features)?);
+    }
 
     unsafe { llvm::init() };
 
     for probe in probes {
-        build_probe(cargo, package, &target_dir, &probe)?;
+        build_probe(cargo, package, &target_dir, &probe, &features)?;
     }
 
     Ok(())
@@ -226,12 +249,26 @@ fn load_package(package: &Path) -> Result<Document, Error> {
     Ok(data.parse::<Document>().unwrap())
 }
 
-fn probe_names(doc: &Document) -> Result<Vec<String>, Error> {
+fn probe_names(doc: &Document, features: &Vec<String>) -> Result<Vec<String>, Error> {
     match &doc["bin"] {
-        Item::ArrayOfTables(array) => Ok(array
-            .iter()
-            .map(|t| t["name"].as_str().unwrap().into())
-            .collect()),
+        Item::ArrayOfTables(aot) => {
+            let mut names = vec![];
+            for tab in aot.iter() {
+                if let Item::Value(req_feats) = &tab["required-features"] {
+                    if req_feats
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .all(|feat| features.contains(&feat.as_str().unwrap().into()))
+                    {
+                        names.push(tab["name"].as_str().unwrap().to_string());
+                    }
+                } else {
+                    names.push(tab["name"].as_str().unwrap().to_string());
+                }
+            }
+            Ok(names)
+        }
         _ => Err(Error::NoPrograms),
     }
 }

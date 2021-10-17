@@ -24,6 +24,7 @@ memoffset = "0.6.1"
 [features]
 default = []
 probes = []
+kernel5_8 = []
 
 [lib]
 path = "src/lib.rs"
@@ -68,8 +69,7 @@ name = "tc-map-share"
 path = "src/tc_map_share/main.rs"
 required-features = ["probes"]
 
-# Uncomment this if your kernel version >= 5.8
-# [[bin]]
-# name = "tasks"
-# path = "src/tasks/main.rs"
-# required-features = ["probes"]
+[[bin]]
+name = "tasks"
+path = "src/tasks/main.rs"
+required-features = ["probes", "kernel5_8"]
