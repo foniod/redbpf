@@ -1213,10 +1213,22 @@ impl<'a> ModuleBuilder<'a> {
                     map_builders.insert(shndx, map_builder);
                 }
                 (hdr::SHT_PROGBITS, Some("maps"), Some(name)) => {
+                    let syms = symtab
+                        .iter()
+                        .filter(|sym| sym.st_shndx == shndx)
+                        .collect::<Vec<&Sym>>();
+                    if syms.len() > 1 {
+                        error!("{} maps are defined in section `{}`. Only `maps` section is allowed to accommodate multiple maps", syms.len(), get_section_name(&object, shdr).unwrap());
+                        return Err(Error::Map);
+                    }
                     let mut map_builder = MapBuilder::parse(name, &content)?;
                     if let Some(ref btf) = btf {
-                        if let Ok(sec_name) = get_section_name(&object, shdr) {
-                            if let Ok(map_btf_type_id) = btf.get_map_type_ids(sec_name) {
+                        if let Some(ref sym) = syms.get(0) {
+                            // Map's name and map's symbol name can be
+                            // different each other. But BTF info can be found
+                            // by map's symbol name.
+                            let map_sym_name = strtab.get_at(sym.st_name).ok_or(Error::ElfError)?;
+                            if let Ok(map_btf_type_id) = btf.get_map_type_ids(map_sym_name) {
                                 debug!("Map `{}' has BTF info. {:?}", name, map_btf_type_id);
                                 let _ = map_builder.set_btf(map_btf_type_id);
                             }
@@ -1233,7 +1245,16 @@ impl<'a> ModuleBuilder<'a> {
                         let offset = sym.st_value as usize;
                         let name = strtab.get_at(sym.st_name).ok_or(Error::ElfError)?;
                         let cur_content = &content[offset..];
-                        let map_builder = MapBuilder::parse(name, cur_content)?;
+                        let mut map_builder = MapBuilder::parse(name, cur_content)?;
+                        if let Some(ref btf) = btf {
+                            if let Ok(map_btf_type_id) = btf.get_map_type_ids(name) {
+                                debug!(
+                                    "Map `{}' in the maps section has BTF info. {:?}",
+                                    name, map_btf_type_id
+                                );
+                                let _ = map_builder.set_btf(map_btf_type_id);
+                            }
+                        }
                         symval_to_map_builders.insert(sym.st_value, map_builder);
                     }
                 }
@@ -1557,6 +1578,10 @@ impl Map {
                 pin_file: None,
             })
         } else {
+            error!(
+                "error on bpf_create_map_xattr. failed to load map `{}`",
+                name
+            );
             Err(Error::Map)
         }
     }

@@ -297,57 +297,86 @@ impl BTF {
             .find_map(|(tid, type_, _)| if &type_id == tid { Some(type_) } else { None })
     }
 
-    /// Get BTF type ids of a map which is defined at `section_name` section
+    /// Get BTF type ids of a map of which symbol name is `map_sym_name`
     ///
-    /// `section_name` indicates a section of an ELF relocatable file. Normally
-    /// the name starts with `maps/`.
-    pub(crate) fn get_map_type_ids(&self, section_name: &str) -> Result<MapBtfTypeId> {
+    /// A variable of which name is `MAP_BTF_<map_sym_name>` holds `MapBtf`
+    /// structure that in turn holds key and value types of the map.
+    pub(crate) fn get_map_type_ids(&self, map_sym_name: &str) -> Result<MapBtfTypeId> {
         if !self.is_loaded() {
             return Err(Error::BTF("BTF is not loaded yet".to_string()));
         }
+        let map_btf_sym_name = format!("MAP_BTF_{}", map_sym_name);
         use BtfType::*;
-        let vsis = self
+        let map_btf_type = self
             .types
             .iter()
-            .find_map(|(_type_id, type_, _)| {
-                if let DataSection(common, vsis) = type_ {
-                    if &common.name_raw == section_name {
-                        return Some(vsis);
+            .find_map(|(_, type_, _)| {
+                if let Variable(common, _) = type_ {
+                    if common.name_raw == map_btf_sym_name {
+                        return Some(type_);
                     }
                 }
                 None
             })
-            .ok_or_else(|| Error::BTF("section not found".to_string()))?;
-        vsis.iter()
-            .find_map(|vsi| {
-                if let var @ Variable(..) = self.get_type_by_id(vsi.type_)? {
-                    if let Structure(struct_comm, members) = self.get_type_by_id(var.type_id()?)? {
-                        if &struct_comm.name_raw == "MapBtf" {
-                            let key_type_id = members.iter().find_map(|memb| {
-                                if &memb.name == "key_type" {
-                                    Some(memb.member.type_)
-                                } else {
-                                    None
-                                }
-                            })?;
-                            let value_type_id = members.iter().find_map(|memb| {
-                                if &memb.name == "value_type" {
-                                    Some(memb.member.type_)
-                                } else {
-                                    None
-                                }
-                            })?;
-                            return Some(MapBtfTypeId {
-                                btf_fd: self.fd.unwrap(), // self.is_loaded ensures that unwrap returns fd
-                                key_type_id,
-                                value_type_id,
-                            });
+            .ok_or_else(|| Error::BTF(format!("Variable `{}` not found", map_btf_sym_name)))?;
+        let map_btf_type = self
+            .get_type_by_id(map_btf_type.type_id().unwrap())
+            .ok_or_else(|| {
+                error!("BTF is inconsistent");
+                Error::BTF("BTF is inconsistent".to_string())
+            })?;
+
+        match map_btf_type {
+            Structure(struct_comm, members) => {
+                if &struct_comm.name_raw != "MapBtf" {
+                    let msg = format!("illegal structure name: {}", struct_comm.name_raw);
+                    error!("{}", msg);
+                    return Err(Error::BTF(msg));
+                }
+
+                let key_type_id = members
+                    .iter()
+                    .find_map(|memb| {
+                        if &memb.name == "key_type" {
+                            Some(memb.member.type_)
+                        } else {
+                            None
                         }
-                    }
-                }
-                None
-            })
-            .ok_or_else(|| Error::BTF("btf id of map not found".to_string()))
+                    })
+                    .ok_or_else(|| {
+                        let msg = format!("MapBtf::key_type field not found");
+                        error!("{}", msg);
+                        Error::BTF(msg)
+                    })?;
+
+                let value_type_id = members
+                    .iter()
+                    .find_map(|memb| {
+                        if &memb.name == "value_type" {
+                            Some(memb.member.type_)
+                        } else {
+                            None
+                        }
+                    })
+                    .ok_or_else(|| {
+                        let msg = format!("MapBtf::value_type field not found");
+                        error!("{}", msg);
+                        Error::BTF(msg)
+                    })?;
+
+                Ok(MapBtfTypeId {
+                    // self.is_loaded ensures that unwrap returns fd
+                    btf_fd: self.fd.unwrap(),
+                    key_type_id,
+                    value_type_id,
+                })
+            }
+            _ => {
+                let msg = format!("`{}` must be a struct type but it isn't", map_btf_sym_name);
+                error!("{}", msg);
+                Err(Error::BTF(msg))
+            }
+        }
     }
 
     pub(crate) fn find_type_id(&self, type_name: &str, kind: BtfKind) -> Option<u32> {
@@ -834,9 +863,9 @@ impl fmt::Debug for BtfType {
             ),
             Forward(comm) => {
                 let fwd_kind = if comm.kind_flag() {
-                    "Structure"
-                } else {
                     "Union"
+                } else {
+                    "Structure"
                 };
                 write!(
                     f,
