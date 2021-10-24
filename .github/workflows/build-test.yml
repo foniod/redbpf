@@ -111,7 +111,6 @@ jobs:
   alpine-314-build-test:
     name: Alpine 3.14 (Disabled until LLVM12 support)
     runs-on: ubuntu-latest
-    if: false
     steps:
     - uses: actions/checkout@v2
     - name: Build host info
@@ -137,7 +136,7 @@ jobs:
     - ubuntu-2104-build-test
     - ubuntu-2004-build-test
     - ubuntu-1804-build-test
-    # - alpine-314-build-test
+    - alpine-314-build-test
 
     steps:
     - uses: actions/checkout@v2
