@@ -21,6 +21,8 @@ use cty::*;
 use crate::bindings::*;
 use crate::helpers::*;
 
+pub struct MapError;
+
 macro_rules! define_hashmap {
     ($(#[$attr:meta])* $name:ident, $map_type:expr) => {
         $(#[$attr])*
@@ -79,15 +81,22 @@ macro_rules! define_hashmap {
 
             /// Set the `value` in the map for `key`
             #[inline]
-            pub fn set(&mut self, key: &K, value: &V) {
-                unsafe {
-                    bpf_map_update_elem(
-                        &mut self.def as *mut _ as *mut c_void,
-                        key as *const _ as *const c_void,
-                        value as *const _ as *const c_void,
-                        BPF_ANY.into(),
-                    );
-                }
+            pub fn set(&mut self, key: &K, value: &V) -> Result<(), MapError> {
+                Self::set_with_flag(self, key, value, BPF_ANY)
+            }
+
+            /// Create the `value` in the map for `key`
+            /// Will return error if the key already exists.
+            #[inline]
+            pub fn create(&mut self, key: &K, value: &V) -> Result<(), MapError> {
+                Self::set_with_flag(self, key, value, BPF_NOEXIST)
+            }
+
+            /// Update the `value` in the map for `key`
+            /// Will return error if the key not exists.
+            #[inline]
+            pub fn update(&mut self, key: &K, value: &V) -> Result<(), MapError> {
+                Self::set_with_flag(self, key, value, BPF_EXIST)
             }
 
             /// Delete the entry indexed by `key`
@@ -98,6 +107,21 @@ macro_rules! define_hashmap {
                         &mut self.def as *mut _ as *mut c_void,
                         key as *const _ as *const c_void,
                     );
+                }
+            }
+
+            fn set_with_flag(&mut self, key: &K, value: &V, flag: ::cty::c_uint) -> Result<(), MapError> {
+                let ret = unsafe {
+                    bpf_map_update_elem(
+                        &mut self.def as *mut _ as *mut c_void,
+                        key as *const _ as *const c_void,
+                        value as *const _ as *const c_void,
+                        flag.into(),
+                    )
+                } as i32;
+                match ret {
+                    0 => Ok(()),
+                    _ => Err(MapError),
                 }
             }
         }

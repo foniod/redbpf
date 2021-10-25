@@ -1769,17 +1769,43 @@ impl<'base, K: Clone, V: Clone> HashMap<'base, K, V> {
         })
     }
 
-    pub fn set(&self, mut key: K, mut value: V) {
-        unsafe {
+    /// Set the `value` in the map for `key`
+    #[inline]
+    pub fn set(&self, key: K, value: V) -> Result<()> {
+        Self::set_with_flag(self, key, value, bpf_sys::BPF_ANY as u8)
+    }
+
+    /// Create the `value` in the map for `key`
+    /// Will return error if the key already exists.
+    #[inline]
+    pub fn create(&self, key: K, value: V) -> Result<()> {
+        Self::set_with_flag(self, key, value, bpf_sys::BPF_NOEXIST as u8)
+    }
+
+    /// Update the `value` in the map for `key`
+    /// Will return error if the key not exists.
+    #[inline]
+    pub fn update(&self, key: K, value: V) -> Result<()> {
+        Self::set_with_flag(self, key, value, bpf_sys::BPF_EXIST as u8)
+    }
+
+    fn set_with_flag(&self, mut key: K, mut value: V, flag: u8) -> Result<()> {
+        let ret = unsafe {
             bpf_sys::bpf_map_update_elem(
                 self.base.fd,
                 &mut key as *mut _ as *mut _,
                 &mut value as *mut _ as *mut _,
-                0,
-            );
+                flag.into(),
+            )
+        };
+        if ret < 0 {
+            return Err(Error::Map);
         }
+
+        Ok(())
     }
 
+    #[inline]
     pub fn get(&self, mut key: K) -> Option<V> {
         let mut value = MaybeUninit::zeroed();
         if unsafe {
@@ -1795,12 +1821,14 @@ impl<'base, K: Clone, V: Clone> HashMap<'base, K, V> {
         Some(unsafe { value.assume_init() })
     }
 
+    #[inline]
     pub fn delete(&self, mut key: K) {
         unsafe {
             bpf_sys::bpf_map_delete_elem(self.base.fd, &mut key as *mut _ as *mut _);
         }
     }
 
+    #[inline]
     pub fn iter<'a>(&'a self) -> MapIter<'a, '_, K, V> {
         MapIter {
             map: self,
