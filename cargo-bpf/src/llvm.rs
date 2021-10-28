@@ -1,9 +1,31 @@
+/*! The version of LLVM that rust depends on should be equal to or less than
+the version of system LLVM. For example, this combination is invalid.
+
+- `rustc v1.56` that relies on `LLVM 13`
+- `LLVM 12` installed in the system
+
+But this combination is valid.
+
+- `rustc v1.55` depending on `LLVM 12` or `rustc v1.51` relying on `LLVM 11`
+- `LLVM 12` installed in the system
+
+If invalid combination is used, compiling BPF programs results in corrupted ELF
+files or compiling process abnormally exits with SIGSEGV, SIGABRT or LLVM
+related indigestible errors.
+
+This restriction exists because `cargo-bpf` executes `rustc` to emit bitcode
+first and then calls LLVM API directly to parse and optimize the emitted
+bitcode second. So LLVM version mismatch incurs problems.
+*/
 cfg_if::cfg_if! {
-    if #[cfg(feature = "llvm-sys-120")] {
+    if #[cfg(feature = "llvm-sys-130")] {
+        use llvm_sys_130 as llvm_sys;
+    } else if #[cfg(feature = "llvm-sys-120")] {
         use llvm_sys_120 as llvm_sys;
+        #[rustversion::since(1.56)]
+        compile_error!("Can not use LLVM12 with Rust >= 1.56");
     } else if #[cfg(feature = "llvm-sys-110")] {
         use llvm_sys_110 as llvm_sys;
-        #[cfg(not(docsrs))]
         #[rustversion::since(1.52)]
         compile_error!("Can not use LLVM11 with Rust >= 1.52");
     } else if #[cfg(feature = "llvm-sys-100")] {
@@ -12,7 +34,7 @@ cfg_if::cfg_if! {
         #[rustversion::since(1.47)]
         compile_error!("Can not use LLVM10 with Rust >= 1.47");
     } else {
-        compile_error!("At least one of `llvm12`, `llvm11` and `llvm10` features should be specified");
+        compile_error!("At least one of `llvm13`, `llvm12`, `llvm11` and `llvm10` features should be specified");
     }
 }
 
@@ -94,6 +116,8 @@ unsafe fn inject_exit_call(context: LLVMContextRef, func: LLVMValueRef, builder:
         0,
         0,
         LLVMInlineAsmDialectATT,
+        #[cfg(feature = "llvm-sys-130")]
+        0,
     );
 
     let block = LLVMGetLastBasicBlock(func);

@@ -28,5 +28,7 @@ required-features = ["kernel5_8"]  # bpf iterator has been supported since kerne
 
 [features]
 kernel5_8 = []
-default = ["cargo-bpf/llvm12"]
+default = ["llvm12"]
+llvm13 = ["cargo-bpf/llvm13"]
+llvm12 = ["cargo-bpf/llvm12"]
 llvm11 = ["cargo-bpf/llvm11"]
