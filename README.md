@@ -28,11 +28,39 @@ programs using Rust. It includes:
 # Requirements
 
 In order to use redBPF, you need
-- LLVM 12 or LLVM 11
-- either the Linux kernel's headers or `vmlinux`, you want to target
+- one of LLVM 13, LLVM 12 or LLVM 11 installed in the system
+- either the Linux kernel headers or `vmlinux`, you want to target
 
-LLVM 12 is used as a default when compiling BPF programs, but you can use LLVM
-11 as follows: `cargo build --no-default-features --features llvm11`
+Currently LLVM 12 is used as a default version when compiling BPF programs, but
+you can specify other LLVM versions as follows:
+- `cargo build --no-default-features --features llvm13`
+- `cargo build --no-default-features --features llvm11`
+
+## Valid combinations of rust and LLVM versions
+
+`rustc` uses its own version of LLVM. But RedBPF also requires LLVM installed
+in the system. In order to compile BPF programs, RedBPF makes use of `rustc` to
+emit bitcode first and then parses and optimizes the bitcode by calling LLVM
+API directly. Thus, two versions of LLVM are used while compiling BPF programs.
+
+- the version of LLVM that `rustc` depends on
+- the version of LLVM which is installed in system
+
+Two versions should match.
+
+First RedBPF executes `rustc` to emit bitcode and second it calls LLVM API to
+handle the resulting bitcode. Normally LLVM is likely to support backward
+compatibility for intermediate representation. Thus, it is okay to use `rustc`
+that depends on the LLVM version that is equal to or less than system LLVM.
+
+
+| Rust version | LLVM version of the Rust | Valid system LLVM version |
+|:-------------|:------------------------:|:--------------------------|
+| 1.56 ~       | LLVM 13                  | LLVM 13                   |
+| 1.52 ~ 1.55  | LLVM 12                  | LLVM 13, LLVM 12          |
+| 1.48 ~ 1.51  | LLVM 11                  | LLVM 13, LLVM 12, LLVM 11 |
+
+* The minimum rust version for compiling `redbpf` is Rust 1.48
 
 ## Linux kernel
 
@@ -40,6 +68,26 @@ The **minimum kernel version supported is 4.19**. Kernel headers are discovered
 automatically, or you can use the `KERNEL_SOURCE` environment variable to point
 to a specific location. Building against a linux source tree is supported as
 long as you run `make prepare` first.
+
+**NOTE** for compiling BPF programs **inside containers**.  
+You need to specify `KERNEL_SOURCE` or `KERNEL_VERSION` environment variables
+that indicate kernel headers. The headers should be found inside the
+container. For example, inside the Ubuntu 21.04 container that contains the
+Linux `5.11.0-25-generic` kernel headers, you should specify `KERNEL_VERSION`
+environment variable as follows:
+
+```console
+# KERNEL_VERSION=5.11.0-25-generic cargo build --examples
+```
+
+If your container has `vmlinux`, you can specify it instead of the Linux kernel
+headers.
+
+```console
+# REDBPF_VMLINUX=/boot/vmlinux cargo build --examples
+```
+
+See, [build-test.sh](./scripts/build-test.sh) for more information.
 
 ## Installing dependencies on Debian based distributions
 

@@ -37,6 +37,7 @@ anyhow = "1.0"
 llvm-sys-100 = { version = "100", optional = true, package = "llvm-sys" }
 llvm-sys-110 = { version = "110", optional = true, package = "llvm-sys" }
 llvm-sys-120 = { version = "120", optional = true, package = "llvm-sys" }
+llvm-sys-130 = { version = "130", optional = true, package = "llvm-sys" }
 cfg-if = "1.0"
 rustversion = "1.0"
 
@@ -47,6 +48,7 @@ build = ["bindings", "libc", "toml_edit"]
 llvm10 = ["llvm-sys-100"]
 llvm11 = ["llvm-sys-110"]
 llvm12 = ["llvm-sys-120"]
+llvm13 = ["llvm-sys-130"]
 build-c = []
 command-line = ["build", "clap", "redbpf/load", "futures", "tokio", "hexdump"]
 
