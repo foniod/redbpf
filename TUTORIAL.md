@@ -299,7 +299,7 @@ Cargo.toml  probes/  src/  target/
 Open `Cargo.toml` with your favorite editor and add dependencies:
 
 ```toml
-redbpf = { version = "2.0", features = ["load"] }
+redbpf = { version = "2.1.0", features = ["load"] }
 tokio = { version = "1.0", features = ["rt", "signal", "time", "io-util", "net", "sync"] }
 tracing-subscriber = "0.2"
 tracing = "0.1"

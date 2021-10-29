@@ -4,19 +4,19 @@ description = "eBPF probe-related types for redbpf"
 repository = "https://github.com/foniod/redbpf"
 documentation = "https://foniod.org/api/redbpf_probes/"
 authors = ["Alessandro Decina <alessandro.d@gmail.com>", "Peter Parkanyi <p@symmetree.dev>", "Junyeong Jeong <rhdxmr@gmail.com>"]
-version = "2.0.2"
+version = "2.1.0"
 edition = '2018'
 keywords = ["bpf", "ebpf", "redbpf"]
 license = "MIT OR Apache-2.0"
 
 [dependencies]
 cty = "0.2"
-redbpf-macros = { version = "2.0.2", path = "../redbpf-macros" }
+redbpf-macros = { version = "2.1.0", path = "../redbpf-macros" }
 ufmt = { version = "0.1.0", default-features = false }
 
 [build-dependencies]
-cargo-bpf = { version = "2.0.2", path = "../cargo-bpf", default-features = false, features = ["bindings"] }
-bpf-sys = { version = "2.0.2", path = "../bpf-sys" }
+cargo-bpf = { version = "2.1.0", path = "../cargo-bpf", default-features = false, features = ["bindings"] }
+bpf-sys = { version = "2.1.0", path = "../bpf-sys" }
 syn = {version = "1.0", default-features = false, features = ["parsing", "visit"] }
 quote = "1.0"
 glob = "0.3.0"
