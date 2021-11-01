@@ -879,6 +879,40 @@ impl XDP {
         }
     }
 
+    /// Detach the XDP program.
+    ///
+    /// Detach the XDP program from the given network interface, if attached.
+    ///
+    /// # Example
+    /// ```no_run
+    /// # use redbpf::{Module, xdp};
+    /// # let mut module = Module::parse(&std::fs::read("file.elf").unwrap()).unwrap();
+    /// # for uprobe in module.xdps_mut() {
+    /// uprobe.attach_xdp("eth0", xdp::Flags::default()).unwrap();
+    /// uprobe.detach_xdp("eth0").unwrap();
+    /// # }
+    /// ```
+    pub fn detach_xdp(&mut self, interface: &str) -> Result<()> {
+        // The linear search here isn't great, but self.interfaces will almost always be short.
+        let index = self
+            .interfaces
+            .iter()
+            .enumerate()
+            .find_map(|(i, v)| (v.as_str() == interface).then(|| i))
+            .ok_or(Error::ProgramNotLoaded)?;
+        if let Err(e) = unsafe { detach_xdp(interface) } {
+            if let Error::IO(ref oserr) = e {
+                error!(
+                    "error detaching xdp from interface {}: {}",
+                    interface, oserr
+                );
+            }
+            return Err(e);
+        }
+        self.interfaces.swap_remove(index);
+        Ok(())
+    }
+
     pub fn name(&self) -> String {
         self.common.name.to_string()
     }
@@ -887,7 +921,7 @@ impl XDP {
 impl Drop for XDP {
     fn drop(&mut self) {
         for interface in self.interfaces.iter() {
-            let _ = unsafe { attach_xdp(interface, -1, 0) };
+            let _ = unsafe { detach_xdp(interface) };
         }
     }
 }
@@ -941,6 +975,10 @@ unsafe fn attach_xdp(dev_name: &str, progfd: libc::c_int, flags: libc::c_uint) -
         return Err(Error::IO(io::Error::last_os_error()));
     }
     Ok(())
+}
+
+unsafe fn detach_xdp(dev_name: &str) -> Result<()> {
+    attach_xdp(dev_name, -1, 0)
 }
 
 impl SocketFilter {
