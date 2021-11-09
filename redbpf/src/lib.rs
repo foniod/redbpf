@@ -59,8 +59,10 @@ use bpf_sys::{
     bpf_attach_type_BPF_SK_SKB_STREAM_PARSER, bpf_attach_type_BPF_SK_SKB_STREAM_VERDICT,
     bpf_attach_type_BPF_TRACE_ITER, bpf_create_map_attr, bpf_create_map_xattr, bpf_insn,
     bpf_iter_create, bpf_link_create, bpf_load_program_xattr, bpf_map_def, bpf_map_info,
-    bpf_map_type_BPF_MAP_TYPE_ARRAY, bpf_map_type_BPF_MAP_TYPE_PERCPU_ARRAY, bpf_prog_type,
-    BPF_ANY,
+    bpf_map_type_BPF_MAP_TYPE_ARRAY, bpf_map_type_BPF_MAP_TYPE_HASH,
+    bpf_map_type_BPF_MAP_TYPE_LRU_HASH, bpf_map_type_BPF_MAP_TYPE_LRU_PERCPU_HASH,
+    bpf_map_type_BPF_MAP_TYPE_PERCPU_ARRAY, bpf_map_type_BPF_MAP_TYPE_PERCPU_HASH,
+    bpf_map_type_BPF_MAP_TYPE_PERF_EVENT_ARRAY, bpf_prog_type, BPF_ANY,
 };
 use goblin::elf::{reloc::RelocSection, section_header as hdr, Elf, SectionHeader, Sym};
 
@@ -236,6 +238,16 @@ pub struct TaskIter {
     link_fd: Option<RawFd>,
 }
 
+/// A base BPF map data structure
+///
+/// It is a base data structure that contains a map definition and auxiliary
+/// data. It just hods data but it does not provide any useful API to users.
+/// See [`HashMap`](./struct.HashMap.html),
+/// [`LruHashMap`](./struct.LruHashMap.html),
+/// [`PerCpuHashMap`](./struct.PerCpuHashMap.html),
+/// [`LruPerCpuHashMap`](./struct.LruPerCpuHashMap.html),
+/// [`Array`](./struct.Array.html), [`PerCpuArray`](./struct.PerCpuArray.html)
+/// that wrap `Map` to provide API of BPF maps to userspace programs.
 #[derive(Debug)]
 pub struct Map {
     pub name: String,
@@ -259,12 +271,51 @@ enum MapBuilder<'a> {
     ExistingMap(Map),
 }
 
+/// A BPF hash map structure
+///
+/// This provides higher level API for BPF maps whose type is
+/// `BPF_MAP_TYPE_HASH`
 pub struct HashMap<'a, K: Clone, V: Clone> {
     base: &'a Map,
     _k: PhantomData<K>,
     _v: PhantomData<V>,
 }
 
+/// A BPF LRU hash map structure
+///
+/// This provides higher level API for BPF maps whose type is
+/// `BPF_MAP_TYPE_LRU_HASH`
+pub struct LruHashMap<'a, K: Clone, V: Clone> {
+    base: &'a Map,
+    _k: PhantomData<K>,
+    _v: PhantomData<V>,
+}
+
+/// A per-cpu BPF hash map structure
+///
+/// This provides higher level API for BPF maps whose type is
+/// `BPF_MAP_TYPE_PERCPU_HASH`
+pub struct PerCpuHashMap<'a, K: Clone, V: Clone> {
+    base: &'a Map,
+    _k: PhantomData<K>,
+    _v: PhantomData<PerCpuValues<V>>,
+}
+
+/// An LRU per-cpu BPF hash map structure
+///
+/// This provides higher level API for BPF maps whose type is
+/// `BPF_MAP_TYPE_LRU_PERCPU_HASH`
+pub struct LruPerCpuHashMap<'a, K: Clone, V: Clone> {
+    base: &'a Map,
+    _k: PhantomData<K>,
+    _v: PhantomData<PerCpuValues<V>>,
+}
+
+/// A stacktrace BPF map structure
+///
+/// Stacktrace map provides a feature of getting an array of instruction
+/// pointers that are stored in the BPF map whose type is
+/// `BPF_MAP_TYPE_STACK_TRACE`.
 pub struct StackTrace<'a> {
     base: &'a Map,
 }
@@ -341,6 +392,11 @@ pub struct RelocationInfo {
     target_sec_idx: usize,
     offset: u64,
     sym_idx: usize,
+}
+
+trait MapIterable<K: Clone, V: Clone> {
+    fn get(&self, key: K) -> Option<V>;
+    fn next_key(&self, key: Option<K>) -> Option<K>;
 }
 
 impl Program {
@@ -1371,7 +1427,11 @@ impl<'a> ModuleBuilder<'a> {
             if self.programs.contains_key(&rel.target_sec_idx) {
                 if let Err(_) = rel.apply(&mut self.programs, &maps, &symtab) {
                     // means that not normal case, we should rely on symbol value instead of section header index
-                    rel.apply_with_symmap(&mut self.programs, &symval_to_maps, &symtab)?;
+                    rel.apply_with_symmap(&mut self.programs, &symval_to_maps, &symtab)
+                        .map_err(|e| {
+                            error!("can not relocate map");
+                            e
+                        })?;
                 }
             }
         }
@@ -1792,9 +1852,11 @@ impl<'base, K: Clone, V: Clone> HashMap<'base, K, V> {
     pub fn new(base: &Map) -> Result<HashMap<K, V>> {
         if mem::size_of::<K>() != base.config.key_size as usize
             || mem::size_of::<V>() != base.config.value_size as usize
+            || (bpf_map_type_BPF_MAP_TYPE_HASH != base.config.type_
+                && bpf_map_type_BPF_MAP_TYPE_PERF_EVENT_ARRAY != base.config.type_)
         {
             error!(
-                "map definitions (sizes of key and value) of base `Map' and
+                "map definitions (map type and key/value size) of base `Map' and
             `HashMap' do not match"
             );
             return Err(Error::Map);
@@ -1807,43 +1869,208 @@ impl<'base, K: Clone, V: Clone> HashMap<'base, K, V> {
         })
     }
 
-    pub fn set(&self, mut key: K, mut value: V) {
-        unsafe {
-            bpf_sys::bpf_map_update_elem(
-                self.base.fd,
-                &mut key as *mut _ as *mut _,
-                &mut value as *mut _ as *mut _,
-                0,
-            );
-        }
+    pub fn set(&self, key: K, value: V) {
+        let _ = bpf_map_set(self.base.fd, key, value);
     }
 
-    pub fn get(&self, mut key: K) -> Option<V> {
-        let mut value = MaybeUninit::zeroed();
-        if unsafe {
-            bpf_sys::bpf_map_lookup_elem(
-                self.base.fd,
-                &mut key as *mut _ as *mut _,
-                &mut value as *mut _ as *mut _,
-            )
-        } < 0
-        {
-            return None;
-        }
-        Some(unsafe { value.assume_init() })
+    pub fn get(&self, key: K) -> Option<V> {
+        bpf_map_get(self.base.fd, key)
     }
 
-    pub fn delete(&self, mut key: K) {
-        unsafe {
-            bpf_sys::bpf_map_delete_elem(self.base.fd, &mut key as *mut _ as *mut _);
-        }
+    pub fn delete(&self, key: K) {
+        let _ = bpf_map_delete(self.base.fd, key);
     }
 
-    pub fn iter<'a>(&'a self) -> MapIter<'a, '_, K, V> {
+    /// Return an iterator over all items in the map
+    pub fn iter<'a>(&'a self) -> MapIter<'a, K, V> {
         MapIter {
-            map: self,
-            key: None,
+            iterable: self,
+            last_key: None,
         }
+    }
+}
+
+impl<K: Clone, V: Clone> MapIterable<K, V> for HashMap<'_, K, V> {
+    fn get(&self, key: K) -> Option<V> {
+        HashMap::get(self, key)
+    }
+
+    fn next_key(&self, key: Option<K>) -> Option<K> {
+        bpf_map_get_next_key(self.base.fd, key)
+    }
+}
+
+impl<'base, K: Clone, V: Clone> LruHashMap<'base, K, V> {
+    pub fn new(base: &Map) -> Result<LruHashMap<K, V>> {
+        if mem::size_of::<K>() != base.config.key_size as usize
+            || mem::size_of::<V>() != base.config.value_size as usize
+            || bpf_map_type_BPF_MAP_TYPE_LRU_HASH != base.config.type_
+        {
+            error!(
+                "map definitions (map type and key/value sizes) of base `Map' and `LruHashMap' do not match"
+            );
+            return Err(Error::Map);
+        }
+
+        Ok(LruHashMap {
+            base,
+            _k: PhantomData,
+            _v: PhantomData,
+        })
+    }
+
+    pub fn set(&self, key: K, value: V) {
+        let _ = bpf_map_set(self.base.fd, key, value);
+    }
+
+    pub fn get(&self, key: K) -> Option<V> {
+        bpf_map_get(self.base.fd, key)
+    }
+
+    pub fn delete(&self, key: K) {
+        let _ = bpf_map_delete(self.base.fd, key);
+    }
+
+    /// Return an iterator over all items in the map
+    pub fn iter<'a>(&'a self) -> MapIter<'a, K, V> {
+        MapIter {
+            iterable: self,
+            last_key: None,
+        }
+    }
+}
+
+impl<K: Clone, V: Clone> MapIterable<K, V> for LruHashMap<'_, K, V> {
+    fn get(&self, key: K) -> Option<V> {
+        LruHashMap::<'_, K, V>::get(self, key)
+    }
+
+    fn next_key(&self, key: Option<K>) -> Option<K> {
+        bpf_map_get_next_key(self.base.fd, key)
+    }
+}
+
+impl<'base, K: Clone, V: Clone> PerCpuHashMap<'base, K, V> {
+    pub fn new(base: &Map) -> Result<PerCpuHashMap<K, V>> {
+        if mem::size_of::<K>() != base.config.key_size as usize
+            || mem::size_of::<V>() != base.config.value_size as usize
+            || bpf_map_type_BPF_MAP_TYPE_PERCPU_HASH != base.config.type_
+        {
+            error!("map definitions (size of key/value and map type) of base `Map' and `PerCpuHashMap' do not match");
+            return Err(Error::Map);
+        }
+
+        Ok(PerCpuHashMap {
+            base,
+            _k: PhantomData,
+            _v: PhantomData,
+        })
+    }
+
+    /// Set per-cpu `values` to the BPF map at `key`
+    ///
+    /// The number of elements in `values` should be equal to the number of
+    /// possible CPUs. This requirement is automatically fulfilled when
+    /// `values` is created by
+    /// [`PerCpuValues::new`](./struct.PerCpuValues.html#method.new)
+    ///
+    /// `Err` can be returned if the number of elements is wrong or underlying
+    /// bpf_map_update_elem function returns a negative value.
+    pub fn set(&self, key: K, values: PerCpuValues<V>) -> Result<()> {
+        bpf_percpu_map_set(self.base.fd, key, values)
+    }
+
+    /// Get per-cpu values corresponding to the `key` from the BPF map
+    ///
+    /// If `key` is found, `Some([PerCpuValues](./struct.PerCpuValues.html))`
+    /// is returned.
+    pub fn get(&self, key: K) -> Option<PerCpuValues<V>> {
+        bpf_percpu_map_get(self.base.fd, key)
+    }
+
+    /// Delete `key` from the BPF map
+    pub fn delete(&self, key: K) {
+        let _ = bpf_map_delete(self.base.fd, key);
+    }
+
+    /// Return an iterator over all items in the map
+    pub fn iter<'a>(&'a self) -> MapIter<'a, K, PerCpuValues<V>> {
+        MapIter {
+            iterable: self,
+            last_key: None,
+        }
+    }
+}
+
+impl<K: Clone, V: Clone> MapIterable<K, PerCpuValues<V>> for PerCpuHashMap<'_, K, V> {
+    fn get(&self, key: K) -> Option<PerCpuValues<V>> {
+        PerCpuHashMap::get(self, key)
+    }
+
+    fn next_key(&self, key: Option<K>) -> Option<K> {
+        bpf_map_get_next_key(self.base.fd, key)
+    }
+}
+
+impl<'base, K: Clone, V: Clone> LruPerCpuHashMap<'base, K, V> {
+    pub fn new(base: &Map) -> Result<LruPerCpuHashMap<K, V>> {
+        if mem::size_of::<K>() != base.config.key_size as usize
+            || mem::size_of::<V>() != base.config.value_size as usize
+            || bpf_map_type_BPF_MAP_TYPE_LRU_PERCPU_HASH != base.config.type_
+        {
+            error!("map definitions (size of key/value and map type) of base `Map' and `LruPerCpuHashMap' do not match");
+            return Err(Error::Map);
+        }
+
+        Ok(LruPerCpuHashMap {
+            base,
+            _k: PhantomData,
+            _v: PhantomData,
+        })
+    }
+
+    /// Set per-cpu `values` to the BPF map at `key`
+    ///
+    /// The number of elements in `values` should be equal to the number of
+    /// possible CPUs. This requirement is automatically fulfilled when
+    /// `values` is created by
+    /// [`PerCpuValues::new`](./struct.PerCpuValues.html#method.new)
+    ///
+    /// `Err` can be returned if the number of elements is wrong or underlying
+    /// bpf_map_update_elem function returns a negative value.
+    pub fn set(&self, key: K, values: PerCpuValues<V>) -> Result<()> {
+        bpf_percpu_map_set(self.base.fd, key, values)
+    }
+
+    /// Get per-cpu values corresponding to the `key` from the BPF map
+    ///
+    /// If `key` is found, `Some([PerCpuValues](./struct.PerCpuValues.html))`
+    /// is returned.
+    pub fn get(&self, key: K) -> Option<PerCpuValues<V>> {
+        bpf_percpu_map_get(self.base.fd, key)
+    }
+
+    /// Delete `key` from the BPF map
+    pub fn delete(&self, key: K) {
+        let _ = bpf_map_delete(self.base.fd, key);
+    }
+
+    /// Return an iterator over all items in the map
+    pub fn iter<'a>(&'a self) -> MapIter<'a, K, PerCpuValues<V>> {
+        MapIter {
+            iterable: self,
+            last_key: None,
+        }
+    }
+}
+
+impl<K: Clone, V: Clone> MapIterable<K, PerCpuValues<V>> for LruPerCpuHashMap<'_, K, V> {
+    fn get(&self, key: K) -> Option<PerCpuValues<V>> {
+        LruPerCpuHashMap::get(self, key)
+    }
+
+    fn next_key(&self, key: Option<K>) -> Option<K> {
+        bpf_map_get_next_key(self.base.fd, key)
     }
 }
 
@@ -2129,51 +2356,21 @@ impl<'base> ProgramArray<'base> {
     }
 }
 
-pub struct MapIter<'a, 'b, K: Clone, V: Clone> {
-    map: &'a HashMap<'b, K, V>,
-    key: Option<K>,
+pub struct MapIter<'a, K: Clone, V: Clone> {
+    iterable: &'a dyn MapIterable<K, V>,
+    last_key: Option<K>,
 }
 
-impl<K: Clone, V: Clone> Iterator for MapIter<'_, '_, K, V> {
+impl<K: Clone, V: Clone> Iterator for MapIter<'_, K, V> {
     type Item = (K, V);
 
     fn next(&mut self) -> Option<Self::Item> {
-        let key = self.key.take();
-        self.key = match key {
-            Some(mut key) => {
-                let mut next_key = MaybeUninit::<K>::zeroed();
-                let ret = unsafe {
-                    bpf_sys::bpf_map_get_next_key(
-                        self.map.base.fd,
-                        &mut key as *mut _ as *mut _,
-                        &mut next_key as *mut _ as *mut _,
-                    )
-                };
-                if ret < 0 {
-                    None
-                } else {
-                    Some(unsafe { next_key.assume_init() })
-                }
-            }
-            None => {
-                let mut key = MaybeUninit::<K>::zeroed();
-                if unsafe {
-                    bpf_sys::bpf_map_get_next_key(
-                        self.map.base.fd,
-                        ptr::null(),
-                        &mut key as *mut _ as *mut _,
-                    )
-                } < 0
-                {
-                    None
-                } else {
-                    Some(unsafe { key.assume_init() })
-                }
-            }
-        };
-
-        let key = self.key.as_ref()?.clone();
-        Some((key.clone(), self.map.get(key).unwrap()))
+        let key = self.last_key.take();
+        self.last_key = self.iterable.next_key(key);
+        Some((
+            self.last_key.as_ref()?.clone(),
+            self.iterable.get(self.last_key.as_ref()?.clone())?,
+        ))
     }
 }
 
@@ -2433,4 +2630,131 @@ fn data<'d>(bytes: &'d [u8], shdr: &SectionHeader) -> &'d [u8] {
     let end = (shdr.sh_offset + shdr.sh_size) as usize;
 
     &bytes[offset..end]
+}
+
+fn bpf_map_set<K: Clone, V: Clone>(fd: RawFd, mut key: K, mut value: V) -> Result<()> {
+    if unsafe {
+        bpf_sys::bpf_map_update_elem(
+            fd,
+            &mut key as *mut _ as *mut _,
+            &mut value as *mut _ as *mut _,
+            0,
+        )
+    } < 0
+    {
+        Err(Error::Map)
+    } else {
+        Ok(())
+    }
+}
+
+fn bpf_map_get<K: Clone, V: Clone>(fd: RawFd, mut key: K) -> Option<V> {
+    let mut value = MaybeUninit::zeroed();
+    if unsafe {
+        bpf_sys::bpf_map_lookup_elem(
+            fd,
+            &mut key as *mut _ as *mut _,
+            &mut value as *mut _ as *mut _,
+        )
+    } < 0
+    {
+        return None;
+    }
+    Some(unsafe { value.assume_init() })
+}
+
+fn bpf_map_delete<K: Clone>(fd: RawFd, mut key: K) -> Result<()> {
+    if unsafe { bpf_sys::bpf_map_delete_elem(fd, &mut key as *mut _ as *mut _) } < 0 {
+        Err(Error::Map)
+    } else {
+        Ok(())
+    }
+}
+
+fn bpf_map_get_next_key<K: Clone>(fd: RawFd, key: Option<K>) -> Option<K> {
+    if let Some(mut key) = key {
+        let mut next_key = MaybeUninit::<K>::zeroed();
+        let ret = unsafe {
+            bpf_sys::bpf_map_get_next_key(
+                fd,
+                &mut key as *mut _ as *mut _,
+                &mut next_key as *mut _ as *mut _,
+            )
+        };
+        if ret < 0 {
+            None
+        } else {
+            Some(unsafe { next_key.assume_init() })
+        }
+    } else {
+        let mut key = MaybeUninit::<K>::zeroed();
+        if unsafe { bpf_sys::bpf_map_get_next_key(fd, ptr::null(), &mut key as *mut _ as *mut _) }
+            < 0
+        {
+            None
+        } else {
+            Some(unsafe { key.assume_init() })
+        }
+    }
+}
+
+fn bpf_percpu_map_set<K: Clone, V: Clone>(
+    fd: RawFd,
+    mut key: K,
+    values: PerCpuValues<V>,
+) -> Result<()> {
+    let count = cpus::get_possible_num();
+    if values.len() != count {
+        return Err(Error::Map);
+    }
+
+    // It is needed to round up the value size to 8*N bytes
+    // cf., https://elixir.bootlin.com/linux/v5.8/source/kernel/bpf/syscall.c#L1103
+    let value_size = round_up::<V>(8);
+    let alloc_size = value_size * count;
+    let mut alloc = vec![0u8; alloc_size];
+    let mut data = alloc.as_mut_ptr();
+    for i in 0..count {
+        unsafe {
+            let dst_ptr = data.add(value_size * i) as *const V as *mut V;
+            ptr::write_unaligned::<V>(dst_ptr, values[i].clone());
+        }
+    }
+    if unsafe {
+        bpf_sys::bpf_map_update_elem(
+            fd,
+            &mut key as *mut _ as *mut _,
+            &mut data as *mut _ as *mut _,
+            0,
+        )
+    } < 0
+    {
+        Err(Error::Map)
+    } else {
+        Ok(())
+    }
+}
+
+fn bpf_percpu_map_get<K: Clone, V: Clone>(fd: RawFd, mut key: K) -> Option<PerCpuValues<V>> {
+    // It is needed to round up the value size to 8*N
+    // cf., https://elixir.bootlin.com/linux/v5.8/source/kernel/bpf/syscall.c#L1035
+    let value_size = round_up::<V>(8);
+    let count = cpus::get_possible_num();
+    let alloc_size = value_size * count;
+    let mut alloc = vec![0u8; alloc_size];
+    let data = alloc.as_mut_ptr();
+    if unsafe { bpf_sys::bpf_map_lookup_elem(fd, &mut key as *mut _ as *mut _, data as *mut _) } < 0
+    {
+        return None;
+    }
+
+    let mut values = Vec::with_capacity(count);
+    for i in 0..count {
+        unsafe {
+            let elem_ptr = data.add(value_size * i) as *const V;
+            values.push(ptr::read_unaligned(elem_ptr));
+        }
+    }
+
+    Some(values.into())
 }
