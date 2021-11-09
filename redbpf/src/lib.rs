@@ -56,10 +56,10 @@ pub mod xdp;
 
 pub use bpf_sys::uname;
 use bpf_sys::{
-    bpf_attach_type_BPF_SK_SKB_STREAM_PARSER, bpf_attach_type_BPF_SK_SKB_STREAM_VERDICT,
-    bpf_attach_type_BPF_TRACE_ITER, bpf_create_map_attr, bpf_create_map_xattr, bpf_insn,
-    bpf_iter_create, bpf_link_create, bpf_load_program_xattr, bpf_map_def, bpf_map_info,
-    bpf_map_type_BPF_MAP_TYPE_ARRAY, bpf_map_type_BPF_MAP_TYPE_HASH,
+    bpf_attach_type_BPF_SK_LOOKUP, bpf_attach_type_BPF_SK_SKB_STREAM_PARSER,
+    bpf_attach_type_BPF_SK_SKB_STREAM_VERDICT, bpf_attach_type_BPF_TRACE_ITER, bpf_create_map_attr,
+    bpf_create_map_xattr, bpf_insn, bpf_iter_create, bpf_link_create, bpf_load_program_xattr,
+    bpf_map_def, bpf_map_info, bpf_map_type_BPF_MAP_TYPE_ARRAY, bpf_map_type_BPF_MAP_TYPE_HASH,
     bpf_map_type_BPF_MAP_TYPE_LRU_HASH, bpf_map_type_BPF_MAP_TYPE_LRU_PERCPU_HASH,
     bpf_map_type_BPF_MAP_TYPE_PERCPU_ARRAY, bpf_map_type_BPF_MAP_TYPE_PERCPU_HASH,
     bpf_map_type_BPF_MAP_TYPE_PERF_EVENT_ARRAY, bpf_prog_type, BPF_ANY,
@@ -152,6 +152,7 @@ pub enum Program {
     StreamParser(StreamParser),
     StreamVerdict(StreamVerdict),
     TaskIter(TaskIter),
+    SkLookup(SkLookup),
 }
 
 struct ProgramData {
@@ -236,6 +237,12 @@ pub struct TaskIter {
     common: ProgramData,
     attach_btf_id: u32,
     link_fd: Option<RawFd>,
+}
+
+/// Type to work with `sk_lookup` BPF programs.
+pub struct SkLookup {
+    common: ProgramData,
+    link: Option<(RawFd, RawFd)>,
 }
 
 /// A base BPF map data structure
@@ -440,6 +447,7 @@ impl Program {
             }),
             "streamparser" => Program::StreamParser(StreamParser { common }),
             "streamverdict" => Program::StreamVerdict(StreamVerdict { common }),
+            "sk_lookup" => Program::SkLookup(SkLookup { common, link: None }),
             _ => return Err(Error::Section(kind.to_string())),
         })
     }
@@ -482,6 +490,7 @@ impl Program {
             TracePoint(_) => bpf_sys::bpf_prog_type_BPF_PROG_TYPE_TRACEPOINT,
             StreamParser(_) | StreamVerdict(_) => bpf_sys::bpf_prog_type_BPF_PROG_TYPE_SK_SKB,
             TaskIter(_) => bpf_sys::bpf_prog_type_BPF_PROG_TYPE_TRACING,
+            SkLookup(_) => bpf_sys::bpf_prog_type_BPF_PROG_TYPE_SK_LOOKUP,
         }
     }
 
@@ -497,6 +506,7 @@ impl Program {
             StreamParser(p) => &p.common,
             StreamVerdict(p) => &p.common,
             TaskIter(p) => &p.common,
+            SkLookup(p) => &p.common,
         }
     }
 
@@ -512,6 +522,7 @@ impl Program {
             StreamParser(p) => &mut p.common,
             StreamVerdict(p) => &mut p.common,
             TaskIter(p) => &mut p.common,
+            SkLookup(p) => &mut p.common,
         }
     }
 
@@ -1075,6 +1086,44 @@ impl SocketFilter {
     }
 }
 
+impl SkLookup {
+    pub fn attach_sk_lookup(&mut self, namespace: &str) -> Result<()> {
+        if self.link.is_some() {
+            return Err(Error::ProgramAlreadyLinked);
+        }
+
+        let fd = self.common.fd.ok_or(Error::ProgramNotLoaded)?;
+        unsafe {
+            let namespace = CString::new(namespace)?;
+            let nfd = libc::open(namespace.as_ptr(), libc::O_RDONLY | libc::O_CLOEXEC);
+            if nfd < 0 {
+                return Err(Error::IO(io::Error::last_os_error()));
+            }
+
+            let lfd = bpf_link_create(fd, nfd, bpf_attach_type_BPF_SK_LOOKUP, ptr::null());
+            if lfd < 0 {
+                libc::close(nfd);
+                return Err(Error::IO(io::Error::last_os_error()));
+            }
+
+            self.link = Some((nfd, lfd));
+        }
+
+        Ok(())
+    }
+}
+
+impl Drop for SkLookup {
+    fn drop(&mut self) {
+        if let Some((nfd, lfd)) = self.link.take() {
+            unsafe {
+                libc::close(lfd);
+                libc::close(nfd);
+            }
+        }
+    }
+}
+
 impl Module {
     pub fn parse(bytes: &[u8]) -> Result<Module> {
         ModuleBuilder::parse(bytes)?.to_module()
@@ -1236,6 +1285,26 @@ impl Module {
         self.stream_verdicts_mut().find(|p| p.common.name == name)
     }
 
+    pub fn sk_lookups(&self) -> impl Iterator<Item = &SkLookup> {
+        use Program::*;
+        self.programs.iter().filter_map(|prog| match prog {
+            SkLookup(p) => Some(p),
+            _ => None,
+        })
+    }
+
+    pub fn sk_lookups_mut(&mut self) -> impl Iterator<Item = &mut SkLookup> {
+        use Program::*;
+        self.programs.iter_mut().filter_map(|prog| match prog {
+            SkLookup(p) => Some(p),
+            _ => None,
+        })
+    }
+
+    pub fn sk_lookup_mut(&mut self, name: &str) -> Option<&mut SkLookup> {
+        self.sk_lookups_mut().find(|p| p.common.name == name)
+    }
+
     pub fn task_iters(&self) -> impl Iterator<Item = &TaskIter> {
         use Program::*;
         self.programs.iter().filter_map(|prog| match prog {
@@ -1359,7 +1428,8 @@ impl<'a> ModuleBuilder<'a> {
                 | (hdr::SHT_PROGBITS, Some(kind @ "xdp"), Some(name))
                 | (hdr::SHT_PROGBITS, Some(kind @ "socketfilter"), Some(name))
                 | (hdr::SHT_PROGBITS, Some(kind @ "streamparser"), Some(name))
-                | (hdr::SHT_PROGBITS, Some(kind @ "streamverdict"), Some(name)) => {
+                | (hdr::SHT_PROGBITS, Some(kind @ "streamverdict"), Some(name))
+                | (hdr::SHT_PROGBITS, Some(kind @ "sk_lookup"), Some(name)) => {
                     let prog = Program::new(kind, name, &content)?;
                     programs.insert(shndx, prog);
                 }
