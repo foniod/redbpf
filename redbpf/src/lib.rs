@@ -2151,12 +2151,14 @@ fn round_up<T>(unit_size: usize) -> usize {
 /// the same with [`cpus::get_possible_num`](./cpus/fn.get_possible_num.html).
 /// It also implements `Deref` and `DerefMut` so it can be used as a normal
 /// array.
+///
 /// # Example
 /// ```no_run
 /// use redbpf::PerCpuValues;
 /// let mut values = PerCpuValues::<u64>::new(0);
 /// values[0] = 1;
 /// ```
+#[derive(Clone, Debug)]
 pub struct PerCpuValues<T: Clone>(Box<[T]>);
 
 impl<T: Clone> PerCpuValues<T> {
@@ -2167,12 +2169,19 @@ impl<T: Clone> PerCpuValues<T> {
     pub fn new(default_value: T) -> Self {
         let count = cpus::get_possible_num();
         let v = vec![default_value; count];
-        Self(v.into_boxed_slice())
+        Self(v.into())
     }
+}
 
-    // This is called by `get` methods of per-cpu map structures
-    fn from_boxed_slice(v: Box<[T]>) -> Self {
-        Self(v)
+impl<T: Clone> From<Box<[T]>> for PerCpuValues<T> {
+    fn from(values: Box<[T]>) -> Self {
+        Self(values)
+    }
+}
+
+impl<T: Clone> From<Vec<T>> for PerCpuValues<T> {
+    fn from(values: Vec<T>) -> Self {
+        Self::from(values.into_boxed_slice())
     }
 }
 
@@ -2281,7 +2290,7 @@ impl<'base, T: Clone> PerCpuArray<'base, T> {
             }
         }
 
-        Some(PerCpuValues::from_boxed_slice(values.into_boxed_slice()))
+        Some(values.into())
     }
 
     /// Get length of array map
