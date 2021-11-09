@@ -566,12 +566,19 @@ impl Program {
         attr.license = clicense.as_ptr();
         attr.log_level = 0;
 
-        if let Program::TaskIter(bpf_iter) = self {
-            attr.expected_attach_type = bpf_attach_type_BPF_TRACE_ITER;
-            attr.__bindgen_anon_2.attach_btf_id = bpf_iter.attach_btf_id;
-        } else {
-            attr.expected_attach_type = 0;
-            attr.__bindgen_anon_1.kern_version = kernel_version;
+        match self {
+            Program::TaskIter(bpf_iter) => {
+                attr.expected_attach_type = bpf_attach_type_BPF_TRACE_ITER;
+                attr.__bindgen_anon_2.attach_btf_id = bpf_iter.attach_btf_id;
+            }
+            Program::SkLookup(_) => {
+                attr.expected_attach_type = bpf_attach_type_BPF_SK_LOOKUP;
+                attr.__bindgen_anon_1.kern_version = kernel_version;
+            }
+            _ => {
+                attr.expected_attach_type = 0;
+                attr.__bindgen_anon_1.kern_version = kernel_version;
+            }
         }
 
         // do not pass log buffer. it is filled with verifier's log but
@@ -2556,7 +2563,8 @@ impl<'a> SockMap<'a> {
         Ok(SockMap { base: map })
     }
 
-    pub fn set(&mut self, mut idx: u32, mut fd: RawFd) -> Result<()> {
+    pub fn set(&mut self, mut idx: u32, fd: RawFd) -> Result<()> {
+        let mut fd = fd as u64;
         let ret = unsafe {
             bpf_sys::bpf_map_update_elem(
                 self.base.fd,
