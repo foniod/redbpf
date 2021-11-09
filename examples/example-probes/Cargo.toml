@@ -73,3 +73,8 @@ required-features = ["probes"]
 name = "tasks"
 path = "src/tasks/main.rs"
 required-features = ["probes", "kernel5_8"]
+
+[[bin]]
+name = "hashmaps"
+path = "src/hashmaps/main.rs"
+required-features = ["probes"]
