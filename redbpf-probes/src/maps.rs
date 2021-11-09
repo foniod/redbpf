@@ -15,7 +15,7 @@ kernel and user-space code.
 use core::convert::TryInto;
 use core::default::Default;
 use core::marker::PhantomData;
-use core::mem;
+use core::{mem, ptr};
 use cty::*;
 
 use crate::bindings::*;
@@ -47,6 +47,15 @@ macro_rules! define_hashmap {
                 }
             }
             /// Returns a reference to the value corresponding to the key.
+            ///
+            /// **CUATION** The value that the returned reference refers to is
+            /// stored at 8 bytes aligned memory. So the reference is not
+            /// guaranteed to be aligned properly if the alignment of the value
+            /// exceeds 8 bytes. So this method should not be called if the
+            /// alignment is greater than 8 bytes.
+            ///
+            /// Use `get_val` method instead if the alignment of value is
+            /// greater than 8 bytes.
             #[inline]
             pub fn get(&mut self, key: &K) -> Option<&V> {
                 unsafe {
@@ -62,6 +71,17 @@ macro_rules! define_hashmap {
                 }
             }
 
+            /// Returns a mutable reference to the value corresponding to the key.
+            ///
+            /// **CUATION** The value that the returned mutable reference
+            /// refers to is stored at 8 bytes aligned memory. So the mutable
+            /// reference is not guaranteed to be aligned properly if the
+            /// alignment of the value exceeds 8 bytes. So this method should
+            /// not be called if the alignment is greater than 8 bytes.
+            ///
+            /// Use `get_val` method instead if the alignment of value is
+            /// greater than 8 bytes. But you should call `set` method to
+            /// update the modified value to BPF maps.
             #[inline]
             pub fn get_mut(&mut self, key: &K) -> Option<&mut V> {
                 unsafe {
@@ -73,6 +93,30 @@ macro_rules! define_hashmap {
                         None
                     } else {
                         Some(&mut *(value as *mut V))
+                    }
+                }
+            }
+
+            /// Returns a value corresponding to the key
+            ///
+            /// **NOTE** It is better to use more efficient `get_mut` method
+            /// instead if the alignment of the value is equal to or less than
+            /// 8 bytes. i.e, alignment is 8, 4, 2 bytes or 1 byte. Rust
+            /// compiler expects that the value a reference refers to should be
+            /// aligned properly. But the Linux kernel does not guarantee the
+            /// alignment of the value the rust compiler assumes but the Linux
+            /// kernel just stores values at 8 bytes aligned memory.
+            #[inline]
+            pub fn get_val(&mut self, key: &K) -> Option<V> {
+                unsafe {
+                    let value = bpf_map_lookup_elem(
+                        &mut self.def as *mut _ as *mut c_void,
+                        key as *const _ as *const c_void,
+                    );
+                    if value.is_null() {
+                        None
+                    } else {
+                        Some(ptr::read_unaligned(value as *const V))
                     }
                 }
             }
@@ -176,17 +220,48 @@ macro_rules! define_array {
     };
 }
 define_hashmap!(
-    /// Hash table map.
+    /// Hash table map
     ///
-    /// High level API for BPF_MAP_TYPE_HASH maps.
+    /// High level API of BPF_MAP_TYPE_HASH maps for BPF programs.
     ///
-    /// For userspace API, see [`redbpf::HashMap`](../../redbpf/struct.HashMap.html)
+    /// If you are looking for userspace API, see
+    /// [`redbpf::HashMap`](../../redbpf/struct.HashMap.html) instead.
     HashMap,
     bpf_map_type_BPF_MAP_TYPE_HASH
 );
-// define_hashmap!(PerCpuHashMap, bpf_map_type_BPF_MAP_TYPE_PERCPU_HASH);  // userspace part is not implemented yet
-// define_hashmap!(LruHashMap, bpf_map_type_BPF_MAP_TYPE_LRU_HASH);  // userspace part is not implemented yet
-// define_hashmap!(LruPerCpuHashMap, bpf_map_type_BPF_MAP_TYPE_LRU_PERCPU_HASH);  // userspace part is not implemented yet
+define_hashmap!(
+    /// Per-cpu hash table map
+    ///
+    /// High level API of BPF_MAP_TYPE_PERCPU_HASH maps for BPF programs.
+    ///
+    /// If you are looking for userspace API, see
+    /// [`redbpf::PerCpuHashMap`](../../redbpf/struct.PerCpuHashMap.html)
+    /// instead.
+    PerCpuHashMap,
+    bpf_map_type_BPF_MAP_TYPE_PERCPU_HASH
+);
+define_hashmap!(
+    /// LRU hash table map
+    ///
+    /// High level API of BPF_MAP_TYPE_LRU_HASH maps for BPF programs.
+    ///
+    /// If you are looking for userspace API, see
+    /// [`redbpf::LruHashMap`](../../redbpf/struct.LruHashMap.html) instead.
+    LruHashMap,
+    bpf_map_type_BPF_MAP_TYPE_LRU_HASH
+);
+define_hashmap!(
+    /// LRU per-cpu hash table map
+    ///
+    /// High level API of BPF_MAP_TYPE_LRU_PERCPU_HASH maps for BPF programs.
+    ///
+    /// If you are looking for userspace API, see
+    /// [`redbpf::LruPerCpuHashMap`](../../redbpf/struct.LruPerCpuHashMap.html)
+    /// instead.
+    LruPerCpuHashMap,
+    bpf_map_type_BPF_MAP_TYPE_LRU_PERCPU_HASH
+);
+
 define_array!(
     /// BPF array map for BPF programs
     ///
