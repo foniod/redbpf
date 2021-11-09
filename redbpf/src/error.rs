@@ -20,6 +20,7 @@ pub enum Error {
     SymbolNotFound(String),
     ProgramAlreadyLoaded,
     ProgramNotLoaded,
+    ProgramAlreadyLinked,
     ElfError,
     BTF(String),
 }
