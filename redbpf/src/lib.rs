@@ -239,7 +239,56 @@ pub struct TaskIter {
     link_fd: Option<RawFd>,
 }
 
-/// Type to work with `sk_lookup` BPF programs.
+/// Type to work with [`sk_lookup`] BPF programs.
+///
+/// `sk_lookup` programs were introduced with Linux 5.9 and make it possible to
+/// programmatically perform socket lookup for new connections.
+/// This can be used, for instance, to listen on a large number of addresses and ports
+/// with a single socket.
+///
+/// In order to take effect, `sk_lookup` programs must be attached to a
+/// network namespace, which can be done with the [`attach_sk_lookup`] method.
+///
+/// # Example
+///
+/// The userland code for listening on a port range could look something like this.
+///
+/// ```no_run
+/// # static SK_LOOKUP: &[u8] = &[];
+/// use std::net::TcpListener;
+/// use std::os::unix::io::AsRawFd
+///
+/// use redbpf::{HashMap, SockMap};
+/// use redbpf::load::Loader;
+///
+/// let mut listener = TcpListener::bind(("127.0.0.1", 12345)).unwrap();
+/// let mut loaded = Loader::load(SK_LOOKUP).unwrap();
+///
+/// // Pass the listener fd to the BPF program
+/// let mut socket = SockMap::new(loaded.map("socket")).unwrap();
+/// socket.set(0, listener.as_raw_fd());
+///
+/// // Pass our port range to the BPF program
+/// let mut ports = HashMap::<u16, u8>::new(loaded.map("ports")).unwrap();
+/// for port in 80..430 {
+///     ports.set(port, 1);
+/// }
+///
+/// // Attach the BPF program to the current process' network namespace
+/// loaded
+///     .sk_lookup_mut("range_listener")
+///     .unwrap()
+///     .attach_sk_lookup("/proc/self/ns/net")
+///     .unwrap();
+///
+/// loop {
+///     let (client, _) = listener.accept().unwrap();
+///     let addr = client.local_addr().unwrap();
+///     println!("accepted new connection on `{}`", addr);
+/// }
+/// ```
+///
+/// [`sk_lookup`]: https://github.com/torvalds/linux/blob/master/Documentation/bpf/prog_sk_lookup.rst
 pub struct SkLookup {
     common: ProgramData,
     link: Option<(RawFd, RawFd)>,
@@ -1094,6 +1143,9 @@ impl SocketFilter {
 }
 
 impl SkLookup {
+    /// Attach the `sk_lookup` to the given network namespace.
+    ///
+    /// In most cases it should be attached to `/proc/self/ns/net`.
     pub fn attach_sk_lookup(&mut self, namespace: &str) -> Result<()> {
         if self.link.is_some() {
             return Err(Error::ProgramAlreadyLinked);
