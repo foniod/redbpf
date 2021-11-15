@@ -173,8 +173,16 @@ fn build_probe(
         )
     })?;
 
-    // stripping debug sections is optional process. So don't care its failure.
-    let _ = llvm::strip_debug(&target);
+    // stripping .debug sections, .text section and BTF sections is optional
+    // process. So don't care about its failure.
+    let contains_tc = unsafe {
+        llvm::get_function_section_names(&bc_file)
+            .map_or_else(|_| vec![], |names| names)
+            .iter()
+            .find(|name| name.starts_with("tc_action/"))
+            .is_some()
+    };
+    let _ = llvm::strip_unnecessary(&target, contains_tc);
 
     Ok(())
 }
