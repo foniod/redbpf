@@ -52,8 +52,8 @@ use syn::parse::{Parse, ParseStream};
 use syn::punctuated::Punctuated;
 use syn::token::Comma;
 use syn::{
-    parse_macro_input, parse_quote, parse_str, AttributeArgs, Expr, ExprLit, File, GenericArgument,
-    ItemFn, ItemStatic, Lit, Meta, NestedMeta, PathArguments, Result, Type,
+    parse_macro_input, parse_quote, AttributeArgs, Expr, ExprLit, GenericArgument, ItemFn,
+    ItemStatic, Lit, Meta, NestedMeta, PathArguments, Result, Type,
 };
 use uuid::Uuid;
 
@@ -110,7 +110,7 @@ pub fn program(input: TokenStream) -> TokenStream {
     let license = args.next().expect("no license");
     let (license_ty, license) = inline_string_literal(&license);
     let (panic_ty, panic_msg) = inline_bytes(b"panic".to_vec());
-    let mut tokens = quote! {
+    let tokens = quote! {
         #[no_mangle]
         #[link_section = "license"]
         pub static _license: #license_ty = #license;
@@ -130,12 +130,6 @@ pub fn program(input: TokenStream) -> TokenStream {
             unsafe { core::hint::unreachable_unchecked() }
         }
     };
-
-    let mem = str::from_utf8(include_bytes!("mem.rs")).unwrap();
-    let mem: File = parse_str(&mem).unwrap();
-    tokens.extend(quote! {
-        #mem
-    });
 
     tokens.into()
 }
