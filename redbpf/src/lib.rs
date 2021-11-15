@@ -2615,8 +2615,7 @@ impl<'a> SockMap<'a> {
         Ok(SockMap { base: map })
     }
 
-    pub fn set(&mut self, mut idx: u32, fd: RawFd) -> Result<()> {
-        let mut fd = fd as u64;
+    pub fn set(&mut self, mut idx: u32, mut fd: RawFd) -> Result<()> {
         let ret = unsafe {
             bpf_sys::bpf_map_update_elem(
                 self.base.fd,
