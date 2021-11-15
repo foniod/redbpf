@@ -48,24 +48,6 @@ async fn main() {
         env!("OUT_DIR"),
         "/target/bpf/programs/tc-map-share/tc-map-share.elf"
     );
-    // remove .BTF.ext and .eh_frame in order to remove .text
-    // remove .text section because tc filter does not work if .text exists
-    // remove .BTF section because it contains invalid names of BTF types
-    // (currently kernel only allows valid symbol names of C)
-    for sec in &[".BTF.ext", ".eh_frame", ".text", ".BTF"] {
-        if !Command::new("llvm-strip-12")
-            .arg("--no-strip-all")
-            .arg("--remove-section")
-            .arg(sec)
-            .arg(&bpf_elf)
-            .status()
-            .expect("error on running command llvm-strip-12")
-            .success()
-        {
-            error!("error on removing section `{}' using llvm-strip-12", sec);
-            return;
-        }
-    }
     let new_clsact = Command::new("tc")
         .args("qdisc add dev lo clsact".split(" "))
         .status()
