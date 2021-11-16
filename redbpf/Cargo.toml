@@ -1,9 +1,10 @@
 [package]
 name = "redbpf"
 version = "2.1.0"
-description = "eBPF build and runtime library"
+description = "eBPF build and userspace runtime library"
 repository = "https://github.com/foniod/redbpf"
-documentation = "https://foniod.org/api/redbpf/"
+homepage = "https://foniod.org"
+documentation = "https://docs.rs/redbpf/2.1.0/redbpf/"
 authors = ["Peter Parkanyi <p@symmetree.dev>", "Alessandro Decina <alessandro.d@gmail.com>", "Junyeong Jeong <rhdxmr@gmail.com>"]
 edition = "2018"
 license = "MIT OR Apache-2.0"

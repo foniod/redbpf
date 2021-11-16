@@ -2,7 +2,8 @@
 name = "redbpf-probes"
 description = "eBPF probe-related types for redbpf"
 repository = "https://github.com/foniod/redbpf"
-documentation = "https://foniod.org/api/redbpf_probes/"
+homepage = "https://foniod.org"
+documentation = "https://docs.rs/redbpf-probes/2.1.0/redbpf_probes/"
 authors = ["Alessandro Decina <alessandro.d@gmail.com>", "Peter Parkanyi <p@symmetree.dev>", "Junyeong Jeong <rhdxmr@gmail.com>"]
 version = "2.1.0"
 edition = '2018'
