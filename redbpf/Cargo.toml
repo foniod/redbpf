@@ -1,10 +1,10 @@
 [package]
 name = "redbpf"
-version = "2.1.0"
+version = "2.2.0"
 description = "eBPF build and userspace runtime library"
 repository = "https://github.com/foniod/redbpf"
 homepage = "https://foniod.org"
-documentation = "https://docs.rs/redbpf/2.1.0/redbpf/"
+documentation = "https://docs.rs/redbpf/"
 authors = ["Peter Parkanyi <p@symmetree.dev>", "Alessandro Decina <alessandro.d@gmail.com>", "Junyeong Jeong <rhdxmr@gmail.com>"]
 edition = "2018"
 license = "MIT OR Apache-2.0"
@@ -15,7 +15,7 @@ readme = "README.md"
 maintenance = { status = "actively-developed" }
 
 [dependencies]
-bpf-sys = { path = "../bpf-sys", version = "2.1.0" }
+bpf-sys = { path = "../bpf-sys", version = "2.2.0" }
 goblin = "0.4"
 zero = "0.1"
 libc = "0.2"

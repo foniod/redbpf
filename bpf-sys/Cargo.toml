@@ -1,10 +1,10 @@
 [package]
 name = "bpf-sys"
-version = "2.1.0"
+version = "2.2.0"
 description = "Bindings for libbpf"
 repository = "https://github.com/foniod/redbpf"
 homepage = "https://foniod.org"
-documentation = "https://docs.rs/bpf-sys/2.1.0/bpf_sys"
+documentation = "https://docs.rs/bpf-sys"
 authors = ["Peter Parkanyi <p@symmetree.dev>", "Junyeong Jeong <rhdxmr@gmail.com>"]
 links = "bpf"
 edition = "2018"
