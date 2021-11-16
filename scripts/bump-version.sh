@@ -10,7 +10,9 @@ NEW_VERSION="${1}"
 
 echo "Bumping version: ${NEW_VERSION}"
 
-find $PACKAGES -name Cargo.toml -type f -exec sed -i -e "s/^version.*/version = \"$NEW_VERSION\"/" {} \;
+find $PACKAGES -name Cargo.toml -type f -exec sed -i -r \
+     -e "s/^version.*/version = \"$NEW_VERSION\"/" \
+     -e 's@^(documentation *= *"https://docs.rs/[a-z-]+/)[^/]+@\1'$NEW_VERSION'@' {} \;
 find $PACKAGES -name Cargo.toml -type f -exec sed -i -e "s/^\(bpf-sys.*version = \)\"[^\"]*\"/\\1\"$NEW_VERSION\"/" {} \;
 find $PACKAGES -name Cargo.toml -type f -exec sed -i -e "s/^\(cargo-bpf.*version = \)\"[^\"]*\"/\\1\"$NEW_VERSION\"/" {} \;
 find $PACKAGES -name Cargo.toml -type f -exec sed -i -e "s/^\(redbpf.*version = \)\"[^\"]*\"/\\1\"$NEW_VERSION\"/" {} \;
