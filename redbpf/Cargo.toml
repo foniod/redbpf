@@ -9,7 +9,6 @@ edition = "2018"
 license = "MIT OR Apache-2.0"
 keywords = ["bpf", "ebpf", "build", "bindgen", "redbpf"]
 readme = "README.md"
-rust-version = "1.48"
 
 [badges]
 maintenance = { status = "actively-developed" }
