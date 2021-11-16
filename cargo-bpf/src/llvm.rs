@@ -52,7 +52,7 @@ use llvm_sys::{LLVMAttributeFunctionIndex, LLVMInlineAsmDialect::*};
 use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
 use std::path::Path;
-use std::process::Command;
+use std::process::{Command, Stdio};
 use std::ptr;
 
 pub unsafe fn init() {
@@ -178,7 +178,13 @@ pub(crate) fn strip_unnecessary(target: &impl AsRef<Path>, delete_btf: bool) -> 
         "llvm-strip-11",
     ]
     .iter()
-    .find(|cmd| Command::new(cmd).arg("--version").status().is_ok())
+    .find(|cmd| {
+        Command::new(cmd)
+            .arg("--version")
+            .stdout(Stdio::null())
+            .status()
+            .is_ok()
+    })
     .ok_or_else(|| anyhow!("llvm-strip command not found"))?;
 
     Command::new(cmd)
