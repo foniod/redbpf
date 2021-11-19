@@ -9,8 +9,8 @@
 
 pub mod prelude;
 
-use crate::{bindings::*, socket::Socket};
 use crate::xdp::prelude::bpf_sk_assign;
+use crate::{bindings::*, socket::Socket};
 use cty::*;
 
 /// Context object provided to sk_lookup programs.
@@ -49,8 +49,7 @@ impl SkLookupCtx {
     pub fn protocol(&self) -> IpProtocol {
         match unsafe { (*self.ctx).protocol } {
             IPPROTO_TCP => IpProtocol::TCP,
-            IPPROTO_UDP => IpProtocol::UDP,
-            _ => unreachable!(),
+            _ => IpProtocol::UDP,
         }
     }
 
@@ -59,8 +58,7 @@ impl SkLookupCtx {
     pub fn local_addr(&self) -> IpAddr {
         match unsafe { (*self.ctx).family } {
             AF_INET => IpAddr::V4(Ipv4Addr(unsafe { (*self.ctx).local_ip4 })),
-            AF_INET6 => IpAddr::V6(Ipv6Addr(unsafe { (*self.ctx).local_ip6 })),
-            _ => unreachable!(),
+            _ => IpAddr::V6(Ipv6Addr(unsafe { (*self.ctx).local_ip6 })),
         }
     }
 
