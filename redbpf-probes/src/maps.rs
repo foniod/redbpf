@@ -501,7 +501,7 @@ impl SockMap {
             def: bpf_map_def {
                 type_: bpf_map_type_BPF_MAP_TYPE_SOCKMAP,
                 key_size: mem::size_of::<i32>() as u32,
-                value_size: mem::size_of::<i32>() as u32,
+                value_size: mem::size_of::<i64>() as u32,
                 max_entries,
                 map_flags: 0,
             },

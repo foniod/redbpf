@@ -2615,12 +2615,13 @@ impl<'a> SockMap<'a> {
         Ok(SockMap { base: map })
     }
 
-    pub fn set(&mut self, mut idx: u32, mut fd: RawFd) -> Result<()> {
+    pub fn set(&mut self, mut idx: u32, fd: RawFd) -> Result<()> {
+        let mut value = fd as u64;
         let ret = unsafe {
             bpf_sys::bpf_map_update_elem(
                 self.base.fd,
                 &mut idx as *mut _ as *mut _,
-                &mut fd as *mut _ as *mut _,
+                &mut value as *mut _ as *mut _,
                 BPF_ANY.into(), // No condition on the existence of the entry for `idx`.
             )
         };
