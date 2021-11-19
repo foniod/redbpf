@@ -545,4 +545,21 @@ impl SockMap {
             _ => panic!("invalid return value of bpf_sk_redirect_map"),
         }
     }
+
+    /// Get the socket referenced by this sockmap at index `key`.
+    pub fn get_mut(&mut self, key: &u32) -> Option<crate::socket::Socket> {
+        unsafe {
+            let value = bpf_map_lookup_elem(
+                &mut self.def as *mut _ as *mut c_void,
+                key as *const _ as *const c_void,
+            );
+            if value.is_null() {
+                None
+            } else {
+                Some(crate::socket::Socket {
+                    inner: &mut *(value as *mut c_void),
+                })
+            }
+        }
+    }
 }

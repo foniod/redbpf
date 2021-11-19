@@ -2,6 +2,7 @@
 
 use crate::bindings::*;
 use crate::helpers::bpf_skb_load_bytes;
+use crate::xdp::prelude::bpf_sk_release;
 use core::mem::{size_of, MaybeUninit};
 
 pub trait FromBe {
@@ -81,5 +82,16 @@ impl SkBuff {
 
             Ok(data.assume_init().from_be())
         }
+    }
+}
+
+/// A wrapper around a low-level socket.
+pub struct Socket {
+    pub inner: *mut cty::c_void,
+}
+
+impl Drop for Socket {
+    fn drop(&mut self) {
+        unsafe { bpf_sk_release(self.inner) };
     }
 }

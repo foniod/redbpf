@@ -18,6 +18,6 @@ pub use crate::helpers::*;
 pub use crate::maps::*;
 pub use crate::registers::*;
 pub use crate::sk_lookup::*;
-pub use crate::socket::{SkAction, SkBuff};
+pub use crate::socket::{SkAction, SkBuff, Socket};
 pub use cty::*;
-pub use redbpf_macros::{sk_lookup, map, program};
+pub use redbpf_macros::{map, program, sk_lookup};

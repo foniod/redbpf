@@ -9,7 +9,8 @@
 
 pub mod prelude;
 
-use crate::bindings::*;
+use crate::{bindings::*, socket::Socket};
+use crate::xdp::prelude::bpf_sk_assign;
 use cty::*;
 
 /// Context object provided to sk_lookup programs.
@@ -83,5 +84,16 @@ impl SkLookupCtx {
     #[inline]
     pub fn remote_port(&self) -> u32 {
         unsafe { (*self.ctx).remote_port }
+    }
+
+    /// Assigns this connection to the specified socket.
+    #[inline]
+    pub fn assign(&self, socket: &mut Socket) -> Result<(), i64> {
+        let ret = unsafe { bpf_sk_assign(self.ctx as *mut c_void, socket.inner, 0) };
+        if ret >= 0 {
+            Ok(())
+        } else {
+            Err(ret)
+        }
     }
 }
