@@ -26,8 +26,14 @@ name = "tasks"
 path = "examples/tasks.rs"
 required-features = ["kernel5_8"]  # bpf iterator has been supported since kernel v5.8
 
+[[example]]
+name = "socket-steering"
+path = "examples/socket-steering.rs"
+required-features = ["kernel5_9"]  # bpf sk_lookup has been supported since kernel v5.9
+
 [features]
 kernel5_8 = []
+kernel5_9 = ["kernel5_8"]
 default = ["llvm12"]
 llvm13 = ["cargo-bpf/llvm13"]
 llvm12 = ["cargo-bpf/llvm12"]

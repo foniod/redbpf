@@ -717,3 +717,27 @@ pub fn task_iter(attrs: TokenStream, item: TokenStream) -> TokenStream {
 
     probe_impl("task_iter", attrs, wrapper, name)
 }
+
+/// Define [sk_lookup BPF programs](https://www.kernel.org/doc/Documentation/bpf/prog_sk_lookup.rst)
+#[proc_macro_attribute]
+pub fn sk_lookup(attrs: TokenStream, item: TokenStream) -> TokenStream {
+    let item = parse_macro_input!(item as ItemFn);
+    let name = item.sig.ident.to_string();
+    let ident = item.sig.ident.clone();
+    let outer_ident = Ident::new(&format!("outer_{}", ident), Span::call_site());
+    let wrapper = parse_quote! {
+        fn #outer_ident(ctx: *mut ::redbpf_probes::bindings::bpf_sk_lookup) -> i32 {
+            let ctx = ::redbpf_probes::sk_lookup::SkLookupContext { ctx };
+            use ::redbpf_probes::socket::SkAction;
+
+            return match unsafe { #ident(ctx) } {
+                SkAction::Pass => ::redbpf_probes::bindings::sk_action_SK_PASS,
+                SkAction::Drop => ::redbpf_probes::bindings::sk_action_SK_DROP,
+            } as i32;
+
+            #item
+        }
+    };
+
+    probe_impl("sk_lookup", attrs, wrapper, name)
+}

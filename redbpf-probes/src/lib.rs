@@ -109,6 +109,7 @@ pub mod kprobe;
 pub mod maps;
 pub mod net;
 pub mod registers;
+pub mod sk_lookup;
 pub mod socket;
 pub mod socket_filter;
 pub mod sockmap;

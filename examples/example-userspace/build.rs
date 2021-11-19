@@ -12,6 +12,10 @@ fn main() {
     if env::var("CARGO_FEATURE_KERNEL5_8").is_ok() {
         features.push(String::from("kernel5_8"));
     }
+    if env::var("CARGO_FEATURE_KERNEL5_9").is_ok() {
+        features.push(String::from("kernel5_8"));
+        features.push(String::from("kernel5_9"));
+    }
     cargo_bpf::build_with_features(
         &cargo,
         &probes,
