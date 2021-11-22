@@ -54,6 +54,7 @@ use std::os::raw::c_char;
 use std::path::Path;
 use std::process::{Command, Stdio};
 use std::ptr;
+use std::slice;
 
 pub unsafe fn init() {
     LLVM_InitializeAllTargets();
@@ -127,9 +128,41 @@ unsafe fn inject_exit_call(context: LLVMContextRef, func: LLVMValueRef, builder:
     LLVMBuildCall(builder, exit, ptr::null_mut(), 0, c_str.as_ptr());
 }
 
+unsafe fn check_map_value_alignment(context: LLVMContextRef, module: LLVMModuleRef) -> Result<()> {
+    const PROBES_ALIGNMENT_MAX: usize = 8;
+    let mut global = LLVMGetFirstGlobal(module);
+    while !global.is_null() {
+        let mut size: libc::size_t = 0;
+        let c_name = LLVMGetValueName2(global, &mut size as *mut _);
+        if !c_name.is_null() {
+            let name = String::from_utf8_lossy(slice::from_raw_parts(c_name as *const u8, size));
+            let align_prefix = "MAP_VALUE_ALIGN_";
+            if name.starts_with(align_prefix) {
+                let align = LLVMGetAlignment(global) as usize;
+                if align > PROBES_ALIGNMENT_MAX {
+                    let map_name = &name[align_prefix.len()..];
+                    let msg = format!(
+                        "error: Illegal alignment the value of the map! map={} value-alignment={}.
+        In kernel context, the Linux kernel does not guarantee alignment of the value stored in the
+        BPF map when the alignment of the value is greater than 8 bytes.
+        Since it is undefined behavior to create references or dereference pointers of unaligned
+        data in Rust, BPF programs should avoid using types whose alignment is greater than 8 bytes.",
+                        map_name, align
+                    );
+                    return Err(anyhow!(msg));
+                }
+            }
+        }
+        global = LLVMGetNextGlobal(global);
+    }
+
+    Ok(())
+}
+
 pub unsafe fn compile(input: &Path, output: &Path, bc_output: Option<&Path>) -> Result<()> {
     let context = LLVMGetGlobalContext();
     let module = load_module(context, input)?;
+    check_map_value_alignment(context, module)?;
     process_ir(context, module)?;
     let ret = compile_module(module, output, bc_output);
     LLVMDisposeModule(module);

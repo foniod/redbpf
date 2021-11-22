@@ -258,13 +258,21 @@ pub fn map(attrs: TokenStream, item: TokenStream) -> TokenStream {
         let mod_ident = syn::Ident::new(&mod_name, static_item.ident.span());
         let ktype = key_type.unwrap();
         let vtype = value_type.unwrap();
+        // CAUTION: When you change the names (MAP_BTF_XXXX and
+        // MAP_VALUE_ALIGN_XXXX) you should consider changing corresponding
+        // parts that use them.
         let map_btf_name = format!("MAP_BTF_{}", static_item.ident.to_string());
         let map_btf_ident = syn::Ident::new(&map_btf_name, static_item.ident.span());
+        let value_align_name = format!("MAP_VALUE_ALIGN_{}", static_item.ident.to_string());
+        let value_align_ident = syn::Ident::new(&value_align_name, static_item.ident.span());
         tokens.extend(quote! {
             mod #mod_ident {
                 #[allow(unused_imports)]
                 use super::*;
-                use core::mem;
+                use core::mem::{self, MaybeUninit};
+
+                #[no_mangle]
+                static #value_align_ident: MaybeUninit<#vtype> = MaybeUninit::uninit();
 
                 #[repr(C)]
                 struct MapBtf {
