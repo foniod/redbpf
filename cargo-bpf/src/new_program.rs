@@ -8,6 +8,7 @@
 use std::fs::{self, File, OpenOptions};
 use std::io::{Seek, SeekFrom, Write};
 use std::path::Path;
+
 use crate::CommandError;
 
 impl From<toml_edit::Value> for CommandError {
@@ -96,8 +97,7 @@ use cty::*;
     let mut main_rs = File::create(main_rs)?;
     write!(
         &mut main_rs,
-        r#"
-#![no_std]
+        r#"#![no_std]
 #![no_main]
 use cty::*;
 
@@ -105,6 +105,10 @@ use cty::*;
 // use redbpf_probes::kprobe::prelude::*;
 // use redbpf_probes::xdp::prelude::*;
 // use redbpf_probes::socket_filter::prelude::*;
+// use redbpf_probes::tc::prelude::*;
+// use redbpf_probes::uprobe::prelude::*;
+// use redbpf_probes::sockmap::prelude::*;
+// use redbpf_probes::bpf_iter::prelude::*;
 
 // Use the types you're going to share with userspace, eg:
 // use {lib}::{name}::SomeEvent;
@@ -113,7 +117,7 @@ program!(0xFFFFFFFE, "GPL");
 
 // The maps and probe functions go here, eg:
 //
-// #[map("syscall_events")]
+// #[map]
 // static mut syscall_events: PerfMap<SomeEvent> = PerfMap::with_max_entries(1024);
 //
 // #[kprobe("__x64_sys_open")]
@@ -128,8 +132,8 @@ program!(0xFFFFFFFE, "GPL");
 //   unsafe {{ syscall_events.insert(regs.ctx, &event) }};
 // }}
 "#,
-        lib = crate_name,
-        name = name
+        lib = name_to_ident(crate_name.as_str()),
+        name = name_to_ident(name),
     )?;
 
     Ok(())
