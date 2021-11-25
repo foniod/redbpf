@@ -128,7 +128,7 @@ unsafe fn inject_exit_call(context: LLVMContextRef, func: LLVMValueRef, builder:
     LLVMBuildCall(builder, exit, ptr::null_mut(), 0, c_str.as_ptr());
 }
 
-unsafe fn check_map_value_alignment(context: LLVMContextRef, module: LLVMModuleRef) -> Result<()> {
+unsafe fn check_map_value_alignment(_context: LLVMContextRef, module: LLVMModuleRef) -> Result<()> {
     const PROBES_ALIGNMENT_MAX: usize = 8;
     let mut global = LLVMGetFirstGlobal(module);
     while !global.is_null() {
