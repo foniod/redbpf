@@ -32,8 +32,9 @@ use crate::error::{Error, Result};
 const BTF_SECTION_NAME: &str = ".BTF";
 
 pub(crate) struct BTF {
-    types: Vec<(u32, BtfType, *mut u8)>,
-    raw_bytes: Vec<u8>,
+    types: Vec<(u32, BtfType)>,
+    btf_hdr: btf_header,
+    raw_str_enc: Vec<u8>,
     fd: Option<RawFd>,
 }
 
@@ -119,14 +120,15 @@ impl BTF {
             return Err(Error::BTF("BTF already loaded".to_string()));
         }
 
+        let raw_bytes = self.dump()?;
         let mut v = vec![0i8; 64 * 1024];
         let log_buf = v.as_mut_ptr();
         let log_buf_size = v.capacity() * mem::size_of_val(&v[0]);
         let fd;
         unsafe {
             fd = bpf_sys::bpf_load_btf(
-                self.raw_bytes.as_ptr() as *const _,
-                self.raw_bytes.len() as u32,
+                raw_bytes.as_ptr() as *const _,
+                raw_bytes.len() as u32,
                 log_buf,
                 log_buf_size as u32,
                 false,
@@ -139,6 +141,62 @@ impl BTF {
         }
         self.fd = Some(fd);
         Ok(())
+    }
+
+    fn dump(&self) -> Result<Vec<u8>> {
+        let mut raw_bytes: Vec<u8> = vec![];
+        raw_bytes.extend(unsafe {
+            slice::from_raw_parts(
+                &self.btf_hdr as *const _ as *const u8,
+                mem::size_of::<btf_header>(),
+            )
+        });
+
+        for _ in 0..self.btf_hdr.type_off {
+            raw_bytes.push(0);
+        }
+
+        for (_, type_) in self.types.iter() {
+            let offset = raw_bytes.len();
+            let sz = type_.byte_len();
+            raw_bytes.reserve(sz);
+            unsafe {
+                let out = raw_bytes.as_mut_ptr().add(offset);
+                type_.dump(out)?;
+                raw_bytes.set_len(offset + sz);
+            }
+        }
+        if raw_bytes.len()
+            != mem::size_of::<btf_header>()
+                + (self.btf_hdr.type_off + self.btf_hdr.type_len) as usize
+        {
+            error!("The length of dumped BTF types differs from the size recorded in btf_header");
+            return Err(Error::BTF(
+                "failed to dump BTF types. length mismatch".to_string(),
+            ));
+        }
+
+        if mem::size_of::<btf_header>() + (self.btf_hdr.str_off as usize) < raw_bytes.len() {
+            error!("BTF type data exceeds BTF string section offset");
+            return Err(Error::BTF("invalid BTF string section offset".to_string()));
+        }
+
+        for _ in 0..(mem::size_of::<btf_header>() + self.btf_hdr.str_off as usize - raw_bytes.len())
+        {
+            raw_bytes.push(0);
+        }
+        raw_bytes.extend(&self.raw_str_enc);
+
+        if mem::size_of::<btf_header>() + (self.btf_hdr.str_off + self.btf_hdr.str_len) as usize
+            != raw_bytes.len()
+        {
+            error!("The length of dumped BTF string section differs from the size recorded in btf_header");
+            return Err(Error::BTF(
+                "failed to dump BTF string section. length mismatch".to_string(),
+            ));
+        }
+
+        Ok(raw_bytes)
     }
 
     fn parse_raw(bytes: &[u8]) -> Result<BTF> {
@@ -161,11 +219,21 @@ impl BTF {
             return Err(Error::BTF("invalid binary data length".to_string()));
         }
 
-        let mut clone_bytes = bytes.to_vec();
-        let btf_types = Self::parse_types(&btf_hdr, &mut clone_bytes)?;
+        let raw_type_enc = {
+            let start = (btf_hdr.hdr_len + btf_hdr.type_off) as usize;
+            let end = start + btf_hdr.type_len as usize;
+            &bytes[start..end]
+        };
+        let mut raw_str_enc = {
+            let start = (btf_hdr.hdr_len + btf_hdr.str_off) as usize;
+            let end = start + btf_hdr.str_len as usize;
+            (&bytes[start..end]).to_vec()
+        };
+        let types = Self::parse_types(&raw_type_enc, &mut raw_str_enc)?;
         Ok(BTF {
-            types: btf_types,
-            raw_bytes: clone_bytes,
+            types,
+            btf_hdr,
+            raw_str_enc,
             fd: None,
         })
     }
@@ -181,7 +249,7 @@ impl BTF {
         let btf_bytes = &bytes[shdr.sh_offset as usize..(shdr.sh_offset + shdr.sh_size) as usize];
         let mut btf = Self::parse_raw(&btf_bytes)?;
         btf.fix_datasection(object)?;
-        for (type_id, type_, _) in btf.types.iter() {
+        for (type_id, type_) in btf.types.iter() {
             debug!("[{}] {:?}", type_id, type_);
         }
         Ok(btf)
@@ -194,14 +262,13 @@ impl BTF {
     fn fix_datasection(&mut self, object: &Elf) -> Result<()> {
         // fix size of datasection
         let mut var_type_ids = vec![];
-        for (_, type_, data) in self.types.iter_mut() {
+        for (_, type_) in self.types.iter_mut() {
             if let BtfType::DataSection(comm, vsis) = type_ {
                 let shdr = get_section_header_by_name(object, &comm.name_raw).ok_or_else(|| {
                     Error::Section(format!("DataSection not found: {}", &comm.name_raw))
                 })?;
                 comm.set_size(shdr.sh_size as u32);
                 var_type_ids.extend(vsis.iter().map(|vsi| vsi.type_));
-                type_.dump(*data)?;
             }
         }
         // fix offset of var section info
@@ -210,7 +277,7 @@ impl BTF {
             let var = self
                 .types
                 .iter()
-                .find_map(|(type_id, type_, _)| {
+                .find_map(|(type_id, type_)| {
                     if let BtfType::Variable(..) = type_ {
                         if &vti == type_id {
                             return Some(type_);
@@ -247,18 +314,13 @@ impl BTF {
                 var_offsets.insert(vti, sym.st_value);
             }
         }
-        for (_, type_, data) in self.types.iter_mut() {
+        for (_, type_) in self.types.iter_mut() {
             if let BtfType::DataSection(_, vsis) = type_ {
-                let mut modified = false;
                 for vsi in vsis.iter_mut() {
                     // offsets of variables whose linkage is static are intact
                     if let Some(offset) = var_offsets.get(&vsi.type_) {
                         vsi.offset = *offset as u32;
-                        modified = true;
                     }
-                }
-                if modified {
-                    type_.dump(*data)?;
                 }
             }
         }
@@ -266,27 +328,17 @@ impl BTF {
     }
 
     /// Helper function for parsing BPF type encoding binary data.
-    fn parse_types(
-        btf_hdr: &btf_header,
-        btf_bytes: &mut [u8],
-    ) -> Result<Vec<(u32, BtfType, *mut u8)>> {
+    fn parse_types(btf_type_enc: &[u8], btf_str_enc: &mut [u8]) -> Result<Vec<(u32, BtfType)>> {
         let mut btf_types = vec![];
-        let type_start = unsafe {
-            btf_bytes
-                .as_ptr()
-                .offset((btf_hdr.hdr_len + btf_hdr.type_off) as isize)
-        };
-        let type_end = unsafe { type_start.offset(btf_hdr.type_len as isize) };
-        let mut type_ptr = type_start;
         // type id 0 is reserved for void type. so type id is starting from 1.
         let mut type_id: u32 = 1;
-        let str_bytes = &mut btf_bytes[(btf_hdr.hdr_len + btf_hdr.str_off) as usize..];
-        while type_ptr < type_end {
-            let type_ = BtfType::parse(type_ptr as *mut _, str_bytes)?;
+        let mut remain = &btf_type_enc[..];
+        while remain.len() > 0 {
+            let type_ = BtfType::parse(remain, btf_str_enc)?;
             let sz = type_.byte_len();
-            btf_types.push((type_id, type_, type_ptr as *mut _));
-            type_ptr = unsafe { type_ptr.offset(sz as isize) };
+            btf_types.push((type_id, type_));
             type_id += 1;
+            remain = &remain[sz..];
         }
         Ok(btf_types)
     }
@@ -294,7 +346,7 @@ impl BTF {
     fn get_type_by_id(&self, type_id: u32) -> Option<&BtfType> {
         self.types
             .iter()
-            .find_map(|(tid, type_, _)| if &type_id == tid { Some(type_) } else { None })
+            .find_map(|(tid, type_)| if &type_id == tid { Some(type_) } else { None })
     }
 
     /// Get BTF type ids of a map of which symbol name is `map_sym_name`
@@ -310,7 +362,7 @@ impl BTF {
         let map_btf_type = self
             .types
             .iter()
-            .find_map(|(_, type_, _)| {
+            .find_map(|(_, type_)| {
                 if let Variable(common, _) = type_ {
                     if common.name_raw == map_btf_sym_name {
                         return Some(type_);
@@ -381,33 +433,31 @@ impl BTF {
 
     pub(crate) fn find_type_id(&self, type_name: &str, kind: BtfKind) -> Option<u32> {
         use BtfType::*;
-        self.types
-            .iter()
-            .find_map(|(type_id, type_, _)| match type_ {
-                Integer(common, _)
-                | Pointer(common)
-                | Array(common, _)
-                | Structure(common, _)
-                | Union(common, _)
-                | Enumeration(common, _)
-                | Forward(common)
-                | TypeDef(common)
-                | Volatile(common)
-                | Constant(common)
-                | Restrict(common)
-                | Function(common)
-                | FunctionProtocol(common, _)
-                | Variable(common, _)
-                | DataSection(common, _)
-                | FloatingPoint(common) => {
-                    if common.kind() == kind {
-                        if common.name_raw == type_name {
-                            return Some(*type_id);
-                        }
+        self.types.iter().find_map(|(type_id, type_)| match type_ {
+            Integer(common, _)
+            | Pointer(common)
+            | Array(common, _)
+            | Structure(common, _)
+            | Union(common, _)
+            | Enumeration(common, _)
+            | Forward(common)
+            | TypeDef(common)
+            | Volatile(common)
+            | Constant(common)
+            | Restrict(common)
+            | Function(common)
+            | FunctionProtocol(common, _)
+            | Variable(common, _)
+            | DataSection(common, _)
+            | FloatingPoint(common) => {
+                if common.kind() == kind {
+                    if common.name_raw == type_name {
+                        return Some(*type_id);
                     }
-                    None
                 }
-            })
+                None
+            }
+        })
     }
 }
 
@@ -450,8 +500,8 @@ impl From<u32> for BtfKind {
 }
 
 impl BtfTypeCommon {
-    fn parse(bytes: *const u8, str_bytes: &[u8]) -> Result<Self> {
-        let type_ = unsafe { ptr::read_unaligned(bytes as *const btf_type) };
+    fn parse(bytes: &[u8], str_bytes: &[u8]) -> Result<Self> {
+        let type_ = unsafe { ptr::read_unaligned(bytes.as_ptr() as *const btf_type) };
         let name = get_type_name(str_bytes, type_.name_off)?;
         Ok(Self {
             type_,
@@ -486,7 +536,7 @@ impl BtfTypeCommon {
 }
 
 impl BtfType {
-    fn parse(bytes: *mut u8, str_bytes: &mut [u8]) -> Result<Self> {
+    fn parse(bytes: &[u8], str_bytes: &mut [u8]) -> Result<Self> {
         let comm = BtfTypeCommon::parse(bytes, str_bytes)?;
         let vlen = comm.vlen();
         use BtfType::*;
@@ -595,7 +645,6 @@ impl BtfType {
                     );
                     comm.name_fixed = None;
                     comm.type_.name_off = 0;
-                    type_.dump(bytes)?;
                 }
             }
             Structure(comm, _)
@@ -706,40 +755,56 @@ impl BtfType {
     fn dump(&self, out: *mut u8) -> Result<()> {
         use BtfType::*;
         match self {
-            DataSection(comm, vsis) => unsafe {
-                let mut dst = out;
-                ptr::write_unaligned(dst as *mut btf_type, comm.type_);
-                dst = dst.offset(mem::size_of::<btf_type>() as isize);
-                for vsi in vsis.iter() {
-                    ptr::write_unaligned(dst as *mut btf_var_secinfo, *vsi);
-                    dst = dst.offset(mem::size_of::<btf_var_secinfo>() as isize);
-                }
-                Ok(())
-            },
-            Pointer(comm) | Volatile(comm) | Constant(comm) | Restrict(comm) => unsafe {
+            Pointer(comm) | Volatile(comm) | Constant(comm) | Restrict(comm) | Forward(comm)
+            | TypeDef(comm) | Function(comm) | FloatingPoint(comm) => unsafe {
                 ptr::write_unaligned(out as *mut btf_type, comm.type_);
-                Ok(())
             },
             Array(comm, arr) => unsafe {
                 ptr::write_unaligned(out as *mut btf_type, comm.type_);
-                ptr::write_unaligned(
-                    out.offset(mem::size_of::<btf_array>() as isize) as *mut btf_array,
-                    *arr,
-                );
-                Ok(())
+                ptr::write_unaligned(out.add(mem::size_of::<btf_array>()) as *mut btf_array, *arr);
+            },
+            Integer(comm, int) => unsafe {
+                ptr::write_unaligned(out as *mut btf_type, comm.type_);
+                ptr::write_unaligned(out.add(mem::size_of::<btf_type>()) as *mut u32, *int);
+            },
+            Variable(comm, var) => unsafe {
+                ptr::write_unaligned(out as *mut btf_type, comm.type_);
+                ptr::write_unaligned(out.add(mem::size_of::<btf_type>()) as *mut btf_var, *var);
             },
             FunctionProtocol(comm, params) => unsafe {
-                let mut dst = out;
-                ptr::write_unaligned(dst as *mut btf_type, comm.type_);
-                dst = dst.offset(mem::size_of::<btf_type>() as isize);
+                ptr::write_unaligned(out as *mut btf_type, comm.type_);
+                let mut dst = out.add(mem::size_of::<btf_type>());
                 for param in params.iter() {
                     ptr::write_unaligned(dst as *mut btf_param, *param);
-                    dst = dst.offset(mem::size_of::<btf_param>() as isize);
+                    dst = dst.add(mem::size_of::<btf_param>());
                 }
-                Ok(())
             },
-            _ => Err(Error::BTF(format!("dump is not supported for {:?}", self))),
+            Structure(comm, membs) | Union(comm, membs) => unsafe {
+                ptr::write_unaligned(out as *mut btf_type, comm.type_);
+                let mut dst = out.add(mem::size_of::<btf_type>());
+                for memb in membs.iter() {
+                    ptr::write_unaligned(dst as *mut btf_member, memb.member);
+                    dst = dst.add(mem::size_of::<btf_member>());
+                }
+            },
+            Enumeration(comm, enus) => unsafe {
+                ptr::write_unaligned(out as *mut btf_type, comm.type_);
+                let mut dst = out.add(mem::size_of::<btf_type>());
+                for enu in enus.iter() {
+                    ptr::write_unaligned(dst as *mut btf_enum, *enu);
+                    dst = dst.add(mem::size_of::<btf_enum>());
+                }
+            },
+            DataSection(comm, vsis) => unsafe {
+                ptr::write_unaligned(out as *mut btf_type, comm.type_);
+                let mut dst = out.add(mem::size_of::<btf_type>());
+                for vsi in vsis.iter() {
+                    ptr::write_unaligned(dst as *mut btf_var_secinfo, *vsi);
+                    dst = dst.add(mem::size_of::<btf_var_secinfo>());
+                }
+            },
         }
+        Ok(())
     }
 
     /// overwrite fixed name binary into string section
@@ -751,16 +816,16 @@ impl BtfType {
     }
 
     /// `data` is a pointer to binary data of `btf_type`
-    fn read_multiple_extra<T>(data: *const u8, vlen: u32) -> Vec<T> {
-        let head_ptr = unsafe { data.offset(mem::size_of::<btf_type>() as isize) as *const T };
+    fn read_multiple_extra<T>(data: &[u8], vlen: u32) -> Vec<T> {
+        let head_ptr = unsafe { data.as_ptr().add(mem::size_of::<btf_type>()) as *const T };
         (0..vlen)
-            .map(|i| unsafe { ptr::read_unaligned(head_ptr.offset(i as isize)) })
+            .map(|i| unsafe { ptr::read_unaligned(head_ptr.add(i as usize)) })
             .collect()
     }
 
     /// `data` is a pointer to binary data of `btf_type`
-    fn read_extra<T>(data: *const u8) -> T {
-        unsafe { ptr::read_unaligned(data.offset(mem::size_of::<btf_type>() as isize) as *const T) }
+    fn read_extra<T>(data: &[u8]) -> T {
+        unsafe { ptr::read_unaligned(data.as_ptr().add(mem::size_of::<btf_type>()) as *const T) }
     }
 }
 
