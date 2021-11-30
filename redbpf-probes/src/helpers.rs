@@ -88,9 +88,25 @@ pub fn bpf_get_current_comm() -> [c_char; 16] {
 }
 
 /// Returns the time elapsed since system boot, in nanoseconds.
+///
+/// The time during the system was suspended is **NOT** included.
 #[inline]
 pub fn bpf_ktime_get_ns() -> u64 {
     unsafe { gen::bpf_ktime_get_ns() }
+}
+
+/// Return the time elapsed since system boot, in nanoseconds
+///
+/// The time during the system was suspended is included.
+pub fn bpf_ktime_get_boot_ns() -> u64 {
+    unsafe { gen::bpf_ktime_get_boot_ns() }
+}
+
+/// Return a coarse-grained version of the time elapsed since system boot, in nanoseconds
+///
+/// The time during the system was suspended is **NOT** included.
+pub fn bpf_ktime_get_coarse_ns() -> u64 {
+    unsafe { gen::bpf_ktime_get_coarse_ns() }
 }
 
 // For tracing programs, safely attempt to read `mem::size_of::<T>()` bytes from
@@ -110,6 +126,20 @@ pub unsafe fn bpf_probe_read<T>(src: *const T) -> Result<T, i64> {
     Ok(v.assume_init())
 }
 
+/// Print a message to `/sys/kernel/debug/tracing/trace_pipe`
+///
+/// `message` should end with NUL byte. Otherwise, it is rejected by the Linux
+/// kernel so it won't be shown at the `trace_pipe`
+///
+/// # Example
+/// ```no_run
+/// # use redbpf_probes::kprobe::prelude::*;
+///
+/// # #[kprobe]
+/// # fn print_example(_regs: Registers) {
+/// bpf_trace_printk(b"Hello world\0");
+/// # }
+/// ```
 #[inline]
 pub fn bpf_trace_printk(message: &[u8]) -> ::cty::c_int {
     unsafe {
@@ -120,6 +150,42 @@ pub fn bpf_trace_printk(message: &[u8]) -> ::cty::c_int {
             message.len() as u32,
         )
     }
+}
+
+/// Get a pseudo-random number
+#[inline]
+pub fn bpf_get_prandom_u32() -> u32 {
+    unsafe { gen::bpf_get_prandom_u32() }
+}
+
+/// Get the SMP (symmetric multiprocessing) processor id
+#[inline]
+pub fn bpf_get_smp_processor_id() -> u32 {
+    unsafe { gen::bpf_get_smp_processor_id() }
+}
+
+/// A pointer to the current task struct
+#[inline]
+pub fn bpf_get_current_task() -> u64 {
+    unsafe { gen::bpf_get_current_task() }
+}
+
+/// The id of current NUMA node
+#[inline]
+pub fn bpf_get_numa_node_id() -> i64 {
+    unsafe { gen::bpf_get_numa_node_id() }
+}
+
+/// Current cgroup id within which the current task is running
+#[inline]
+pub fn bpf_get_current_cgroup_id() -> u64 {
+    unsafe { gen::bpf_get_current_cgroup_id() }
+}
+
+/// Obtain the 64bit jiffies
+#[inline]
+pub fn bpf_jiffies64() -> u64 {
+    unsafe { gen::bpf_jiffies64() }
 }
 
 #[inline]

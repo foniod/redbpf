@@ -47,6 +47,8 @@ impl SkBuff {
     #[inline]
     /// Loads data from the socket buffer.
     ///
+    /// Provide an easy way to load data from a packet.
+    ///
     /// # Example
     /// ```no_run
     /// use core::mem;

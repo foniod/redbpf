@@ -14,27 +14,27 @@ static mut PID: PerfMap<VFSEvent> = PerfMap::with_max_entries(10240);
 #[kprobe("vfs_read")]
 fn vfs_read_enter(_regs: Registers) {
     let pid_tgid = bpf_get_current_pid_tgid();
-    let p = pid_tgid >> 32;
-    let t = pid_tgid & 0xFFFFFFFF;
+    let pid = pid_tgid & 0xFFFFFFFF; // task->pid
+    let tgid = pid_tgid >> 32; // task->tgid
 
     let event = VFSEvent {
-        pid: p,
-        tgid: t,
+        pid,
+        tgid,
         timestamp: bpf_ktime_get_ns(),
         latency: 0,
     };
     unsafe {
-        TIMESTAMP.set(&t, &event);
+        TIMESTAMP.set(&tgid, &event);
     };
 }
 
 #[kretprobe("vfs_read")]
 fn vfs_read_exit(regs: Registers) {
-    let t = bpf_get_current_pid_tgid() & 0xFFFFFFFF;
+    let tgid = bpf_get_current_pid_tgid() >> 32;
     unsafe {
-        match TIMESTAMP.get_mut(&t) {
+        match TIMESTAMP.get_mut(&tgid) {
             Some(event) => {
-                TIMESTAMP.delete(&t);
+                TIMESTAMP.delete(&tgid);
                 event.latency = bpf_ktime_get_ns() - event.timestamp;
                 PID.insert(regs.ctx, &event);
             }
