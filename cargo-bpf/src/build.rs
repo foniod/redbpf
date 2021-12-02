@@ -16,6 +16,8 @@ use std::process::Command;
 use std::str;
 use toml_edit::{Document, Item};
 
+use redbpf::btf;
+
 use crate::llvm;
 use crate::CommandError;
 
@@ -30,6 +32,7 @@ pub enum Error {
     Link(String),
     IOError(io::Error),
     PatternError(PatternError),
+    BTF,
 }
 
 impl std::error::Error for Error {
@@ -61,6 +64,7 @@ impl Display for Error {
             NoLLC => write!(f, "no usable llc executable found, expecting version 9"),
             IOError(e) => write!(f, "{}", e),
             PatternError(e) => write!(f, "couldn't list probe files: {}", e),
+            BTF => write!(f, "failed to fix BTF section"),
         }
     }
 }
@@ -182,6 +186,12 @@ fn build_probe(
             .find(|name| name.starts_with("tc_action/"))
             .is_some()
     };
+    if contains_tc {
+        let elf_bytes = fs::read(&target).or_else(|e| Err(Error::IOError(e)))?;
+        let fixed =
+            btf::tc_legacy_fix_btf_section(elf_bytes.as_slice()).or_else(|_| Err(Error::BTF))?;
+        fs::write(&target, fixed).or_else(|e| Err(Error::IOError(e)))?;
+    }
     let _ = llvm::strip_unnecessary(&target, contains_tc);
 
     Ok(())
