@@ -21,7 +21,7 @@ bpf-sys = { version = "2.2.0", path = "../bpf-sys" }
 syn = {version = "1.0", default-features = false, features = ["parsing", "visit"] }
 quote = "1.0"
 glob = "0.3.0"
-bindgen = { version = "0.59.1", default-features = false, features = ["runtime"] }
+bindgen = { version = "0.59.2", default-features = false, features = ["runtime"] }
 anyhow = "1.0"
 tracing = "0.1.26"
 tracing-subscriber = "0.2.18"

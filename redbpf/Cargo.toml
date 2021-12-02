@@ -19,7 +19,7 @@ bpf-sys = { path = "../bpf-sys", version = "2.2.0" }
 goblin = "0.4"
 zero = "0.1"
 libc = "0.2"
-bindgen = {version = "0.59.1", default-features = false, features = ["runtime"]}
+bindgen = {version = "0.59.2", default-features = false, features = ["runtime"]}
 regex = "1.0"
 lazy_static = "1.0"
 byteorder = "1"
