@@ -44,7 +44,7 @@ for kprobe in loader.kprobes_mut() {
 #[macro_use]
 extern crate lazy_static;
 
-mod btf;
+pub mod btf;
 pub mod cpus;
 mod error;
 #[cfg(feature = "load")]
