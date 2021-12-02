@@ -537,7 +537,10 @@ impl BTF {
         // type_id 0 may exist or may not exist in the in_link
         let new_id_correc = if let Some(_) = in_link.get(&0) { 0 } else { 1 };
 
-        let mut old_ids = in_link.into_keys().collect::<Vec<u32>>();
+        let mut old_ids = in_link
+            .drain()
+            .map(|(old_id, _)| old_id)
+            .collect::<Vec<u32>>();
         old_ids.sort();
 
         let mut new_ids = RSHashMap::<u32, u32>::with_capacity(old_ids.len());
