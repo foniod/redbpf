@@ -11,19 +11,51 @@ A Rust eBPF toolchain.
 The redbpf project is a collection of tools and libraries to build eBPF
 programs using Rust. It includes:
 
-- [redbpf](https://foniod.org/api/redbpf/) - a user space library that can be
+- [redbpf](https://docs.rs/redbpf/latest/redbpf/) - a user space library that can be
   used to load eBPF programs or access eBPF maps.
 
-- [redbpf-probes](https://foniod.org/api/redbpf_probes/) - an idiomatic Rust
+- [redbpf-probes](https://docs.rs/redbpf-probes/latest/redbpf_probes/) - an idiomatic Rust
   API to write eBPF programs that can be loaded by the linux kernel
 
-- [redbpf-macros](https://foniod.org/api/redbpf_macros/) - companion crate to
+- [redbpf-macros](https://docs.rs/redbpf-macros/latest/redbpf_macros/) - companion crate to
   `redbpf-probes` which provides convenient procedural macros useful when
   writing eBPF programs. For example, `#[map]` for defining a map, `#[kprobe]`
   for defining a BPF program that can be attached to kernel functions.
 
-- [cargo-bpf](https://foniod.org/api/cargo_bpf/) - a cargo subcommand for
-  creating, building and debugging eBPF programs
+- [cargo-bpf](./cargo-bpf/src/main.rs) - a cargo subcommand for creating,
+  building and debugging eBPF programs
+
+# Features
+
+- Allows users to write both BPF programs and userspace programs in Rust
+- Offers many BPF map types
+  1. `HashMap`, `PerCpuHashMap`, `LruHashMap`, `LruPerCpuHashMap`, `Array`,
+     `PerCpuArray`, `PerfMap`, `TcHashMap`, `StackTrace`, `ProgramArray`,
+     `SockMap`
+- Offers several BPF program types
+  1. `KProbe`, `KRetProbe`, `UProbe`, `URetProbe`, `SocketFilter`, `XDP`,
+     `StreamParser`, `StreamVerdict`, `TaskIter`, `SkLookup`
+- Provides attribute macros that define various kind of BPF programs and BPF
+  maps in a declarative way.
+  1. `#[kprobe]`, `#[kretprobe]`, `#[uprobe]`, `#[uretprobe]`, `#[xdp]`,
+     `#[tc_action]`, `#[socket_filter]`, `#[stream_parser]`,
+     `#[stream_verdict]`, `#[task_iter]`
+  2. `#[map]`
+- Can generate Rust bindings from the Linux kernel headers or from the BTF of
+  `vmlinux`
+- Provides API for both BPF programs and userspace programs to help users write
+  Rust idiomatic code
+- Supports BTF for maps
+- Supports pinning maps and loading maps from pins
+- Supports BPF iterator for `task`
+- Enables users to write BPF programs for `tc` action and RedBPF compiles the
+  programs into the ELF object file that is compatible with `tc` command
+- Provides wrappers of BPF helper functions
+- Offers asynchronous stream of `perf events` for userspace programs
+- Supports multiple versions of LLVM
+- Shows BPF verifier logs when loading BPF programs, BPF maps or BTF fails
+- Has several example programs that are separated into two parts: BPF programs
+  and userspace programs
 
 # Requirements
 
@@ -35,6 +67,11 @@ Currently LLVM 12 is used as a default version when compiling BPF programs, but
 you can specify other LLVM versions as follows:
 - `cargo build --no-default-features --features llvm13`
 - `cargo build --no-default-features --features llvm11`
+
+If you want to install `cargo-bpf` with other LLVM versions then you can try
+this command:
+- `cargo install cargo-bpf --no-default-features --features=llvm13,command-line`
+- `cargo install cargo-bpf --no-default-features --features=llvm1,command-line`
 
 ## Valid combinations of rust and LLVM versions
 
@@ -97,8 +134,11 @@ On Debian, Ubuntu and derivatives you can install the dependencies running:
 			llvm-12-dev libclang-12-dev linux-headers-$(uname -r) \
 			libelf-dev
 
-If your distribution doesn't have LLVM 12, you can add the [official LLVM
-APT repository](https://apt.llvm.org) to your `sources.list`.
+If your distribution doesn't have LLVM 12, you can add the [official LLVM APT
+repository](https://apt.llvm.org) to your `sources.list`. Or simply run the
+script that you can download at the
+[llvm.sh](https://apt.llvm.org/llvm.sh). Note that this script is only for
+Debian or Ubuntu.
 
 ## Installing dependencies on RPM based distributions
 
@@ -128,8 +168,8 @@ programs are splitted into two parts: `example-probes` and
 kernel context. `example-userspace` includes userspace programs that load BPF
 programs into kernel space and communicate with BPF programs through BPF maps.
 
-Also see [documentation](https://foniod.org/api/cargo_bpf/) of `cargo-bpf`. It
-provides a CLI tool for compiling BPF programs easily.
+Also see [documentation](./cargo-bpf/src/main.rs) of `cargo-bpf`. It provides a
+CLI tool for compiling BPF programs easily.
 
 [redbpf-tools](https://github.com/foniod/redbpf/tree/master/redbpf-tools) is a
 `cargo-bpf` generated crate that includes simple examples you can use to
