@@ -60,6 +60,7 @@ async fn main() {
         .arg("object-file")
         .arg(bpf_elf)
         .args("section tc_action/block_ports".split(" "))
+        .arg("verbose")
         .status()
         .expect("error on tc filter add");
 
