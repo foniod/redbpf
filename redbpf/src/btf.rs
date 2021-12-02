@@ -534,16 +534,16 @@ impl BTF {
                 }
             }
         }
+        // type_id 0 may exist or may not exist in the in_link
+        let new_id_correc = if let Some(_) = in_link.get(&0) { 0 } else { 1 };
 
         let mut old_ids = in_link.into_keys().collect::<Vec<u32>>();
         old_ids.sort();
 
         let mut new_ids = RSHashMap::<u32, u32>::with_capacity(old_ids.len());
         for (i, old_id) in old_ids.iter().enumerate() {
-            new_ids.insert(*old_id, i as u32);
+            new_ids.insert(*old_id, i as u32 + new_id_correc);
         }
-
-        assert_eq!(new_ids.get(&0), Some(&0));
         let mut new_types = self
             .types
             .iter()
