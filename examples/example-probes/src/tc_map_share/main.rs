@@ -20,9 +20,34 @@ program!(0xFFFFFFFE, "GPL");
 static mut blocked_packets: TcHashMap<u16, u64> =
     TcHashMap::<u16, u64>::with_max_entries(1024, TcMapPinning::GlobalNamespace);
 
+#[repr(C)]
+struct SpinLock {
+    lock: bpf_spin_lock,
+}
+
+#[map(link_section = "maps")]
+static mut spinlocks: TcHashMap<u64, SpinLock> = TcHashMap::with_max_entries(1, TcMapPinning::None);
+
 /// BPF program type is BPF_PROG_TYPE_SCHED_CLS
 #[tc_action]
 fn block_ports(skb: SkBuff) -> TcActionResult {
+    let lock = unsafe {
+        let key = 0;
+        if let Some(lock) = spinlocks.get_mut(&key) {
+            lock
+        } else {
+            let val = MaybeUninit::<SpinLock>::zeroed().assume_init();
+            spinlocks.set(&key, &val);
+            spinlocks.get_mut(&key).unwrap()
+        }
+    };
+
+    // just show how to use spin lock
+    unsafe {
+        bpf_spin_lock(&mut lock.lock as *mut _);
+        bpf_spin_unlock(&mut lock.lock as *mut _);
+    }
+
     let tcp_hdr_offset = match u32::from_be(unsafe { *skb.skb }.protocol << 16) {
         ETH_P_IP => {
             let mut uninit = MaybeUninit::<iphdr>::uninit();

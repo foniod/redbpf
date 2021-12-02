@@ -1,9 +1,16 @@
 use std::env;
 use std::path::{Path, PathBuf};
+use tracing::Level;
+use tracing_subscriber::FmtSubscriber;
 
 use cargo_bpf_lib as cargo_bpf;
 
 fn main() {
+    let subscriber = FmtSubscriber::builder()
+        .with_max_level(Level::TRACE)
+        .finish();
+    tracing::subscriber::set_global_default(subscriber).unwrap();
+
     let cargo = PathBuf::from(env::var("CARGO").unwrap());
     let target = PathBuf::from(env::var("OUT_DIR").unwrap());
     let probes = Path::new("../example-probes");
