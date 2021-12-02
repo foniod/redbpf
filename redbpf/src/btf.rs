@@ -38,6 +38,7 @@ pub(crate) struct BTF {
     fd: Option<RawFd>,
 }
 
+#[derive(Clone)]
 struct BtfTypeCommon {
     type_: btf_type,
     #[allow(unused)]
@@ -66,6 +67,7 @@ pub(crate) enum BtfKind {
     FloatingPoint,
 }
 
+#[derive(Clone)]
 enum BtfType {
     Integer(BtfTypeCommon, u32),
     Pointer(BtfTypeCommon),
@@ -85,6 +87,7 @@ enum BtfType {
     FloatingPoint(BtfTypeCommon),
 }
 
+#[derive(Clone)]
 struct BtfMember {
     member: btf_member,
     name: String,
@@ -390,7 +393,7 @@ impl BTF {
                     .iter()
                     .find_map(|memb| {
                         if &memb.name == "key_type" {
-                            Some(memb.member.type_)
+                            Some(memb.type_id())
                         } else {
                             None
                         }
@@ -405,7 +408,7 @@ impl BTF {
                     .iter()
                     .find_map(|memb| {
                         if &memb.name == "value_type" {
-                            Some(memb.member.type_)
+                            Some(memb.type_id())
                         } else {
                             None
                         }
@@ -458,6 +461,188 @@ impl BTF {
                 None
             }
         })
+    }
+
+    fn filter<F>(&mut self, mut f: F) -> Result<()>
+    where
+        F: FnMut(&BtfType) -> bool,
+    {
+        use BtfType::*;
+        // key: type_id / value: [type_id, type_id, ...].
+        //
+        // Value contains the types refering to the key type. Since the types
+        // in a value depend on the key type, if the key type is removed then
+        // the types the value desginates have to be eliminated first.
+        let mut in_link = RSHashMap::<u32, Vec<u32>>::with_capacity(self.types.len());
+        for (id, ty) in self.types.iter_mut() {
+            in_link.entry(*id).or_default();
+            match ty {
+                Integer(..) | Enumeration(..) | FloatingPoint(..) => {}
+                Pointer(comm)
+                | TypeDef(comm)
+                | Volatile(comm)
+                | Constant(comm)
+                | Restrict(comm)
+                | Function(comm)
+                | Variable(comm, ..)
+                | Forward(comm) => {
+                    in_link.entry(comm.type_id()).or_default().push(*id);
+                }
+                Structure(_, membs) | Union(_, membs) => {
+                    for memb in membs.iter() {
+                        in_link.entry(memb.type_id()).or_default().push(*id);
+                    }
+                }
+                FunctionProtocol(comm, params) => {
+                    let ret_type_id = comm.type_id();
+                    in_link.entry(ret_type_id).or_default().push(*id);
+                    for param in params.iter() {
+                        in_link.entry(param.type_).or_default().push(*id);
+                    }
+                }
+                DataSection(_, vsis) => {
+                    for vsi in vsis.iter() {
+                        in_link.entry(vsi.type_).or_default().push(*id);
+                    }
+                }
+                Array(_, arr) => {
+                    in_link.entry(arr.type_).or_default().push(*id);
+                    in_link.entry(arr.index_type).or_default().push(*id);
+                }
+            }
+        }
+
+        for (id, ty) in self.types.iter() {
+            if !f(ty) {
+                let mut stack = vec![];
+                let mut rem_id: u32 = *id;
+                // remove this type and all types that refer to it
+                'recur: loop {
+                    if let Some(mut in_ids) = in_link.remove(&rem_id) {
+                        if let Some(in_id) = in_ids.pop() {
+                            rem_id = in_id;
+                            stack.extend(in_ids);
+                            continue;
+                        }
+                    }
+
+                    if let Some(in_id) = stack.pop() {
+                        rem_id = in_id;
+                    } else {
+                        break 'recur;
+                    }
+                }
+            }
+        }
+
+        let mut old_ids = in_link.into_keys().collect::<Vec<u32>>();
+        old_ids.sort();
+
+        let mut new_ids = RSHashMap::<u32, u32>::with_capacity(old_ids.len());
+        for (i, old_id) in old_ids.iter().enumerate() {
+            new_ids.insert(*old_id, i as u32);
+        }
+
+        assert_eq!(new_ids.get(&0), Some(&0));
+        let mut new_types = self
+            .types
+            .iter()
+            .filter_map(|(old_id, ty)| {
+                if let Some(new_id) = new_ids.get(old_id) {
+                    Some((*new_id, (*ty).clone()))
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<(u32, BtfType)>>();
+
+        let mut type_len = 0;
+        for (_, ty) in new_types.iter_mut() {
+            let tydbg = format!("{:?}", ty);
+            match ty {
+                Integer(..) | Enumeration(..) | FloatingPoint(..) => {}
+                Pointer(comm)
+                | TypeDef(comm)
+                | Volatile(comm)
+                | Constant(comm)
+                | Restrict(comm)
+                | Function(comm)
+                | Variable(comm, ..)
+                | Forward(comm) => {
+                    let new_id = *new_ids.get(&comm.type_id()).ok_or_else(|| {
+                        error!("Failed to get new type id of {}", tydbg);
+                        Error::BTF("inconsistency detected in BTF".to_string())
+                    })?;
+                    comm.set_type_id(new_id);
+                }
+                Structure(_, membs) | Union(_, membs) => {
+                    for memb in membs.iter_mut() {
+                        let new_id = *new_ids.get(&memb.type_id()).ok_or_else(|| {
+                            error!(
+                                "Failed to get new type id of member {} of {}",
+                                memb.name, tydbg
+                            );
+                            Error::BTF("inconsistency detected in BTF".to_string())
+                        })?;
+                        memb.set_type_id(new_id);
+                    }
+                }
+                FunctionProtocol(comm, params) => {
+                    let new_id = *new_ids.get(&comm.type_id()).ok_or_else(|| {
+                        error!("Failed to get new ret type id of {}", tydbg);
+                        Error::BTF("inconsistency detected in BTF".to_string())
+                    })?;
+                    comm.set_type_id(new_id);
+                    for param in params.iter_mut() {
+                        let new_id = *new_ids.get(&param.type_).ok_or_else(|| {
+                            error!("Failed to get new type id of param of {}", tydbg);
+                            Error::BTF("inconsistency detected in BTF".to_string())
+                        })?;
+                        param.type_ = new_id;
+                    }
+                }
+                DataSection(_, vsis) => {
+                    for vsi in vsis.iter_mut() {
+                        let new_id = *new_ids.get(&vsi.type_).ok_or_else(|| {
+                            error!(
+                                "Failed to get new type id of variable section info of {}",
+                                tydbg
+                            );
+                            Error::BTF("inconsistency detected in BTF".to_string())
+                        })?;
+                        vsi.type_ = new_id;
+                    }
+                }
+                Array(_, arr) => {
+                    let new_id = *new_ids.get(&arr.type_).ok_or_else(|| {
+                        error!("Failed to get new type id of {}", tydbg);
+                        Error::BTF("inconsistency detected in BTF".to_string())
+                    })?;
+                    arr.type_ = new_id;
+                    let new_id = *new_ids.get(&arr.index_type).ok_or_else(|| {
+                        error!("Failed to get new index type id of {}", tydbg);
+                        Error::BTF("inconsistency detected in BTF".to_string())
+                    })?;
+                    arr.index_type = new_id;
+                }
+            }
+
+            type_len += ty.byte_len();
+        }
+
+        let decreased = self.btf_hdr.type_len - type_len as u32;
+        self.btf_hdr.type_len = type_len as u32;
+        // It is not allowed to have gap between type and str
+        // https://elixir.bootlin.com/linux/v5.13/source/kernel/bpf/btf.c#L4164
+        self.btf_hdr.str_off -= decreased;
+        // Increase str data size with zero-filled padding
+        self.btf_hdr.str_len += decreased;
+        for _ in 0..decreased {
+            self.raw_str_enc.push(0);
+        }
+        self.types = new_types;
+
+        Ok(())
     }
 }
 
@@ -532,6 +717,10 @@ impl BtfTypeCommon {
 
     fn type_id(&self) -> u32 {
         unsafe { self.type_.__bindgen_anon_1.type_ }
+    }
+
+    fn set_type_id(&mut self, type_: u32) {
+        self.type_.__bindgen_anon_1.type_ = type_;
     }
 }
 
@@ -906,11 +1095,24 @@ impl fmt::Debug for BtfType {
                 )?;
 
                 for bm in btf_membs.iter() {
-                    write!(
-                        f,
-                        "\n\t'{}' type_id={} bits_offset={}",
-                        bm.name, bm.member.type_, bm.member.offset
-                    )?;
+                    if comm.kind_flag() {
+                        write!(
+                            f,
+                            "\n\t'{}' type_id={} bits_offset={} bitfield_size={}",
+                            bm.name,
+                            bm.type_id(),
+                            bm.bit_offset(),
+                            bm.bitfield_size(),
+                        )?;
+                    } else {
+                        write!(
+                            f,
+                            "\n\t'{}' type_id={} bits_offset={}",
+                            bm.name,
+                            bm.type_id(),
+                            bm.bit_offset()
+                        )?;
+                    }
                 }
 
                 write!(f, "")
@@ -953,7 +1155,7 @@ impl fmt::Debug for BtfType {
             FunctionProtocol(comm, ..) => {
                 write!(
                     f,
-                    "FunctionProtocol '{}' type_id={} vlen={}",
+                    "FunctionProtocol '{}' ret_type_id={} vlen={}",
                     if comm.name_raw.is_empty() {
                         &anon
                     } else {
@@ -997,6 +1199,27 @@ impl fmt::Debug for BtfType {
                 )
             }
         }
+    }
+}
+
+impl BtfMember {
+    /// If `BtfTypeCommand::kind_flag` returns true, `self.member.offset`
+    /// contains both bit offset and bitfield size. Otherwise,
+    /// `self.member.offset` only contains bit offset.
+    fn bit_offset(&self) -> u32 {
+        self.member.offset & 0xffffff
+    }
+
+    fn bitfield_size(&self) -> u32 {
+        self.member.offset >> 24
+    }
+
+    fn type_id(&self) -> u32 {
+        self.member.type_
+    }
+
+    fn set_type_id(&mut self, type_: u32) {
+        self.member.type_ = type_;
     }
 }
 
