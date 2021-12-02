@@ -109,7 +109,7 @@ jobs:
         /bin/bash -c 'cargo clean && /lib/modules/*/build/scripts/extract-vmlinux /lib/modules/*/vmlinuz > /boot/vmlinux && export REDBPF_VMLINUX=/boot/vmlinux && cargo build && cargo build --examples'
 
   alpine-314-build-test:
-    name: Alpine 3.14 (Disabled until LLVM12 support)
+    name: Alpine 3.14
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
