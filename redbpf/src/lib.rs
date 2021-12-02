@@ -1413,6 +1413,10 @@ impl<'a> ModuleBuilder<'a> {
         // BTF is optional
         let btf: Option<BTF> = BTF::parse_elf(&object, bytes)
             .and_then(|mut btf| btf.load().map(|_| btf))
+            .or_else(|e| {
+                warn!("Failed to load BTF but BTF is optional. Ignore it");
+                Err(e)
+            })
             .ok();
         let mut vmlinux_btf = None;
         for (shndx, shdr) in object.section_headers.iter().enumerate() {
@@ -1806,8 +1810,9 @@ impl Map {
             })
         } else {
             error!(
-                "error on bpf_create_map_xattr. failed to load map `{}`",
-                name
+                "error on bpf_create_map_xattr. failed to load map `{}`: {}",
+                name,
+                io::Error::last_os_error()
             );
             Err(Error::Map)
         }
