@@ -132,12 +132,12 @@ impl BTF {
             fd = bpf_sys::bpf_load_btf(
                 raw_bytes.as_ptr() as *const _,
                 raw_bytes.len() as u32,
-                log_buf,
+                log_buf as _,
                 log_buf_size as u32,
                 false,
             );
             if fd < 0 {
-                let cstr = CStr::from_ptr(log_buf);
+                let cstr = CStr::from_ptr(log_buf as _);
                 error!("error on bpf_load_btf: {}", cstr.to_str().unwrap());
                 return Err(Error::IO(io::Error::last_os_error()));
             }
@@ -1282,7 +1282,7 @@ fn get_type_name(str_bytes: &[u8], name_off: u32) -> Result<String> {
         return Err(Error::BTF("name offset is out of string data".to_string()));
     }
     Ok(unsafe {
-        CStr::from_ptr(str_bytes.as_ptr().offset(name_off as isize) as *const i8)
+        CStr::from_ptr(str_bytes.as_ptr().offset(name_off as isize) as _)
             .to_string_lossy()
             .into_owned()
     })

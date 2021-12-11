@@ -19,8 +19,8 @@ system.
 */
 
 use super::{
-    __va_list_tag, btf, btf__free, btf__get_nr_types, btf__name_by_offset, btf__parse_elf,
-    btf__type_by_id, btf_dump, btf_dump__dump_type, btf_dump__free, btf_dump__new, btf_dump_opts,
+    btf, btf__free, btf__get_nr_types, btf__name_by_offset, btf__parse_elf, btf__type_by_id,
+    btf_dump, btf_dump__dump_type, btf_dump__free, btf_dump__new, btf_dump_opts,
     libbpf_find_kernel_btf, vdprintf,
 };
 use libc::{c_char, c_void};
@@ -226,10 +226,22 @@ impl Drop for VmlinuxBtfDump {
 }
 
 // wrapping vdprintf to get rid of return type
+#[cfg(not(any(target_arch = "arm", target_arch = "aarch64")))]
 unsafe extern "C" fn vdprintf_wrapper(
     ctx: *mut c_void,
     format: *const c_char,
-    va_list: *mut __va_list_tag,
+    va_list: *mut super::__va_list_tag,
+) {
+    let rawfd_wrapper = &*(ctx as *mut RawFdWrapper);
+    vdprintf(rawfd_wrapper.0, format, va_list);
+}
+
+// wrapping vdprintf to get rid of return type
+#[cfg(any(target_arch = "arm", target_arch = "aarch64"))]
+unsafe extern "C" fn vdprintf_wrapper(
+    ctx: *mut c_void,
+    format: *const c_char,
+    va_list: super::__gnuc_va_list,
 ) {
     let rawfd_wrapper = &*(ctx as *mut RawFdWrapper);
     vdprintf(rawfd_wrapper.0, format, va_list);
