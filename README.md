@@ -155,8 +155,12 @@ Then install the dependencies running:
 
 ## Build images
 
-You can refer to `Dockerfile`s that are ready for building redBPF and foniod:
-[build-images](https://github.com/foniod/build-images)
+You can refer to various `Dockerfile`s that contain minimal necessary packages
+to build `RedBPF` properly: [Dockerfiles for
+RedBPF](https://github.com/foniod/build-images/redbpf)
+
+If you want docker images that are prepared to build `foniod` then refer to
+this: [Dockerfiles for foniod](https://github.com/foniod/build-images)
 
 # Getting started
 
