@@ -253,7 +253,6 @@ fn generate_bindings_vmlinux() -> Result<()> {
         .allowlist_var("^IPPROTO_.*") // for additional IPPROTO_*
         .allowlist_var("^SOCK_.*")
         .allowlist_type("^bpf_map_def$")
-        .allowlist_type("^bpf_timer$")
         .blocklist_type("_bindgen_ty.*") // avoid unncessary collision
         .parse_callbacks(Box::new(HideEnum)) // hide enums because they are included before
         .generate()
