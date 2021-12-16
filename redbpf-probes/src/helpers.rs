@@ -207,3 +207,15 @@ pub fn bpf_perf_event_output(
         f(ctx, map, flags, data, size)
     }
 }
+
+#[inline]
+pub fn bpf_redirect_map(map: *mut c_void, key: u32, flags: u64) -> i64 {
+    unsafe {
+        let f: unsafe extern "C" fn(
+            map: *mut c_void,
+            key: u32,
+            flags: u64,
+        ) -> i64 = ::core::mem::transmute(51usize);
+        f(map, key, flags)
+    }
+}
