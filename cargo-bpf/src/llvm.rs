@@ -41,6 +41,7 @@ cfg_if::cfg_if! {
 use anyhow::{anyhow, Result};
 use llvm_sys::bit_writer::LLVMWriteBitcodeToFile;
 use llvm_sys::core::*;
+use llvm_sys::debuginfo::*;
 use llvm_sys::ir_reader::LLVMParseIRInContext;
 use llvm_sys::prelude::*;
 use llvm_sys::support::LLVMParseCommandLineOptions;
@@ -49,6 +50,7 @@ use llvm_sys::target_machine::*;
 use llvm_sys::transforms::ipo::LLVMAddAlwaysInlinerPass;
 use llvm_sys::transforms::pass_manager_builder::*;
 use llvm_sys::{LLVMAttributeFunctionIndex, LLVMInlineAsmDialect::*};
+use llvm_sys::{LLVMOpcode, LLVMTypeKind, LLVMValueKind};
 use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
 use std::path::Path;
@@ -128,32 +130,251 @@ unsafe fn inject_exit_call(context: LLVMContextRef, func: LLVMValueRef, builder:
     LLVMBuildCall(builder, exit, ptr::null_mut(), 0, c_str.as_ptr());
 }
 
+/// Find debugger intrinsics handling methods of RedBPF maps. The the type
+/// string of methods such as `get`, `get_mut`, `get_val`, `set`, `delete` are
+/// returned.
+unsafe fn find_redbpf_map_method_type_str(dbg_var_inst: LLVMValueRef) -> Option<String> {
+    let called_val = LLVMGetCalledValue(dbg_var_inst);
+    if called_val.is_null() {
+        return None;
+    }
+    let mut len: usize = 0;
+    let cname = LLVMGetValueName2(called_val, &mut len as *mut _);
+    let cv_name = CStr::from_ptr(cname).to_str().unwrap();
+    if cv_name != "llvm.dbg.value" {
+        return None;
+    }
+    // llvm.dbg.value requires three arguments
+    if LLVMGetNumArgOperands(dbg_var_inst) != 3 {
+        return None;
+    }
+
+    // The first argument of llvm.dbg.value is new value
+    let new_value = LLVMGetArgOperand(dbg_var_inst, 0);
+    if LLVMGetNumOperands(new_value) == 0 {
+        return None;
+    }
+    let undef = LLVMGetOperand(new_value, 0);
+    match LLVMGetValueKind(undef) {
+        LLVMValueKind::LLVMUndefValueValueKind => {}
+        _ => {
+            return None;
+        }
+    }
+    let undef_type = LLVMTypeOf(undef);
+    match LLVMGetTypeKind(undef_type) {
+        LLVMTypeKind::LLVMPointerTypeKind => {}
+        _ => {
+            return None;
+        }
+    }
+    let cname = LLVMPrintTypeToString(undef_type);
+    let undef_type_str = CStr::from_ptr(cname).to_str().unwrap();
+    if !(undef_type_str.starts_with("%\"redbpf_probes::maps::") && undef_type_str.ends_with("\"*"))
+    {
+        return None;
+    }
+    // e.g., `redbpf_probes::maps::HashMap<u64, example_probes::vfsreadlat::VFSEvent>`
+    let map_type_str = &undef_type_str[2..undef_type_str.len() - 2];
+
+    // The second argument of llvm.dbg.value is DI local variable.
+    let di_local_var = LLVMGetArgOperand(dbg_var_inst, 1);
+    let dilocvar_meta = LLVMValueAsMetadata(di_local_var);
+    match LLVMGetMetadataKind(dilocvar_meta) {
+        LLVMMetadataKind::LLVMDILocalVariableMetadataKind => {}
+        _ => {
+            return None;
+        }
+    }
+    let method_scope = LLVMDIVariableGetScope(dilocvar_meta);
+    match LLVMGetMetadataKind(method_scope) {
+        LLVMMetadataKind::LLVMDISubprogramMetadataKind => {}
+        _ => {
+            return None;
+        }
+    }
+    // e.g., `get_mut<u64, example_probes::vfsreadlat::VFSEvent>`
+    let mut len: usize = 0;
+    let cname = LLVMDITypeGetName(method_scope, &mut len as *mut _);
+
+    // e.g., `redbpf_probes::maps::HashMap<u64, example_probes::vfsreadlat::VFSEvent>::get_mut<u64, example_probes::vfsreadlat::VFSEvent>`
+    Some(format!(
+        "{}::{}",
+        map_type_str,
+        String::from_utf8_lossy(slice::from_raw_parts(cname as *const _, len))
+    ))
+}
+
+unsafe fn find_map_calling_bpf_map_lookup_elem(call_inst: LLVMValueRef) -> Option<String> {
+    let called_val = LLVMGetCalledValue(call_inst);
+    if called_val.is_null() {
+        return None;
+    }
+    match LLVMGetValueKind(called_val) {
+        LLVMValueKind::LLVMConstantExprValueKind => {}
+        _ => {
+            return None;
+        }
+    }
+    match LLVMGetTypeKind(LLVMTypeOf(called_val)) {
+        LLVMTypeKind::LLVMPointerTypeKind => {}
+        _ => {
+            return None;
+        }
+    }
+    match LLVMGetConstOpcode(called_val) {
+        LLVMOpcode::LLVMIntToPtr => {}
+        _ => {
+            return None;
+        }
+    }
+    let const_int = LLVMGetOperand(called_val, 0);
+    match LLVMGetValueKind(const_int) {
+        LLVMValueKind::LLVMConstantIntValueKind => {}
+        _ => {
+            return None;
+        }
+    }
+    // `bpf_map_lookup_elem` BPF helper is 1
+    if LLVMConstIntGetZExtValue(const_int) != 1 {
+        return None;
+    }
+    // `bpf_map_lookup_elem` requires two arguments
+    if LLVMGetNumArgOperands(call_inst) != 2 {
+        return None;
+    }
+    // The first argument of `bpf_map_lookup_elem` is a pointer to map def
+    let map_def = LLVMGetArgOperand(call_inst, 0);
+    match LLVMGetValueKind(map_def) {
+        LLVMValueKind::LLVMConstantExprValueKind => {}
+        _ => {
+            return None;
+        }
+    }
+    match LLVMGetConstOpcode(map_def) {
+        LLVMOpcode::LLVMGetElementPtr => {}
+        _ => {
+            return None;
+        }
+    }
+    // Get a map that is the container of the map definition
+    let map = LLVMGetOperand(map_def, 0);
+    match LLVMGetValueKind(map) {
+        LLVMValueKind::LLVMGlobalVariableValueKind => {}
+        _ => {
+            return None;
+        }
+    }
+    // Get name of the map
+    let mut len: usize = 0;
+    let cname = LLVMGetValueName2(map, &mut len as *mut _);
+    let map_variable_name =
+        String::from_utf8_lossy(slice::from_raw_parts(cname as *const _, len)).to_string();
+    Some(map_variable_name)
+}
+
+/// Check if the alignment of value of map exceeds 8 bytes and `get` or
+/// `get_mut` method is called to create a reference of the possibly misaligned
+/// value data.
 unsafe fn check_map_value_alignment(_context: LLVMContextRef, module: LLVMModuleRef) -> Result<()> {
+    let mut get_called_maps = Vec::<(String, String, String)>::new(); // (map_variable_name, calling_function_name, get_method_name)
+    let mut func = LLVMGetFirstFunction(module);
+    while !func.is_null() {
+        let mut block = LLVMGetFirstBasicBlock(func);
+        let mut map_method_type_str = None;
+        while !block.is_null() {
+            let mut inst = LLVMGetFirstInstruction(block);
+            while !inst.is_null() {
+                // inspect debugger intrinsics
+                if !LLVMIsADbgVariableIntrinsic(inst).is_null() {
+                    // find debugger intrinsics of `get` or `get_mut` methods
+                    // of RedBPF maps such as
+                    // `redbpf_probes::maps::HashMap<u64, example_probes::vfsreadlat::VFSEvent>::get_mut<u64, example_probes::vfsreadlat::VFSEvent>`
+                    if let Some(name) = find_redbpf_map_method_type_str(inst) {
+                        map_method_type_str = Some(name);
+                    }
+                    // inspect normal function call
+                } else if !LLVMIsACallInst(inst).is_null() && LLVMIsAIntrinsicInst(inst).is_null() {
+                    // find the calling instruction to the `bpf_map_lookup_elem` BPF helper function.
+                    if let Some(map_var_name) = find_map_calling_bpf_map_lookup_elem(inst) {
+                        if let Some(method_name) = map_method_type_str.take() {
+                            // Don't care the `get_val` method because it does
+                            // not create any reference of misaligned value
+                            // data.
+                            if method_name.contains("::get<") || method_name.contains("::get_mut<")
+                            {
+                                let mut len: usize = 0;
+                                let cname = LLVMGetValueName2(func, &mut len as *mut _);
+                                let calling_func_name = String::from_utf8_lossy(
+                                    slice::from_raw_parts(cname as *const _, len),
+                                )
+                                .to_string();
+
+                                get_called_maps.push((
+                                    map_var_name,
+                                    calling_func_name,
+                                    method_name,
+                                ));
+                            }
+                        }
+                    }
+                }
+                inst = LLVMGetNextInstruction(inst);
+            }
+            block = LLVMGetNextBasicBlock(block);
+        }
+        func = LLVMGetNextFunction(func);
+    }
+
     const PROBES_ALIGNMENT_MAX: usize = 8;
+    const ALIGN_PREFIX: &str = "MAP_VALUE_ALIGN_";
     let mut global = LLVMGetFirstGlobal(module);
-    while !global.is_null() {
+    'next_global: while !global.is_null() {
         let mut size: libc::size_t = 0;
         let c_name = LLVMGetValueName2(global, &mut size as *mut _);
-        if !c_name.is_null() {
-            let name = String::from_utf8_lossy(slice::from_raw_parts(c_name as *const u8, size));
-            let align_prefix = "MAP_VALUE_ALIGN_";
-            if name.starts_with(align_prefix) {
-                let align = LLVMGetAlignment(global) as usize;
-                if align > PROBES_ALIGNMENT_MAX {
-                    let map_name = &name[align_prefix.len()..];
-                    let msg = format!(
-                        "error: Illegal alignment the value of the map! map={} value-alignment={}.
-        In kernel context, the Linux kernel does not guarantee alignment of the value stored in the
-        BPF map when the alignment of the value is greater than 8 bytes.
-        Since it is undefined behavior to create references or dereference pointers of unaligned
-        data in Rust, BPF programs should avoid using types whose alignment is greater than 8 bytes.",
-                        map_name, align
-                    );
-                    return Err(anyhow!(msg));
-                }
-            }
+        if c_name.is_null() {
+            global = LLVMGetNextGlobal(global);
+            continue 'next_global;
         }
-        global = LLVMGetNextGlobal(global);
+        let name = String::from_utf8_lossy(slice::from_raw_parts(c_name as *const _, size));
+        if !name.starts_with(ALIGN_PREFIX) {
+            global = LLVMGetNextGlobal(global);
+            continue 'next_global;
+        }
+        let align = LLVMGetAlignment(global) as usize;
+        if align <= PROBES_ALIGNMENT_MAX {
+            global = LLVMGetNextGlobal(global);
+            continue 'next_global;
+        }
+        let map_name = &name[ALIGN_PREFIX.len()..];
+        let get_callers = get_called_maps
+            .iter()
+            .filter_map(|(map_var_name, calling_func_name, get_method_name)| {
+                if map_var_name == map_name {
+                    Some((calling_func_name, get_method_name))
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<(&String, &String)>>();
+        if get_callers.len() == 0 {
+            global = LLVMGetNextGlobal(global);
+            continue 'next_global;
+        }
+        let mut emsg = "In BPF programs, it is prohibited to call `get` or `get_mut` methods of maps of which value has the alignment greater than 8 bytes.\n".to_string();
+        emsg.push_str("Because in kernel context, it is not guaranteed for the values to be stored at the correct alignment if the alignment is greater than 8 bytes.\n");
+        emsg.push_str("Since it is undefined behavior in Rust to create references or to dereference pointers of unaligned data, BPF programs should not call `get` or `get_mut` methods that create references of the possibly misaligned data.\n");
+        emsg.push_str(&format!(
+            "\tmap variable name: {} alignment of value: {} bytes\n",
+            map_name, align
+        ));
+        for (calling_func_name, get_method_name) in get_callers.iter() {
+            emsg.push_str(&format!(
+                "\tcalling function name: {} called get method type: {}\n",
+                calling_func_name, get_method_name
+            ));
+        }
+        return Err(anyhow!(emsg));
     }
 
     Ok(())
