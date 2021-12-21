@@ -12,11 +12,11 @@ use std::fs;
 use std::io;
 use std::path::Path;
 
-use crate::load::map_io::PerfMessageStream;
+use crate::load::map_io::{PerfMessageStream, RingBufMessageStream};
 use crate::{cpus, Program};
 use crate::{
-    Error, KProbe, Map, Module, PerfMap, SkLookup, SocketFilter, StreamParser, StreamVerdict,
-    TaskIter, UProbe, XDP,
+    Error, KProbe, Map, Module, PerfMap, RingBufMap, SkLookup, SocketFilter, StreamParser,
+    StreamVerdict, TaskIter, UProbe, XDP,
 };
 
 #[derive(Debug)]
@@ -44,6 +44,7 @@ impl Loader {
 
         let online_cpus = cpus::get_online().unwrap();
         let (sender, receiver) = mpsc::unbounded();
+
         // bpf_map_type_BPF_MAP_TYPE_PERF_EVENT_ARRAY = 4
         for m in module.maps.iter_mut().filter(|m| m.kind == 4) {
             for cpuid in online_cpus.iter() {
@@ -57,6 +58,19 @@ impl Loader {
                 });
                 tokio::spawn(fut);
             }
+        }
+
+        // bpf_map_type_BPF_MAP_TYPE_RINGBUF
+        for m in module.maps.iter_mut().filter(|m| m.kind == 27) {
+            let name = m.name.clone();
+            let map = RingBufMap::bind(m).unwrap();
+            let stream = RingBufMessageStream::new(name.clone(), map);
+            let mut s = sender.clone();
+            let fut = stream.for_each(move |events| {
+                s.start_send((name.clone(), events)).unwrap();
+                future::ready(())
+            });
+            tokio::spawn(fut);
         }
 
         Ok(Loaded {

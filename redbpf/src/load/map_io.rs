@@ -14,7 +14,7 @@ use tokio::io::unix::AsyncFd;
 use tokio::io::Interest;
 use tracing::error;
 
-use crate::{Event, PerfMap};
+use crate::{Event, PerfMap, RingBufMap};
 
 pub struct PerfMessageStream {
     poll: AsyncFd<RawFd>,
@@ -60,6 +60,41 @@ impl Stream for PerfMessageStream {
             Poll::Ready(Err(e)) => {
                 // it should never happen
                 error!("PerfMessageStream error: {:?}", e);
+                return Poll::Ready(None);
+            }
+            Poll::Ready(Ok(mut rg)) => rg.clear_ready(),
+        };
+        // Must read all messages because AsyncFdReadyGuard::clear_ready is
+        // already called.
+        Some(self.read_messages()).into()
+    }
+}
+
+pub struct RingBufMessageStream {
+    poll: AsyncFd<RawFd>,
+    map: RingBufMap,
+    name: String,
+}
+
+impl RingBufMessageStream {
+    pub fn new(name: String, map: RingBufMap) -> Self {
+        let poll = AsyncFd::with_interest(map.fd, Interest::READABLE).unwrap();
+        RingBufMessageStream { poll, map, name }
+    }
+
+    fn read_messages(&mut self) -> Vec<Box<[u8]>> {
+        self.map.read_messages()
+    }
+}
+
+impl Stream for RingBufMessageStream {
+    type Item = Vec<Box<[u8]>>;
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        match self.poll.poll_read_ready(cx) {
+            Poll::Pending => return Poll::Pending,
+            Poll::Ready(Err(e)) => {
+                // it should never happen
+                error!("RingBufMessageStream error for {}: {:?}", &self.name, e);
                 return Poll::Ready(None);
             }
             Poll::Ready(Ok(mut rg)) => rg.clear_ready(),

@@ -17,5 +17,7 @@ pub use crate::bindings::*;
 pub use crate::helpers::*;
 pub use crate::maps::*;
 pub use crate::registers::*;
+#[cfg(feature = "ringbuf")]
+pub use crate::ringbuf::*;
 pub use cty::*;
 pub use redbpf_macros::{kprobe, kretprobe, map, printk, program};
