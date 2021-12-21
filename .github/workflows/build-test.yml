@@ -42,9 +42,9 @@ jobs:
         bash -c 'export KERNEL_SOURCE=$(echo /lib/modules/*) \
           && echo KERNEL_SOURCE=$KERNEL_SOURCE \
           && cargo clean \
-          && cargo build \
-          && cargo build --bin cargo-bpf \
-          && cargo build --features=kernel5_8 --examples'
+          && cargo build --no-default-features --features=llvm13 \
+          && cargo build --no-default-features --features=llvm13,command-line --bin cargo-bpf \
+          && cargo build --no-default-features --features=llvm13,kernel5_8 --examples'
     -
       name: Build RedBPF with vmlinux on x86_64 Ubuntu 21.04
       run: |
@@ -54,9 +54,9 @@ jobs:
         $REDBPF_IMAGE_NAME:latest-x86_64-ubuntu21.04 \
         /bin/bash -c 'export REDBPF_VMLINUX=/boot/vmlinux \
           && cargo clean \
-          && cargo build \
-          && cargo build --bin cargo-bpf \
-          && cargo build --features=kernel5_8 --examples'
+          && cargo build --no-default-features --features=llvm13 \
+          && cargo build --no-default-features --features=llvm13,command-line --bin cargo-bpf \
+          && cargo build --no-default-features --features=llvm13,kernel5_8 --examples'
 
   build-on-x86_64-debian11:
     runs-on: ubuntu-latest
@@ -83,9 +83,9 @@ jobs:
         /bin/bash -c 'export KERNEL_SOURCE=$(echo /lib/modules/*) \
           && echo KERNEL_SOURCE=$KERNEL_SOURCE \
           && cargo clean \
-          && cargo build \
-          && cargo build --bin cargo-bpf \
-          && cargo build --features=kernel5_8 --examples'
+          && cargo build --no-default-features --features=llvm13 \
+          && cargo build --no-default-features --features=llvm13,command-line --bin cargo-bpf \
+          && cargo build --no-default-features --features=llvm13,kernel5_8 --examples'
     -
       name: Build RedBPF with vmlinux on x86_64 Debian 11
       run: |
@@ -95,9 +95,9 @@ jobs:
         $REDBPF_IMAGE_NAME:latest-x86_64-debian11 \
         /bin/bash -c 'export REDBPF_VMLINUX=/boot/vmlinux \
           && cargo clean \
-          && cargo build \
-          && cargo build --bin cargo-bpf \
-          && cargo build --features=kernel5_8 --examples'
+          && cargo build --no-default-features --features=llvm13 \
+          && cargo build --no-default-features --features=llvm13,command-line --bin cargo-bpf \
+          && cargo build --no-default-features --features=llvm13,kernel5_8 --examples'
 
   build-on-x86_64-fedora35:
     runs-on: ubuntu-latest
@@ -166,9 +166,9 @@ jobs:
           && echo KERNEL_SOURCE=$KERNEL_SOURCE \
           && export RUSTFLAGS=-Ctarget-feature=-crt-static \
           && cargo clean \
-          && cargo build \
-          && cargo build --bin cargo-bpf \
-          && cargo build --features=kernel5_8 --examples'
+          && cargo build --no-default-features --features=llvm12 \
+          && cargo build --no-default-features --features=llvm12,command-line --bin cargo-bpf \
+          && cargo build --no-default-features --features=llvm12,kernel5_8 --examples'
 
   build-on-x86_64-archlinux:
     runs-on: ubuntu-latest
@@ -211,91 +211,63 @@ jobs:
           && cargo build --no-default-features --features=llvm13,command-line --bin cargo-bpf \
           && cargo build --no-default-features --features=llvm13,kernel5_8 --examples'
 
-  ubuntu-2004-build-test:
+  build-on-x86_64-ubuntu-2004:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
-    - name: Build host info
+    -
+      name: Checkout
+      uses: actions/checkout@v2
+    -
+      name: Build host info
       run: |
         uname -a
         cat /etc/os-release
-    - name: Initialize git submodules
+    -
+      name: Initialize git submodules
       run: |
         git submodule update --init --recursive
-    - name: Run RedBPF build on ubuntu-20.04 container
+    -
+      name: Build RedBPF with the kernel headers on x86_64 Ubuntu 20.04 LTS
       run: |
         docker run --privileged \
         -v $PWD:/build \
         -w /build \
-        $BASE_IMAGE:latest-ubuntu-20.04 \
-        /bin/bash -c 'cargo clean && export KERNEL_VERSION=$(ls --indicator-style=none /lib/modules/) && echo KERNEL_VERSION=$KERNEL_VERSION && cargo build && cargo build --examples'
+        $REDBPF_IMAGE_NAME:latest-x86_64-ubuntu20.04 \
+        bash -c 'export KERNEL_SOURCE=$(echo /lib/modules/*) \
+          && echo KERNEL_SOURCE=$KERNEL_SOURCE \
+          && cargo clean \
+          && cargo build --no-default-features --features=llvm13 \
+          && cargo build --no-default-features --features=llvm13,command-line --bin cargo-bpf \
+          && cargo build --no-default-features --features=llvm13 --examples'
 
-  ubuntu-1804-build-test:
+  build-on-x86_64-ubuntu-1804:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
-    - name: Build host info
+    -
+      name: Checkout
+      uses: actions/checkout@v2
+    -
+      name: Build host info
       run: |
         uname -a
         cat /etc/os-release
-    - name: Initialize git submodules
+    -
+      name: Initialize git submodules
       run: |
         git submodule update --init --recursive
-    - name: Run RedBPF build with kernel v4.19 on ubuntu-18.04 container
+    -
+      name: Build RedBPF with the kernel headers on x86_64 Ubuntu 18.04 LTS
       run: |
         docker run --privileged \
         -v $PWD:/build \
         -w /build \
-        $BASE_IMAGE:latest-ubuntu-18.04 \
-        /bin/bash -c 'cargo clean && export KERNEL_VERSION=$(ls --indicator-style=none /lib/modules/) && echo KERNEL_VERSION=$KERNEL_VERSION && cargo build && cargo build --examples'
-
-  fedora-34-build-test:
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v2
-    - name: Build host info
-      run: |
-        uname -a
-        cat /etc/os-release
-    - name: Initialize git submodules
-      run: |
-        git submodule update --init --recursive
-    - name: Run RedBPF build with kernel headers on fedora-34 container
-      # Run 'make prepare' to prevent generated/autoconf.h from being removed
-      # when 'make -qp' is executed by bpf_sys::headers::build_kernel_version
-      run: |
-        docker run --privileged \
-        -v $PWD:/build \
-        -w /build \
-        $BASE_IMAGE:latest-fedora-34 \
-        /bin/bash -c 'make -C /lib/modules/*/build prepare; cargo clean && export KERNEL_VERSION=$(ls --indicator-style=none /lib/modules/) && echo KERNEL_VERSION=$KERNEL_VERSION && cargo build && cargo build --examples'
-    - name: Run RedBPF build with vmlinux on fedora-34 container
-      run: |
-        docker run --privileged \
-        -v $PWD:/build \
-        -w /build \
-        $BASE_IMAGE:latest-fedora-34 \
-        /bin/bash -c 'cargo clean && /lib/modules/*/build/scripts/extract-vmlinux /lib/modules/*/vmlinuz > /boot/vmlinux && export REDBPF_VMLINUX=/boot/vmlinux && cargo build && cargo build --examples'
-
-  alpine-314-build-test:
-    name: Alpine 3.14
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v2
-    - name: Build host info
-      run: |
-        uname -a
-        cat /etc/os-release
-    - name: Initialize git submodules
-      run: |
-        git submodule update --init --recursive
-    - name: Run RedBPF build on alpine-3.14 container
-      run: |
-        docker run --privileged \
-        -v $PWD:/build \
-        -w /build \
-        $BASE_IMAGE:latest-alpine \
-        sh -c 'cargo clean && export KERNEL_VERSION=$(ls --indicator-style=none /lib/modules/) RUSTFLAGS=-Ctarget-feature=-crt-static && echo KERNEL_VERSION=$KERNEL_VERSION && cargo +1.51 build --no-default-features --features llvm11 && cargo +1.51 build --no-default-features --features llvm11 --examples'
+        $REDBPF_IMAGE_NAME:latest-x86_64-ubuntu18.04 \
+        bash -c 'export KERNEL_SOURCE=$(echo /lib/modules/*) \
+          && echo KERNEL_SOURCE=$KERNEL_SOURCE \
+          && cargo clean \
+          && cargo build --no-default-features --features=llvm13 \
+          && cargo build --no-default-features --features=llvm13,command-line --bin cargo-bpf \
+          && cargo build --no-default-features --features=llvm13 --examples'
 
   build-on-aarch64-ubuntu-2104:
     runs-on: ubuntu-latest
@@ -332,9 +304,9 @@ jobs:
         /bin/bash -c 'export KERNEL_SOURCE=$(echo /lib/modules/*) \
           && echo KERNEL_SOURCE=$KERNEL_SOURCE \
           && cargo clean \
-          && cargo build \
-          && cargo build --bin cargo-bpf \
-          && cargo build --features=kernel5_8 --examples'
+          && cargo build --no-default-features --features=llvm13 \
+          && cargo build --no-default-features --features=llvm13,command-line --bin cargo-bpf \
+          && cargo build --no-default-features --features=llvm13,kernel5_8 --examples'
     -
       name: Build RedBPF with vmlinux on aarch64 Ubuntu 21.04
       run: |
@@ -344,9 +316,9 @@ jobs:
         $REDBPF_IMAGE_NAME:latest-aarch64-ubuntu21.04 \
         /bin/bash -c 'export REDBPF_VMLINUX=/boot/vmlinux-btf \
           && cargo clean \
-          && cargo build \
-          && cargo build --bin cargo-bpf \
-          && cargo build --features=kernel5_8 --examples'
+          && cargo build --no-default-features --features=llvm13 \
+          && cargo build --no-default-features --features=llvm13,command-line --bin cargo-bpf \
+          && cargo build --no-default-features --features=llvm13,kernel5_8 --examples'
 
   build-on-aarch64-debian11:
     runs-on: ubuntu-latest
@@ -383,9 +355,9 @@ jobs:
         /bin/bash -c 'export KERNEL_SOURCE=$(echo /lib/modules/*) \
           && echo KERNEL_SOURCE=$KERNEL_SOURCE \
           && cargo clean \
-          && cargo build \
-          && cargo build --bin cargo-bpf \
-          && cargo build --features=kernel5_8 --examples'
+          && cargo build --no-default-features --features=llvm13 \
+          && cargo build --no-default-features --features=llvm13,command-line --bin cargo-bpf \
+          && cargo build --no-default-features --features=llvm13,kernel5_8 --examples'
     -
       name: Build RedBPF with vmlinux on aarch64 Debian 11
       run: |
@@ -395,9 +367,9 @@ jobs:
         $REDBPF_IMAGE_NAME:latest-aarch64-debian11 \
         /bin/bash -c 'export REDBPF_VMLINUX=/boot/vmlinux-btf \
           && cargo clean \
-          && cargo build \
-          && cargo build --bin cargo-bpf \
-          && cargo build --features=kernel5_8 --examples'
+          && cargo build --no-default-features --features=llvm13 \
+          && cargo build --no-default-features --features=llvm13,command-line --bin cargo-bpf \
+          && cargo build --no-default-features --features=llvm13,kernel5_8 --examples'
 
   build-on-aarch64-fedora35:
     runs-on: ubuntu-latest
@@ -486,9 +458,87 @@ jobs:
           && echo KERNEL_SOURCE=$KERNEL_SOURCE \
           && export RUSTFLAGS=-Ctarget-feature=-crt-static \
           && cargo clean \
-          && cargo build \
-          && cargo build --bin cargo-bpf \
-          && cargo build --features=kernel5_8 --examples'
+          && cargo build --no-default-features --features=llvm12 \
+          && cargo build --no-default-features --features=llvm12,command-line --bin cargo-bpf \
+          && cargo build --no-default-features --features=llvm12,kernel5_8 --examples'
+
+  build-on-aarch64-ubuntu-2004:
+    runs-on: ubuntu-latest
+    steps:
+    -
+      name: Checkout
+      uses: actions/checkout@v2
+    -
+      name: Build host info
+      run: |
+        uname -a
+        cat /etc/os-release
+    -
+      name: Set up QEMU
+      id: qemu
+      uses: docker/setup-qemu-action@v1
+      with:
+        image: tonistiigi/binfmt:latest
+        platforms: linux/arm64
+    -
+      name: Available platforms
+      run: echo ${{ steps.qemu.outputs.platforms }}
+    -
+      name: Initialize git submodules
+      run: |
+        git submodule update --init --recursive
+    -
+      name: Build RedBPF with the kernel headers on aarch64 Ubuntu 20.04 LTS
+      run: |
+        docker run --privileged \
+        -v $PWD:/build \
+        -w /build \
+        $REDBPF_IMAGE_NAME:latest-aarch64-ubuntu20.04 \
+        /bin/bash -c 'export KERNEL_SOURCE=$(echo /lib/modules/*) \
+          && echo KERNEL_SOURCE=$KERNEL_SOURCE \
+          && cargo clean \
+          && cargo build --no-default-features --features=llvm13 \
+          && cargo build --no-default-features --features=llvm13,command-line --bin cargo-bpf \
+          && cargo build --no-default-features --features=llvm13 --examples'
+
+  build-on-aarch64-ubuntu-1804:
+    runs-on: ubuntu-latest
+    steps:
+    -
+      name: Checkout
+      uses: actions/checkout@v2
+    -
+      name: Build host info
+      run: |
+        uname -a
+        cat /etc/os-release
+    -
+      name: Set up QEMU
+      id: qemu
+      uses: docker/setup-qemu-action@v1
+      with:
+        image: tonistiigi/binfmt:latest
+        platforms: linux/arm64
+    -
+      name: Available platforms
+      run: echo ${{ steps.qemu.outputs.platforms }}
+    -
+      name: Initialize git submodules
+      run: |
+        git submodule update --init --recursive
+    -
+      name: Build RedBPF with the kernel headers on aarch64 Ubuntu 18.04 LTS
+      run: |
+        docker run --privileged \
+        -v $PWD:/build \
+        -w /build \
+        $REDBPF_IMAGE_NAME:latest-aarch64-ubuntu18.04 \
+        /bin/bash -c 'export KERNEL_SOURCE=$(echo /lib/modules/*) \
+          && echo KERNEL_SOURCE=$KERNEL_SOURCE \
+          && cargo clean \
+          && cargo build --no-default-features --features=llvm13 \
+          && cargo build --no-default-features --features=llvm13,command-line --bin cargo-bpf \
+          && cargo build --no-default-features --features=llvm13 --examples'
 
   publish:
     runs-on: ubuntu-latest
@@ -499,14 +549,14 @@ jobs:
     - build-on-x86_64-fedora35
     - build-on-x86_64-alpine315
     - build-on-x86_64-archlinux
-    - fedora-34-build-test
-    - ubuntu-2004-build-test
-    - ubuntu-1804-build-test
-    - alpine-314-build-test
+    - build-on-x86_64-ubuntu-2004
+    - build-on-x86_64-ubuntu-1804
     - build-on-aarch64-ubuntu-2104
     - build-on-aarch64-debian11
     - build-on-aarch64-fedora35
     - build-on-aarch64-alpine315
+    - build-on-aarch64-ubuntu-2004
+    - build-on-aarch64-ubuntu-1804
 
     steps:
     - uses: actions/checkout@v2
