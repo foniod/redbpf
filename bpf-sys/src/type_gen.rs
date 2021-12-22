@@ -110,7 +110,7 @@ impl VmlinuxBtfDump {
         })
     }
 
-    /// Try to load BTF data out of the given ELF file
+    /// Read the ELF file and parse BTF data out of the given ELF file
     pub fn with_elf_file(elf_file: impl AsRef<Path>) -> Result<Self> {
         if !elf_file.as_ref().exists() {
             return Err(TypeGenError::VmlinuxNotFound);
@@ -123,6 +123,26 @@ impl VmlinuxBtfDump {
 
         let cvmlinux_path = CString::new(elf_str).unwrap();
         let btfptr = unsafe { btf__parse_elf(cvmlinux_path.as_ptr(), ptr::null_mut()) };
+        if (btfptr as isize) < 0 {
+            return Err(TypeGenError::VmlinuxParsingError);
+        }
+
+        Ok(VmlinuxBtfDump {
+            allowlist: None,
+            btfptr,
+        })
+    }
+
+    /// Parse BTF data from a file containing raw BTF data
+    pub fn with_raw_file(raw: impl AsRef<Path>) -> Result<Self> {
+        if !raw.as_ref().exists() {
+            return Err(TypeGenError::VmlinuxNotFound);
+        }
+
+        let raw_str = raw.as_ref().to_str().ok_or(TypeGenError::InvalidPath)?;
+
+        let cpath = CString::new(raw_str).unwrap();
+        let btfptr = unsafe { btf__parse_raw(cpath.as_ptr()) };
         if (btfptr as isize) < 0 {
             return Err(TypeGenError::VmlinuxParsingError);
         }
@@ -251,12 +271,16 @@ pub fn get_custom_vmlinux_path() -> Option<PathBuf> {
     Some(PathBuf::from(env::var(ENV_VMLINUX_PATH).ok()?))
 }
 
+/// Find a source of vmlinux BTF and parse it
+///
+/// Using the returned `VmlinuxBtfDump`, BTF of the Linux kernel can be dumped
+/// into `vmlinux.h`.
 pub fn vmlinux_btf_dump() -> Result<VmlinuxBtfDump> {
     if let Some(path) = get_custom_vmlinux_path() {
         if path.to_str().unwrap() == "system" {
             VmlinuxBtfDump::with_system_default()
         } else {
-            VmlinuxBtfDump::with_elf_file(&path)
+            VmlinuxBtfDump::with_raw_file(&path).or_else(|_| VmlinuxBtfDump::with_elf_file(&path))
         }
     } else {
         VmlinuxBtfDump::with_system_default()
