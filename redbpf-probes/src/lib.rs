@@ -92,7 +92,9 @@ vmlinux is not required at all.
 
 # Possible `REDBPF_VMLINUX` values
 
-1. A path to the custom vmlinux. e.g) `REDBPF_VMLINUX=/boot/my-vmlinux-5.11.0`
+1. A path to the custom vmlinux file or raw BTF data file
+- For example, `REDBPF_VMLINUX=/boot/my-vmlinux-5.11.0` specifies a path to vmlinux image.
+- For example, `REDBPF_VMLINUX=/sys/kernel/btf/vmlinux` sets a path to raw BTF data file.
 
 2. Special treatment for `REDBPF_VMLINUX=system`. If `system` is given, redBPF
 tries to probe vmlinux from the well-known system paths and uses it
