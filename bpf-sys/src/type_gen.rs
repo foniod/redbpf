@@ -19,8 +19,8 @@ system.
 */
 
 use super::{
-    btf, btf__free, btf__get_nr_types, btf__name_by_offset, btf__parse_elf, btf__type_by_id,
-    btf_dump, btf_dump__dump_type, btf_dump__free, btf_dump__new, btf_dump_opts,
+    btf, btf__free, btf__get_nr_types, btf__name_by_offset, btf__parse_elf, btf__parse_raw,
+    btf__type_by_id, btf_dump, btf_dump__dump_type, btf_dump__free, btf_dump__new, btf_dump_opts,
     libbpf_find_kernel_btf, vdprintf,
 };
 use libc::{c_char, c_void};
@@ -261,7 +261,8 @@ unsafe extern "C" fn vdprintf_wrapper(
 unsafe extern "C" fn vdprintf_wrapper(
     ctx: *mut c_void,
     format: *const c_char,
-    va_list: super::__gnuc_va_list,
+    #[cfg(target_env = "musl")] va_list: super::__isoc_va_list,
+    #[cfg(not(target_env = "musl"))] va_list: super::__gnuc_va_list,
 ) {
     let rawfd_wrapper = &*(ctx as *mut RawFdWrapper);
     vdprintf(rawfd_wrapper.0, format, va_list);
