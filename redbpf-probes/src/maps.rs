@@ -21,6 +21,11 @@ use cty::*;
 use crate::bindings::*;
 use crate::helpers::*;
 
+pub trait BpfMap {
+    type Key;
+    type Value;
+}
+
 macro_rules! define_hashmap {
     ($(#[$attr:meta])* $name:ident, $map_type:expr) => {
         $(#[$attr])*
@@ -145,6 +150,11 @@ macro_rules! define_hashmap {
                 }
             }
         }
+
+        impl<K, V> BpfMap for $name<K, V> {
+            type Key = K;
+            type Value = V;
+        }
     };
 }
 
@@ -216,6 +226,11 @@ macro_rules! define_array {
                     );
                 }
             }
+        }
+
+        impl<T> BpfMap for $name<T> {
+            type Key = u32;
+            type Value = T;
         }
     };
 }
@@ -392,6 +407,11 @@ impl<T> PerfMap<T> {
     }
 }
 
+impl<T> BpfMap for PerfMap<T> {
+    type Key = u32;
+    type Value = u32;
+}
+
 // TODO Use PERF_MAX_STACK_DEPTH
 const BPF_MAX_STACK_DEPTH: usize = 127;
 
@@ -426,6 +446,11 @@ impl StackTrace {
             Err(ret)
         }
     }
+}
+
+impl BpfMap for StackTrace {
+    type Key = u32;
+    type Value = [u64; BPF_MAX_STACK_DEPTH];
 }
 
 /// Program array map.
@@ -484,6 +509,11 @@ impl ProgramArray {
 
         Ok(())
     }
+}
+
+impl BpfMap for ProgramArray {
+    type Key = u32;
+    type Value = u32;
 }
 
 /// SockMap.
@@ -545,4 +575,9 @@ impl SockMap {
             _ => panic!("invalid return value of bpf_sk_redirect_map"),
         }
     }
+}
+
+impl BpfMap for SockMap {
+    type Key = i32;
+    type Value = i32;
 }

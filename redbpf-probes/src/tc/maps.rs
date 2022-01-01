@@ -24,6 +24,7 @@ use core::mem;
 
 use crate::bindings::*;
 use crate::helpers::*;
+use crate::maps::BpfMap;
 
 /// `bpf_elf_map` struct is defined by tc. It is not required to use the same
 /// name, but it is better to do so.
@@ -66,6 +67,11 @@ pub struct TcHashMap<K, V> {
     def: bpf_elf_map,
     _k: PhantomData<K>,
     _v: PhantomData<V>,
+}
+
+impl<K, V> BpfMap for TcHashMap<K, V> {
+    type Key = K;
+    type Value = V;
 }
 
 /// A structure representing types of map pinning

@@ -52,8 +52,8 @@ use syn::parse::{Parse, ParseStream};
 use syn::punctuated::Punctuated;
 use syn::token::Comma;
 use syn::{
-    parse_macro_input, parse_quote, AttributeArgs, Expr, ExprLit, GenericArgument, ItemFn,
-    ItemStatic, Lit, Meta, NestedMeta, PathArguments, Result, Type,
+    parse_macro_input, parse_quote, AttributeArgs, Expr, ExprLit, ItemFn,
+    ItemStatic, Lit, Meta, NestedMeta, Result,
 };
 use uuid::Uuid;
 
@@ -229,110 +229,40 @@ pub fn map(attrs: TokenStream, item: TokenStream) -> TokenStream {
         }
     };
 
-    let mut tc_compatible = false;
-    let mut key_type: Option<GenericArgument> = None;
-    let mut value_type: Option<GenericArgument> = None;
-    if let Type::Path(path) = *static_item.ty {
-        if let Some(seg) = path.path.segments.last() {
-            let map_type_name = seg.ident.to_string();
-            if let PathArguments::AngleBracketed(bracket) = &seg.arguments {
-                // <K, V> or <V>
-                match map_type_name.as_str() {
-                    "Array" | "PerCpuArray" => {
-                        if bracket.args.len() == 1 {
-                            key_type = Some(parse_quote!(u32));
-                            value_type = Some(bracket.args.first().unwrap().clone());
-                        }
-                    }
-                    "HashMap" | "PerCpuHashMap" | "LruHashMap" | "LruPerCpuHashMap"
-                    | "TcHashMap" => {
-                        if bracket.args.len() == 2 {
-                            key_type = Some(bracket.args.first().unwrap().clone());
-                            value_type = Some(bracket.args.last().unwrap().clone());
-                        }
-                    }
-                    "PerfMap" => {}
-                    _ => {
-                        panic!("unknown map type name: {}", map_type_name);
-                    }
-                }
+    let map_type = static_item.ty;
+    let mod_name = format!("_{}", Uuid::new_v4().to_simple().to_string());
+    let mod_ident = syn::Ident::new(&mod_name, static_item.ident.span());
+    // CAUTION: When you change the names (MAP_BTF_XXXX and
+    // MAP_VALUE_ALIGN_XXXX) you should consider changing corresponding
+    // parts that use them.
+    let map_btf_name = format!("MAP_BTF_{}", static_item.ident.to_string());
+    let map_btf_ident = syn::Ident::new(&map_btf_name, static_item.ident.span());
+    let value_align_name = format!("MAP_VALUE_ALIGN_{}", static_item.ident.to_string());
+    let value_align_ident = syn::Ident::new(&value_align_name, static_item.ident.span());
+    let btf_type_name = format!("____btf_map_{}", static_item.ident.to_string());
+    let btf_map_type = syn::Ident::new(&btf_type_name, static_item.ident.span());
+    tokens.extend(quote! {
+        mod #mod_ident {
+            #[allow(unused_imports)]
+            use super::*;
+            use core::mem::{self, MaybeUninit};
 
-                if map_type_name == "TcHashMap" {
-                    tc_compatible = true;
-                }
-            } else {
-                // without generic types
-                match map_type_name.as_str() {
-                    "StackTrace" | "SockMap" | "ProgramArray" | "DevMap" | "XskMap" => {}
-                    _ => {
-                        panic!("unknown map type name: {}", map_type_name);
-                    }
-                }
+            #[no_mangle]
+            static #value_align_ident: MaybeUninit<<#map_type as ::redbpf_probes::maps::BpfMap>::Value> = MaybeUninit::uninit();
+
+            #[repr(C)]
+            struct #btf_map_type {
+                key: <#map_type as ::redbpf_probes::maps::BpfMap>::Key,
+                value: <#map_type as ::redbpf_probes::maps::BpfMap>::Value,
             }
+            // `impl Sync` is needed to allow pointer types of keys and values
+            unsafe impl Sync for #btf_map_type {}
+            const N: usize = mem::size_of::<#btf_map_type>();
+            #[no_mangle]
+            #[link_section = "maps.ext"]
+            static #map_btf_ident: #btf_map_type = unsafe { mem::transmute::<[u8; N], #btf_map_type>([0u8; N]) };
         }
-    }
-    if key_type.is_some() && value_type.is_some() {
-        let mod_name = format!("_{}", Uuid::new_v4().to_simple().to_string());
-        let mod_ident = syn::Ident::new(&mod_name, static_item.ident.span());
-        let ktype = key_type.unwrap();
-        let vtype = value_type.unwrap();
-        // CAUTION: When you change the names (MAP_BTF_XXXX and
-        // MAP_VALUE_ALIGN_XXXX) you should consider changing corresponding
-        // parts that use them.
-        let map_btf_name = format!("MAP_BTF_{}", static_item.ident.to_string());
-        let map_btf_ident = syn::Ident::new(&map_btf_name, static_item.ident.span());
-        let value_align_name = format!("MAP_VALUE_ALIGN_{}", static_item.ident.to_string());
-        let value_align_ident = syn::Ident::new(&value_align_name, static_item.ident.span());
-        if tc_compatible {
-            let btf_type_name = format!("____btf_map_{}", static_item.ident.to_string());
-            let btf_map_type = syn::Ident::new(&btf_type_name, static_item.ident.span());
-            tokens.extend(quote! {
-                mod #mod_ident {
-                    #[allow(unused_imports)]
-                    use super::*;
-                    use core::mem::{self, MaybeUninit};
-
-                    #[no_mangle]
-                    static #value_align_ident: MaybeUninit<#vtype> = MaybeUninit::uninit();
-
-                    #[repr(C)]
-                    struct #btf_map_type {
-                        key: #ktype,
-                        value: #vtype,
-                    }
-                    // `impl Sync` is needed to allow pointer types of keys and values
-                    unsafe impl Sync for #btf_map_type {}
-                    const N: usize = mem::size_of::<#btf_map_type>();
-                    #[no_mangle]
-                    #[link_section = "maps.ext"]
-                    static #map_btf_ident: #btf_map_type = unsafe { mem::transmute::<[u8; N], #btf_map_type>([0u8; N]) };
-                }
-            });
-        } else {
-            tokens.extend(quote! {
-                mod #mod_ident {
-                    #[allow(unused_imports)]
-                    use super::*;
-                    use core::mem::{self, MaybeUninit};
-
-                    #[no_mangle]
-                    static #value_align_ident: MaybeUninit<#vtype> = MaybeUninit::uninit();
-
-                    #[repr(C)]
-                    struct MapBtf {
-                        key_type: #ktype,
-                        value_type: #vtype,
-                    }
-                    // `impl Sync` is needed to allow pointer types of keys and values
-                    unsafe impl Sync for MapBtf {}
-                    const N: usize = mem::size_of::<MapBtf>();
-                    #[no_mangle]
-                    #[link_section = "maps.ext"]
-                    static #map_btf_ident: MapBtf = unsafe { mem::transmute::<[u8; N], MapBtf>([0u8; N]) };
-                }
-            });
-        }
-    }
+    });
     tokens.into()
 }
 
