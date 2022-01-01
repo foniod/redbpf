@@ -152,6 +152,24 @@ pub fn bpf_trace_printk(message: &[u8]) -> ::cty::c_int {
     }
 }
 
+#[inline]
+pub fn bpf_trace_printk_raw(message: &[u8], arg1: u64, arg2: u64, arg3: u64) -> Result<i32, ()> {
+    let res = unsafe {
+        let f: unsafe extern "C" fn(fmt: *const ::cty::c_char, fmt_size: __u32, arg1: u64, arg2: u64, arg3: u64) -> ::cty::c_int =
+            ::core::mem::transmute(6usize);
+        f(
+            message.as_ptr() as *const ::cty::c_char,
+            message.len() as u32,
+            arg1, arg2, arg3,
+        )
+    };
+    return if res >= 0 {
+        Ok(res)
+    } else {
+        Err(())
+    }
+}
+
 /// Get a pseudo-random number
 #[inline]
 pub fn bpf_get_prandom_u32() -> u32 {

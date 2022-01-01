@@ -770,3 +770,128 @@ pub fn task_iter(attrs: TokenStream, item: TokenStream) -> TokenStream {
 
     probe_impl("task_iter", attrs, wrapper, name)
 }
+
+/// Safe wrapper for bpf_trace_printk helper.
+///
+/// Maximum three arguments are accepted, only one of
+/// them may be string.
+/// 
+/// Supported formats:
+///  * %d - i32
+///  * %u - u32
+///  * %x - u32 (hex)
+///  * %s - &std::ffi::CStr
+///  * %zd - isize
+///  * %zu - usize
+///  * %zx - usize (hex)
+///  * %ld - ::cty::c_long
+///  * %lu - ::cty::c_ulong
+///  * %lx - ::cty::c_ulong (hex)
+///  * %lld - i64
+///  * %llu - u64
+///  * %llx - u64 (hex)
+///  * %p - ::cty::c_void
+///  * %% - literal '%'
+///
+/// # Example
+///
+/// ```no_run
+/// #![no_std]
+/// #![no_main]
+/// use redbpf_macros::printk;
+/// # fn main() {
+/// printk!("found %d things: %s", num, msg);
+/// # }
+/// ```
+///
+#[proc_macro]
+pub fn printk(input: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(input as Args);
+    let mut macro_args = input.0.iter();
+
+    // Parse and validate format string.
+    let fmt_arg = macro_args.next().expect("no format string");
+    let fmt_str = match fmt_arg {
+        Expr::Lit(ExprLit {
+            lit: Lit::Str(s), ..
+        }) => s.value(),
+        _ => panic!("expected string literal"),
+    };
+
+    let placeholders = parse_format_string(&fmt_str);
+    if placeholders.len() > 3 {
+        panic!("maximum 3 arguments to printk! are supported");
+    }
+    if placeholders.iter().filter(|p| matches!(p, FmtPlaceholder::String)).count() > 1 {
+        panic!("maximum 1 string argument to printk! is supported");
+    }
+
+    let args = macro_args.collect::<Vec<_>>();
+    if args.len() != placeholders.len() {
+        panic!("number of arguments doesn't match number of placeholders");
+    }
+
+    let (_fmt_ty, fmt) = inline_string_literal(&fmt_arg);
+    let mut tok_args = args.iter().zip(placeholders).map(|(arg, placeholder)| {
+        match placeholder {
+            FmtPlaceholder::Number(typ) => quote! { ::core::convert::Into::<#typ>::into(#arg) as u64 },
+            FmtPlaceholder::String => quote! { AsRef::<::core::ffi::CStr>::as_ref(#arg).as_ptr() },
+        }
+    }).collect::<Vec<_>>();
+
+    // bpf_trace_printk_raw accepts 3 parameters, pass 0 for left ones.
+    while tok_args.len() < 3 {
+        tok_args.push(quote! { 0u64 });
+    }
+
+    let tokens = quote! {
+        ::redbpf_probes::helpers::bpf_trace_printk_raw(&#fmt, #(#tok_args),*)
+    };
+
+    tokens.into()
+}
+
+enum FmtPlaceholder {
+    Number(/* type */ TokenStream2),
+    String,
+}
+
+fn parse_format_string(fmt: &str) -> Vec<FmtPlaceholder> {
+    let mut res = Vec::new();
+    let mut iter = fmt.bytes();
+    while let Some(ch) = iter.next() {
+        if ch != b'%' {
+            continue
+        }
+
+        match iter.next() {
+            Some(b'%') => continue,
+
+            Some(b'd') => res.push(FmtPlaceholder::Number(quote!{i32})),
+            Some(b'u' | b'x') => res.push(FmtPlaceholder::Number(quote!{u32})),
+            Some(b's') => res.push(FmtPlaceholder::String),
+            Some(b'z') => match iter.next() {
+                Some(b'd') => res.push(FmtPlaceholder::Number(quote!{isize})),
+                Some(b'u' | b'x') => res.push(FmtPlaceholder::Number(quote!{usize})),
+                Some(c) => panic!("unsupported format placeholder %z{}, expected %zd, %zu or %zx", c),
+                None => panic!("unfinished format string placeholder %z, expected %zd, %zu or %zx"),
+            },
+            Some(b'l') => match iter.next() {
+                Some(b'd') => res.push(FmtPlaceholder::Number(quote!{::cty::c_long})),
+                Some(b'u' | b'x') => res.push(FmtPlaceholder::Number(quote!{::cty::c_ulong})),
+                Some(b'l') => match iter.next() {
+                    Some(b'd') => res.push(FmtPlaceholder::Number(quote!{i64})),
+                    Some(b'u' | b'x') => res.push(FmtPlaceholder::Number(quote!{u64})),
+                    Some(c) => panic!("unsupported format placeholder %ll{}, expected %lld, %llu or %llx", c),
+                    None => panic!("unfinished format string placeholder %ll, expected %lld, %llu or %llx"),
+                },
+                Some(c) => panic!("unsupported format placeholder %l{}, expected %ld, %lu, %lx, %lld, %llu or %llx", c),
+                None => panic!("unfinished format string placeholder %l, expected %ld, %lu, %lx, %lld, %llu or %llx"),
+            },
+            Some(b'p') => res.push(FmtPlaceholder::Number(quote!{::cty::c_void})),
+            Some(c) => panic!("unsupported format placeholder %{}, expected %%, %d, %u, %x, %zd, %zu, %zx, %ld, %lu, %lx, %lld, %llu, %llx or %p", c),
+            None => panic!("unfinished format string placeholder %, expected %%, %d, %u, %x, %zd, %zu, %zx, %ld, %lu, %lx, %lld, %llu, %llx or %p"),
+        }
+    }
+    res
+}
