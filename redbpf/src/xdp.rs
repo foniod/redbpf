@@ -1,11 +1,15 @@
 use std::default::Default;
 use std::slice;
+use std::mem;
 
-use crate::Sample;
+use crate::error::{Error, Result};
+use crate::{Map, Sample};
 use bpf_sys::{
     XDP_FLAGS_DRV_MODE, XDP_FLAGS_HW_MODE, XDP_FLAGS_MASK, XDP_FLAGS_MODES, XDP_FLAGS_SKB_MODE,
-    XDP_FLAGS_UPDATE_IF_NOEXIST,
+    XDP_FLAGS_UPDATE_IF_NOEXIST, BPF_ANY, bpf_map_type_BPF_MAP_TYPE_DEVMAP,
 };
+
+use tracing::error;
 
 #[derive(Debug, Clone, Copy)]
 #[repr(u32)]
@@ -55,6 +59,60 @@ impl<T> MapData<T> {
         unsafe {
             let base = self.payload.as_ptr().add(self.offset as usize);
             slice::from_raw_parts(base, (self.size - self.offset) as usize)
+        }
+    }
+}
+
+/// DevMap structure for storing interface indices to redirect packets to.
+///
+/// A devmap is a BPF map type that holds network interface indices. BPF XDP
+/// program can use the devmap to redirect raw packets to another interface.
+///
+/// The counterpart which is used by BPF program is:
+/// [`redbpf_probes::maps::DevMap`](../redbpf_probes/maps/struct.DevMap.html).
+pub struct DevMap<'a> {
+    base: &'a Map,
+}
+
+impl<'a> DevMap<'a> {
+    pub fn new(base: &'a Map) -> Result<DevMap<'a>> {
+        if mem::size_of::<u32>() != base.config.key_size as usize
+            || mem::size_of::<u32>() != base.config.value_size as usize
+            || (bpf_map_type_BPF_MAP_TYPE_DEVMAP != base.config.type_)
+        {
+            error!(
+                "map definitions (map type and key/value size) of base `Map' and
+            `DevMap' do not match"
+            );
+            return Err(Error::Map);
+        }
+
+        Ok(DevMap { base })
+    }
+
+    pub fn set(&mut self, mut idx: u32, mut interface_index: u32) -> Result<()> {
+        let ret = unsafe {
+            bpf_sys::bpf_map_update_elem(
+                self.base.fd,
+                &mut idx as *mut _ as *mut _ as *mut _,
+                &mut interface_index as *mut _ as *mut _,
+                BPF_ANY.into(), // No condition on the existence of the entry for `idx`.
+            )
+        };
+        if ret < 0 {
+            Err(Error::Map)
+        } else {
+            Ok(())
+        }
+    }
+
+    pub fn delete(&mut self, mut idx: u32) -> Result<()> {
+        let ret =
+            unsafe { bpf_sys::bpf_map_delete_elem(self.base.fd, &mut idx as *mut _ as *mut _) };
+        if ret < 0 {
+            Err(Error::Map)
+        } else {
+            Ok(())
         }
     }
 }
