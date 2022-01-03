@@ -508,6 +508,33 @@ impl SockMap {
         }
     }
 
+    /// Assign the new connection to the socket referenced by sockmap at index
+    /// `key`.
+    pub fn assign(&mut self, ctx: *mut bpf_sk_lookup, key: u32) -> Result<(), Option<i64>> {
+        let sk = unsafe {
+            bpf_map_lookup_elem(
+                &mut self.def as *mut _ as *mut c_void,
+                &key as *const _ as *const c_void,
+            )
+        };
+
+        if sk.is_null() {
+            return Err(None);
+        }
+
+        let ret = unsafe { bpf_sk_assign(ctx as *mut _ as *mut c_void, sk, 0) };
+
+        let _ = unsafe {
+            bpf_sk_release(sk);
+        };
+
+        if ret < 0 {
+            return Err(Some(ret));
+        }
+
+        Ok(())
+    }
+
     /// Redirect the packet on `egress path` to the socket referenced by sockmap
     /// at index `key`.
     pub fn redirect(&mut self, skb: *mut __sk_buff, key: u32) -> Result<(), ()> {

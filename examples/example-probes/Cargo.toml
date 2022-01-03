@@ -25,6 +25,7 @@ memoffset = "0.6.1"
 default = []
 probes = []
 kernel5_8 = []
+kernel5_9 = ["kernel5_8"]
 
 [lib]
 path = "src/lib.rs"
@@ -78,3 +79,8 @@ required-features = ["probes", "kernel5_8"]
 name = "hashmaps"
 path = "src/hashmaps/main.rs"
 required-features = ["probes"]
+
+[[bin]]
+name = "socket_steering"
+path = "src/socket_steering/main.rs"
+required-features = ["probes", "kernel5_9"]
