@@ -19,14 +19,16 @@ fn main() {
     if env::var("CARGO_FEATURE_KERNEL5_8").is_ok() {
         features.push(String::from("kernel5_8"));
     }
-    cargo_bpf::build_with_features(
+    if let Err(e) = cargo_bpf::build_with_features(
         &cargo,
         &probes,
         &target.join("target"),
         &mut Vec::new(),
         &features,
-    )
-    .expect("couldn't compile probes");
+    ) {
+        eprintln!("{}", e);
+        panic!("probes build failed");
+    }
 
     cargo_bpf::probe_files(&probes)
         .expect("couldn't list probe files")
