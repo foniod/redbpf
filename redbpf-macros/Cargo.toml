@@ -5,7 +5,7 @@ repository = "https://github.com/foniod/redbpf"
 homepage = "https://foniod.org"
 documentation = "https://docs.rs/redbpf-macros/"
 authors = ["Alessandro Decina <alessandro.d@gmail.com>", "Peter Parkanyi <p@symmetree.dev>", "Junyeong Jeong <rhdxmr@gmail.com>"]
-version = "2.2.0"
+version = "2.3.0"
 edition = '2018'
 keywords = ["bpf", "ebpf", "redbpf"]
 license = "MIT OR Apache-2.0"
@@ -24,6 +24,6 @@ rustc_version = "0.3.0"
 
 [dev-dependencies]
 # redbpf-probes is needed by doctests
-redbpf-probes = { version = "2.2.0", path = "../redbpf-probes" }
+redbpf-probes = { version = "2.3.0", path = "../redbpf-probes" }
 # memoffset is needed by doctests
 memoffset = "0.6"
