@@ -48,7 +48,7 @@ fn main() {
     // 21.04, Alpine 3.14 also works fine with it
     if !Command::new("make")
         .args(format!("-C libbpf/src BUILD_STATIC_ONLY=1 OBJDIR={out_dir}/libbpf DESTDIR={out_dir} INCLUDEDIR= LIBDIR= UAPIDIR=", out_dir=env::var("OUT_DIR").unwrap()).split(" "))
-        .arg("CFLAGS=-g -O2 -Werror -Wall -fPIE")
+        .arg("CFLAGS=-g -O2 -Werror -Wall -fPIC")
         .arg("install")
         .status()
         .expect("error on executing `make` command for building `libbpf` static library")
