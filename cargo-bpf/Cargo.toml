@@ -35,26 +35,28 @@ tempfile = { version = "3.1", optional = true}
 lazy_static = "1.0"
 glob = "0.3"
 anyhow = "1.0"
-llvm-sys-100 = { version = "100", optional = true, package = "llvm-sys" }
-llvm-sys-110 = { version = "110", optional = true, package = "llvm-sys" }
-llvm-sys-120 = { version = "120", optional = true, package = "llvm-sys" }
+# if `strict-versioning` feature is off, llvm-sys-130 can be linked to
+# libLLVM13 and newer libraries.
 llvm-sys-130 = { version = "130", optional = true, package = "llvm-sys" }
 cfg-if = "1.0"
 rustversion = "1.0"
+rustc_version = "0.4.0"
+semver = "1.0.0"
+
+[build-dependencies]
+regex = "1.0.0"
+cfg-if = "1.0.0"
 
 [features]
-default = ["command-line", "llvm12"]
+default = ["command-line"]
 bindings = ["bpf-sys", "bindgen", "syn", "quote", "proc-macro2", "tempfile"]
-build = ["bindings", "libc", "toml_edit", "redbpf"]
-llvm10 = ["llvm-sys-100"]
-llvm11 = ["llvm-sys-110"]
-llvm12 = ["llvm-sys-120"]
-llvm13 = ["llvm-sys-130"]
+build = ["bindings", "libc", "toml_edit", "redbpf", "llvm-sys-130"]
+docsrs-llvm = ["llvm-sys-130/no-llvm-linking", "llvm-sys-130/disable-alltargets-init"]
 build-c = []
 command-line = ["build", "clap", "redbpf/load", "futures", "tokio", "hexdump"]
 
 [package.metadata.docs.rs]
 all-features = false
 no-default-features = true
-features = ["command-line", "llvm10"]
+features = ["command-line", "docsrs-llvm"]
 rustdoc-args = ["--cfg", "docsrs"]
