@@ -31,7 +31,7 @@ programs using Rust. It includes:
 - Offers many BPF map types
   1. `HashMap`, `PerCpuHashMap`, `LruHashMap`, `LruPerCpuHashMap`, `Array`,
      `PerCpuArray`, `PerfMap`, `TcHashMap`, `StackTrace`, `ProgramArray`,
-     `SockMap`
+     `SockMap`, `DevMap`
 - Offers several BPF program types
   1. `KProbe`, `KRetProbe`, `UProbe`, `URetProbe`, `SocketFilter`, `XDP`,
      `StreamParser`, `StreamVerdict`, `TaskIter`, `SkLookup`
@@ -57,110 +57,104 @@ programs using Rust. It includes:
 - Has several example programs that are separated into two parts: BPF programs
   and userspace programs
 
-# Requirements
+# Install
 
-In order to use redBPF, you need
-- one of LLVM 13, LLVM 12 or LLVM 11 installed in the system
-- either the Linux kernel headers or `vmlinux`, you want to target
+## Requirements
 
-Currently LLVM 12 is used as a default version when compiling BPF programs, but
-you can specify other LLVM versions as follows:
-- `cargo build --no-default-features --features llvm13`
-- `cargo build --no-default-features --features llvm11`
+`LLVM` is required in your build system to compile BPF bytecode using RedBPF.
 
-If you want to install `cargo-bpf` with other LLVM versions then you can try
-this command:
-- `cargo install cargo-bpf --no-default-features --features=llvm13,command-line`
-- `cargo install cargo-bpf --no-default-features --features=llvm1,command-line`
+- **LLVM 13**  
+  It is needed to compile BPF bytecode.
 
-## Valid combinations of rust and LLVM versions
+- One of the followings:
+  1. The Linux kernel headers
+  2. `vmlinux`, the Linux kernel image that contains `.BTF` section
+  3. Raw BTF data i.e. `/sys/kernel/btf/vmlinux`  
+  These are needed to generate Rust bindings of the data structures of the Linux kernel.
 
-`rustc` uses its own version of LLVM. But RedBPF also requires LLVM installed
-in the system. In order to compile BPF programs, RedBPF makes use of `rustc` to
-emit bitcode first and then parses and optimizes the bitcode by calling LLVM
-API directly. Thus, two versions of LLVM are used while compiling BPF programs.
+### On Ubuntu 21.04 LTS
 
-- the version of LLVM that `rustc` depends on
-- the version of LLVM which is installed in system
-
-Two versions should match.
-
-First RedBPF executes `rustc` to emit bitcode and second it calls LLVM API to
-handle the resulting bitcode. Normally LLVM is likely to support backward
-compatibility for intermediate representation. Thus, it is okay to use `rustc`
-that depends on the LLVM version that is equal to or less than system LLVM.
-
-
-| Rust version | LLVM version of the Rust | Valid system LLVM version |
-|:-------------|:------------------------:|:--------------------------|
-| 1.56 ~       | LLVM 13                  | LLVM 13                   |
-| 1.52 ~ 1.55  | LLVM 12                  | LLVM 13, LLVM 12          |
-| 1.48 ~ 1.51  | LLVM 11                  | LLVM 13, LLVM 12, LLVM 11 |
-
-* The minimum rust version for compiling `redbpf` is Rust 1.48
-
-## Linux kernel
-
-The **minimum kernel version supported is 4.19**. Kernel headers are discovered
-automatically, or you can use the `KERNEL_SOURCE` environment variable to point
-to a specific location. Building against a linux source tree is supported as
-long as you run `make prepare` first.
-
-**NOTE** for compiling BPF programs **inside containers**.  
-You need to specify `KERNEL_SOURCE` or `KERNEL_VERSION` environment variables
-that indicate kernel headers. The headers should be found inside the
-container. For example, inside the Ubuntu 21.04 container that contains the
-Linux `5.11.0-25-generic` kernel headers, you should specify `KERNEL_VERSION`
-environment variable as follows:
-
+Install LLVM 13 and the Linux kernel headers
 ```console
-# KERNEL_VERSION=5.11.0-25-generic cargo build --examples
+# apt-get update \
+  && apt-get -y install \
+       wget \
+       build-essential \
+       software-properties-common \
+       lsb-release \
+       libelf-dev \
+       linux-headers-generic \
+  && wget https://apt.llvm.org/llvm.sh && chmod +x llvm.sh && ./llvm.sh 13 && rm -f ./llvm.sh
+# llvm-config-13 --version | grep 13
 ```
 
-If your container has `vmlinux`, you can specify it instead of the Linux kernel
-headers.
+### On Fedora 35
 
+Install LLVM 13 and the Linux kernel headers
 ```console
-# REDBPF_VMLINUX=/boot/vmlinux cargo build --examples
+# dnf install -y \
+    clang-13.0.0 \
+	llvm-13.0.0 \
+	llvm-libs-13.0.0 \
+	llvm-devel-13.0.0 \
+	llvm-static-13.0.0 \
+	kernel \
+	kernel-devel \
+	elfutils-libelf-devel \
+	make \
+    zstd
+# llvm-config --version | grep 13
 ```
 
-See, [build-test.sh](./scripts/build-test.sh) for more information.
+### Building LLVM from source
 
-## Installing dependencies on Debian based distributions
+If your Linux distro does not support the latest LLVM as pre-built packages
+yet, you may build LLVM from the LLVM source code.
 
-On Debian, Ubuntu and derivatives you can install the dependencies running:
+```console
+$ tar -xaf llvm-13.0.0.src.tar.xz
+$ mkdir -p llvm-13.0.0.src/build
+$ cd llvm-13.0.0.src/build
+$ cmake .. -DCMAKE_INSTALL_PREFIX=$HOME/llvm-13-release -DCMAKE_BUILD_TYPE=Release
+$ cmake --build . --target install
+```
 
-	sudo apt-get -y install build-essential zlib1g-dev \
-			llvm-12-dev libclang-12-dev linux-headers-$(uname -r) \
-			libelf-dev
+Then you can use your LLVM by specifying the custom installation path when
+installing `cargo-bpf` or building RedBPF like this:
 
-If your distribution doesn't have LLVM 12, you can add the [official LLVM APT
-repository](https://apt.llvm.org) to your `sources.list`. Or simply run the
-script that you can download at the
-[llvm.sh](https://apt.llvm.org/llvm.sh). Note that this script is only for
-Debian or Ubuntu.
+```console
+$ LLVM_SYS_130_PREFIX=$HOME/llvm-13-release/ cargo install cargo-bpf
+$ LLVM_SYS_130_PREFIX=$HOME/llvm-13-release/ cargo build
+```
 
-## Installing dependencies on RPM based distributions
+Make sure correct `-DCMAKE_BUILD_TYPE` is specified. Typically `Debug` type is
+not recommended if you are not going to debug LLVM itself.
 
-First ensure that your distro includes LLVM 12:
 
-	yum info llvm-devel | grep Version
-	Version      : 12.0.0
+## Installing `cargo-bpf`
 
-If you don't have vesion 12, you can get it from the Fedora 34 repository.
+`cargo-bpf` is a command line tool for compiling BPF program written in Rust
+into BPF bytecode.
 
-Then install the dependencies running:
+```console
+$ cargo install cargo-bpf
+$ cargo bpf --version
+```
 
-	yum install clang llvm-devel zlib-devel kernel-devel
+You can learn how to use this from [tutorial](TUTORIAL.md).
 
-## Build images
+## Building RedBPF from source
 
-You can refer to various `Dockerfile`s that contain minimal necessary packages
-to build `RedBPF` properly: [Dockerfiles for
-RedBPF](https://github.com/foniod/build-images/redbpf)
+If you want to build RedBPF from source to fix something, you can do as follows:
 
-If you want docker images that are prepared to build `foniod` then refer to
-this: [Dockerfiles for foniod](https://github.com/foniod/build-images)
+```console
+$ git clone https://github.com/foniod/redbpf.git
+$ cd redbpf
+$ git submodule sync
+$ git submodule update --init
+$ cargo build
+$ cargo build --examples
+```
 
 # Getting started
 
@@ -172,7 +166,7 @@ programs are splitted into two parts: `example-probes` and
 kernel context. `example-userspace` includes userspace programs that load BPF
 programs into kernel space and communicate with BPF programs through BPF maps.
 
-Also see [documentation](./cargo-bpf/src/main.rs) of `cargo-bpf`. It provides a
+See also [documentation](./cargo-bpf/src/main.rs) of `cargo-bpf`. It provides a
 CLI tool for compiling BPF programs easily.
 
 [redbpf-tools](https://github.com/foniod/redbpf/tree/master/redbpf-tools) is a
@@ -182,14 +176,96 @@ understand how to structure your programs.
 Finally, check the [foniod project](https://github.com/foniod/foniod) that
 includes more advanced, concrete production ready examples of redbpf programs.
 
-# Building from source
+## Valid combinations of Rust and LLVM versions
 
-After cloning the repository run:
+`rustc` is linked to its own bundled version of LLVM. And `cargo-bpf` also uses
+its own version of LLVM that is statically linked into `cargo-bpf` itself. But
+note that users can control the LLVM version of `cargo-bpf` by providing other
+versions of LLVM in their system when building `cargo-bpf`.
 
-    git submodule sync
-    git submodule update --init
+Why do we care about two LLVM versions?  
+Because both two versions of LLVMs are all participating in the process of
+compiling BPF programs.
 
-Install the dependencies as documented above, then run `cargo build` as usual.
+1. RedBPF executes `rustc` to compile BPF programs. And `rustc` calls LLVM
+   functions to emit LLVM bitcode.
+2. And then RedBPF parses the emitted LLVM bitcode to convert it into BPF
+   bytecode. To do so, it calls LLVM functions that are statically linked into
+   `cargo-bpf`.
+
+What happens if LLVM of `rustc` is newer than the LLVM of `cargo-bpf`? You
+already feel it. BAM!  Typically older version of LLVM can not properly handle
+the bitcode that is generated by newer version of LLVM. i.e., `cargo-bpf` with
+older LLVM can not properly handle what `rustc` with newer LLVM emits.
+
+What happens if LLVM of `rustc` is older than the LLVM of `cargo-bpf`? Normally
+LLVM is likely to support backward compatibility for intermediate
+representation.
+
+Let's put things together.
+
+There are two LLVM versions involved in compiling BPF programs:
+
+1. the version of LLVM**(1)** that `cargo-bpf` is statically linked to when
+   `cargo-bpf` is built.
+2. the version of LLVM**(2)** that `rustc` is linked to.
+
+*And*, **(1)** should be greater than or equal to **(2)**.  
+*It is the best case if `(1) == (2)` but `(1) > (2)` is also okay.*
+
+| Rust version | LLVM version of the rustc | Valid LLVM version of system |
+|:-------------|:-------------------------:|:-----------------------------|
+| 1.56 ~       | LLVM 13                   | LLVM 13 and newer            |
+
+## Docker images for RedBPF build test
+
+You can refer to various `Dockerfile`s that contain minimal necessary packages
+to build `RedBPF` properly: [Dockerfiles for
+RedBPF](https://github.com/foniod/build-images/redbpf)
+
+These docker images are pushed to ghcr.io:
+
+x86_64
+- `ghcr.io/foniod/redbpf-build:latest-x86_64-ubuntu21.04`
+- `ghcr.io/foniod/redbpf-build:latest-x86_64-fedora35`
+- `ghcr.io/foniod/redbpf-build:latest-x86_64-alpine3.15`
+- `ghcr.io/foniod/redbpf-build:latest-x86_64-debian11`
+- `ghcr.io/foniod/redbpf-build:latest-x86_64-archlinux`
+
+ARM64
+- `ghcr.io/foniod/redbpf-build:latest-aarch64-ubuntu21.04`
+- `ghcr.io/foniod/redbpf-build:latest-aarch64-fedora35`
+- `ghcr.io/foniod/redbpf-build:latest-aarch64-alpine3.15`
+- `ghcr.io/foniod/redbpf-build:latest-aarch64-debian11`
+
+See [build-test.yml](.github/workflows/build-test.yml) for more information.
+It describes build tests of RedBPF that run inside docker containers.
+
+If you want docker images that are prepared to build `foniod` then refer to
+this: [Dockerfiles for foniod](https://github.com/foniod/build-images)
+
+## Note for building RedBPF inside docker containers
+
+You need to specify `KERNEL_SOURCE` or `KERNEL_VERSION` environment variables
+that indicate kernel headers. The headers should be found inside the
+container. For example, inside the Ubuntu 21.04 container that contains the
+Linux `5.11.0-25-generic` kernel headers, you should specify `KERNEL_VERSION`
+environment variable as follows:
+
+```console
+# KERNEL_VERSION=5.11.0-25-generic cargo build --examples
+```
+
+If your container has `vmlinux`, the Linux kernel image that contains `.BTF`
+section in it, you can specify it instead of the Linux kernel headers.
+
+```console
+# REDBPF_VMLINUX=/boot/vmlinux cargo build --examples
+```
+
+See [build-test.yml](.github/workflows/build-test.yml) for more information.
+It describes build tests of RedBPF that run inside docker containers.
+
 
 # License
 

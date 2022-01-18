@@ -4,6 +4,14 @@
 // http://apache.org/licenses/LICENSE-2.0> or the MIT license <LICENSE-MIT or
 // http://opensource.org/licenses/MIT>, at your option. This file may not be
 // copied, modified, or distributed except according to those terms.
+/*!
+This supports API that is behind `cargo-bpf` command.
+
+It would be better using `cargo-bpf` instead of this backend API.  Please see
+[RedBPF Tutorial](https://github.com/foniod/redbpf/blob/main/TUTORIAL.md) to
+learn how to use `cargo-bpf`.
+
+*/
 mod build_constants;
 
 #[cfg(feature = "bindings")]
@@ -13,10 +21,10 @@ pub mod bindgen;
 
 #[cfg(feature = "build")]
 mod build;
-#[cfg(feature = "build")]
-mod llvm;
 #[cfg(feature = "build-c")]
 mod build_c;
+#[cfg(feature = "build")]
+mod llvm;
 
 #[cfg(feature = "command-line")]
 mod load;
