@@ -48,12 +48,14 @@ regex = "1.0.0"
 cfg-if = "1.0.0"
 
 [features]
-default = ["command-line"]
+default = ["command-line", "llvm-sys"]
 bindings = ["bpf-sys", "bindgen", "syn", "quote", "proc-macro2", "tempfile"]
-build = ["bindings", "libc", "toml_edit", "redbpf", "llvm-sys-130"]
+build = ["bindings", "libc", "toml_edit", "redbpf"]
 docsrs-llvm = ["llvm-sys-130/no-llvm-linking", "llvm-sys-130/disable-alltargets-init"]
 build-c = []
 command-line = ["build", "clap", "redbpf/load", "futures", "tokio", "hexdump"]
+llvm-sys = ["llvm-sys-130"]  # Use current default LLVM version or higher
+llvm13 = ["llvm-sys-130"]
 
 [package.metadata.docs.rs]
 all-features = false

@@ -19,9 +19,13 @@ This problem occurs because `cargo-bpf` executes `rustc` to emit bitcode first
 and then calls LLVM API directly to parse and optimize the emitted bitcode
 second.
 */
-
-use llvm_sys_130 as llvm_sys;
-
+cfg_if::cfg_if! {
+    if #[cfg(feature = "llvm-sys-130")] {
+        use llvm_sys_130 as llvm_sys;
+    } else {
+        compile_error!("Specify --features llvm13");
+    }
+}
 use anyhow::{anyhow, Result};
 use llvm_sys::bit_writer::LLVMWriteBitcodeToFile;
 use llvm_sys::core::*;
