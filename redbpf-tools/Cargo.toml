@@ -16,9 +16,3 @@ tokio = { version = "^1.0.1", features = ["rt", "macros", "signal", "time"] }
 futures = "0.3"
 getopts = "0.2"
 libc = "0.2"
-
-[features]
-default = ["llvm12"]
-llvm13 = ["cargo-bpf/llvm13"]
-llvm12 = ["cargo-bpf/llvm12"]
-llvm11 = ["cargo-bpf/llvm11"]

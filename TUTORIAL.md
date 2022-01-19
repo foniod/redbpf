@@ -36,32 +36,6 @@ Small background
   programs and BPF maps to kernel space and communicate with BPF programs
   through BPF maps.
 
-### Valid combinations of rust and LLVM versions
-
-`rustc` uses its own version of LLVM. But RedBPF also requires LLVM installed
-in the system. In order to compile BPF programs, RedBPF makes use of `rustc` to
-emit bitcode first and then parses and optimizes the bitcode by calling LLVM
-API directly. Thus, two versions of LLVM are used while compiling BPF programs.
-
-- the version of LLVM that `rustc` depends on
-- the version of LLVM which is installed in system
-
-Two versions should match.
-
-First RedBPF executes `rustc` to emit bitcode and second it calls LLVM API to
-handle the resulting bitcode. Normally LLVM is likely to support backward
-compatibility for intermediate representation. Thus, it is okay to use `rustc`
-that depends on the LLVM version that is equal to or less than system LLVM.
-
-
-| Rust version | LLVM version of the Rust | Valid system LLVM version |
-|:-------------|:------------------------:|:--------------------------|
-| 1.56 ~       | LLVM 13                  | LLVM 13                   |
-| 1.52 ~ 1.55  | LLVM 12                  | LLVM 13, LLVM 12          |
-| 1.48 ~ 1.51  | LLVM 11                  | LLVM 13, LLVM 12, LLVM 11 |
-
-* The minimum rust version for compiling `redbpf` is Rust 1.48
-
 ### Building LLVM from source
 
 *If you already installed LLVM with a package manager you can skip this this
@@ -71,14 +45,14 @@ For some reasons, you may want to build LLVM from source code.
 
 When you build LLVM, consider building LLVM with `Release` build mode.
 
-For example, when you build LLVM12 from source code, you can pass
+For example, when you build LLVM13 from source code, you can pass
 `-DCMAKE_BUILD_TYPE=Release` to the `cmake` command as below:
 
 ```console
-$ tar -xaf llvm-12.0.0.src.tar.xz
-$ mkdir -p llvm-12.0.0.src/build
-$ cd llvm-12.0.0.src/build
-$ cmake .. -DCMAKE_INSTALL_PREFIX=$HOME/llvm-12-release -DCMAKE_BUILD_TYPE=Release
+$ tar -xaf llvm-13.0.0.src.tar.xz
+$ mkdir -p llvm-13.0.0.src/build
+$ cd llvm-13.0.0.src/build
+$ cmake .. -DCMAKE_INSTALL_PREFIX=$HOME/llvm-13-release -DCMAKE_BUILD_TYPE=Release
 $ cmake --build . --target install
 ```
 
@@ -109,13 +83,6 @@ $ cargo install cargo-bpf
 ```
 
 This command is working as a cargo sub-command: `cargo bpf`.
-
-> **NOTE:** If you use LLVM 13, you should specify extra options to compile it
-> successfully.
->
-> ```console
-> $ cargo install cargo-bpf --no-default-features --features=llvm13,command-line
-> ```
 
 Let's create a normal cargo project, `redbpf-tutorial`:
 ```console
