@@ -15,7 +15,7 @@ readme = "README.md"
 maintenance = { status = "actively-developed" }
 
 [dependencies]
-bpf-sys = { path = "../bpf-sys", version = "2.3.0" }
+bpf-sys = { version = "0.6", package = "libbpf-sys" }
 goblin = "0.4"
 zero = "0.1"
 libc = "0.2"

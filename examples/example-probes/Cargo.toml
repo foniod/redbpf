@@ -11,7 +11,7 @@ publish = false
 
 [build-dependencies]
 cargo-bpf = { path = "../../cargo-bpf", default-features = false, features = ["bindings"] }
-bpf-sys = { path = "../../bpf-sys" }
+bpf-sys = { version = "0.6", package = "libbpf-sys" }
 tracing = "0.1.26"
 tracing-subscriber = "0.2.18"
 
