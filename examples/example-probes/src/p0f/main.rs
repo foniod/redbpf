@@ -70,6 +70,8 @@ fn parse_tcp_signature(ctx: &XdpContext, tcp_header: &tcphdr, tcp_sig: &mut TcpS
     true
 }
 
+// this function is tedious, especially the way handle tcp_option_pos, it would be nice to find
+// a way to simplify it and pass the Linux BPF verifier
 #[inline(never)]
 // #[inline(always)]
 fn parse_tcp_option(
