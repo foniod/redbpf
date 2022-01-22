@@ -68,7 +68,7 @@ Let's make our first program using RedBPF
 ----
 
 We are going to make our first BPF program and its corresponding userspace
-program. The BPF program will be attached to a `do_sys_openat2` kernel function
+program. The BPF program will be attached to a `do_sys_open` kernel function
 and it will generate a perf event delivering an open filename to userspace
 whenever the kernel function is invoked. And its corresponding userspace
 program will listen to the perf events and print the filename to stdout
@@ -107,8 +107,8 @@ the latter directory is for BPF programs.
 ### Step 2. Add a new BPF program
 
 In this tutorial, you are going to write a simple BPF program that will be
-attached to the `do_sys_openat2` kernel function. And that program generates
-perf events whenever `do_sys_openat2` is called.
+attached to the `do_sys_open` kernel function. And that program generates
+perf events whenever `do_sys_open` is called.
 
 Create a template of a new BPF program by executing this command:
 ```console
@@ -185,7 +185,7 @@ handles a `OpenPath` structure. And `#[map]` macro attribute is applied to the
 
 ```rust
 #[kprobe]
-fn do_sys_openat2(regs: Registers) {
+fn do_sys_open(regs: Registers) {
     let mut path = OpenPath::default();
     unsafe {
         let filename = regs.parm2() as *const u8;
@@ -206,16 +206,16 @@ fn do_sys_openat2(regs: Registers) {
 ↑ This is the main logic of the BPF program. `#[kprobe]` macro attribute
 indicates that this item is a BPF program, and this can be attached to entry
 points of kernel functions using kprobe. The name of a function is merely a
-hint. The function name, `do_sys_openat2`, implies that this function is
-intended to be attached to do_sys_openat2 kernel function. Determining where
-`do_sys_openat2` will be attached to is up to userspace program. We will make
+hint. The function name, `do_sys_open`, implies that this function is
+intended to be attached to do_sys_open kernel function. Determining where
+`do_sys_open` will be attached to is up to userspace program. We will make
 userspace part soon.
 
 When you define a function that will be attached to kernel functions using
 kprobe, a parameter of the function is always `Registers`. And parameters of
 the kernel function can be accessed through it. The signature of the Linux
-kernel function do_sys_openat2 is `static long do_sys_openat2(int dfd, const
-char __user *filename, struct open_how *how);` so we can get the `filename` by
+kernel function do_sys_open is `long do_sys_open(int dfd, const char __user 
+*filename, int flags, umode_t mode)` so we can get the `filename` by
 calling `Registers::parm2()`.
 
 `bpf_probe_read_user_str` BPF helper function copies a string to a buffer and
@@ -250,7 +250,7 @@ program!(0xFFFFFFFE, "GPL");
 static mut OPEN_PATHS: PerfMap<OpenPath> = PerfMap::with_max_entries(1024);
 
 #[kprobe]
-fn do_sys_openat2(regs: Registers) {
+fn do_sys_open(regs: Registers) {
     let mut path = OpenPath::default();
     unsafe {
         let filename = regs.parm2() as *const u8;
@@ -412,9 +412,9 @@ use redbpf::load::Loader;
     let mut loaded = Loader::load(probe_code()).expect("error on Loader::load");
 
     loaded
-        .kprobe_mut("do_sys_openat2")
+        .kprobe_mut("do_sys_open")
         .expect("error on Loaded::kprobe_mut")
-        .attach_kprobe("do_sys_openat2", 0)
+        .attach_kprobe("do_sys_open", 0)
         .expect("error on KProbe::attach_kprobe");
 ```
 
@@ -423,17 +423,17 @@ programs into the Linux kernel automatically. The remainder of the work is to
 attach the BPF programs to instrumentation points that you want.
 
 In case of `openmonitor`, we wrote the BPF program that is designed to attached
-to do_sys_openat2 kernel function. `Loaded::kprobe_mut` gets a BPF program
-whose name is `do_sys_openat2`. Do you remember that you defined a function of
-which name is `do_sys_openat2` in the previous step? `#[kprobe]` attribute can
+to do_sys_open kernel function. `Loaded::kprobe_mut` gets a BPF program
+whose name is `do_sys_open`. Do you remember that you defined a function of
+which name is `do_sys_open` in the previous step? `#[kprobe]` attribute can
 assign a name of a BPF program like this: `#[kprobe("CUSTOM_NAME_HERE")]`. If
 no custom name is specified explicitly, the function's name is used as a kprobe
 BPF program's name instead. So you can get the BPF program by calling
-`loaded.kprobe_mut("do_sys_openat2")`.
+`loaded.kprobe_mut("do_sys_open")`.
 
 `KProbe::attach_kprobe` attaches a kprobe BPF program to a specified kernel
-function.  So `attach_kprobe("do_sys_openat2", 0)` attaches the kprobe BPF
-program to the `do_sys_openat2` kernel function entry at the offset 0 byte.
+function.  So `attach_kprobe("do_sys_open", 0)` attaches the kprobe BPF
+program to the `do_sys_open` kernel function entry at the offset 0 byte.
 
 ```rust
 use futures::stream::StreamExt;
@@ -510,9 +510,9 @@ async fn main() {
     let mut loaded = Loader::load(probe_code()).expect("error on Loader::load");
 
     loaded
-        .kprobe_mut("do_sys_openat2")
+        .kprobe_mut("do_sys_open")
         .expect("error on Loaded::kprobe_mut")
-        .attach_kprobe("do_sys_openat2", 0)
+        .attach_kprobe("do_sys_open", 0)
         .expect("error on KProbe::attach_kprobe");
 
     while let Some((map_name, events)) = loaded.events.next().await {
