@@ -2363,28 +2363,28 @@ impl<'base, T: Clone> PerCpuArray<'base, T> {
         if values.len() != count {
             return Err(Error::Map);
         }
+
         // It is needed to round up the value size to 8*N bytes
         // cf., https://elixir.bootlin.com/linux/v5.8/source/kernel/bpf/syscall.c#L1103
         let value_size = round_up::<T>(8);
         let alloc_size = value_size * count;
         let mut alloc = vec![0u8; alloc_size];
-        let mut ptr = alloc.as_mut_ptr();
+        let mut data = alloc.as_mut_ptr();
         for i in 0..count {
             unsafe {
-                let dst_ptr = ptr.offset((value_size * i) as isize) as *const T as *mut T;
-                ptr::write_unaligned::<T>(dst_ptr, values[i].clone());
+                let dst_ptr = data.add(value_size * i) as *mut T;
+                dst_ptr.write_unaligned(values[i].clone());
             }
         }
-        let rv = unsafe {
+        if unsafe {
             bpf_sys::bpf_map_update_elem(
                 self.base.fd,
                 &mut index as *mut _ as *mut _,
-                &mut ptr as *mut _ as *mut _,
+                data as *mut _,
                 0,
             )
-        };
-
-        if rv < 0 {
+        } < 0
+        {
             Err(Error::Map)
         } else {
             Ok(())
@@ -2859,18 +2859,12 @@ fn bpf_percpu_map_set<K: Clone, V: Clone>(
     let mut data = alloc.as_mut_ptr();
     for i in 0..count {
         unsafe {
-            let dst_ptr = data.add(value_size * i) as *const V as *mut V;
-            ptr::write_unaligned::<V>(dst_ptr, values[i].clone());
+            let dst_ptr = data.add(value_size * i) as *mut V;
+            dst_ptr.write_unaligned(values[i].clone());
         }
     }
-    if unsafe {
-        bpf_sys::bpf_map_update_elem(
-            fd,
-            &mut key as *mut _ as *mut _,
-            &mut data as *mut _ as *mut _,
-            0,
-        )
-    } < 0
+    if unsafe { bpf_sys::bpf_map_update_elem(fd, &mut key as *mut _ as *mut _, data as *mut _, 0) }
+        < 0
     {
         Err(Error::Map)
     } else {
