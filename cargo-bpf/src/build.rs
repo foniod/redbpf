@@ -9,6 +9,7 @@ use bpf_sys::headers::build_kernel_version;
 use glob::{glob, PatternError};
 use semver::Version;
 use std::convert::From;
+use std::env;
 use std::fmt::{self, Display};
 use std::fs;
 use std::io;
@@ -21,6 +22,20 @@ use redbpf::btf;
 
 use crate::llvm;
 use crate::CommandError;
+
+pub struct BuildOptions {
+    pub target_dir: PathBuf,
+    pub force_loop_unroll: bool,
+}
+
+impl Default for BuildOptions {
+    fn default() -> Self {
+        BuildOptions {
+            target_dir: env::current_dir().unwrap().join("target"),
+            force_loop_unroll: false,
+        }
+    }
+}
 
 #[derive(Debug)]
 pub enum Error {
@@ -240,14 +255,14 @@ fn build_probe(
 pub fn build(
     cargo: &Path,
     package: &Path,
-    target_dir: &Path,
-    mut probes: Vec<String>,
+    probes: &mut Vec<String>,
+    buildopt: &BuildOptions,
 ) -> Result<(), Error> {
     build_with_features(
         cargo,
         package,
-        target_dir,
-        &mut probes,
+        probes,
+        buildopt,
         &vec![String::from("probes")],
     )
 }
@@ -255,8 +270,8 @@ pub fn build(
 pub fn build_with_features(
     cargo: &Path,
     package: &Path,
-    target_dir: &Path,
     probes: &mut Vec<String>,
+    buildopt: &BuildOptions,
     features: &Vec<String>,
 ) -> Result<(), Error> {
     let path = package.join("Cargo.toml");
@@ -269,22 +284,27 @@ pub fn build_with_features(
         probes.extend(probe_names(&doc, &features)?);
     }
 
-    unsafe { llvm::init() };
+    unsafe {
+        llvm::init();
+        if buildopt.force_loop_unroll {
+            llvm::force_loop_unroll();
+        }
+    }
 
     for probe in probes {
-        build_probe(cargo, package, &target_dir, &probe, &features)?;
+        build_probe(cargo, package, &buildopt.target_dir, &probe, &features)?;
     }
 
     Ok(())
 }
 
-pub fn cmd_build(programs: Vec<String>, target_dir: PathBuf) -> Result<(), CommandError> {
+pub fn cmd_build(mut programs: Vec<String>, buildopt: &BuildOptions) -> Result<(), CommandError> {
     let current_dir = std::env::current_dir().unwrap();
     Ok(build(
         Path::new("cargo"),
         &current_dir,
-        &target_dir,
-        programs,
+        &mut programs,
+        buildopt,
     )?)
 }
 
