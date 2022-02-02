@@ -29,7 +29,7 @@ async fn main() -> std::result::Result<(), String> {
                 match name.as_str() {
                     "tcp_signatures" => {
                         let tcp_sig =
-                            unsafe { std::ptr::read(event.as_ptr() as *const TcpSignature) };
+                            unsafe { std::ptr::read_unaligned(event.as_ptr() as *const TcpSignature) };
                         println!("tcp_signature = {:?}", tcp_sig);
                     }
 
