@@ -7,6 +7,7 @@
 
 use bpf_sys::headers::build_kernel_version;
 use glob::{glob, PatternError};
+use goblin::elf::{sym::STT_SECTION, Elf};
 use semver::Version;
 use std::convert::From;
 use std::fmt::{self, Display};
@@ -35,6 +36,7 @@ pub enum Error {
     PatternError(PatternError),
     BTF,
     InvalidLLVMVersion(String),
+    IllegalProgram(String),
 }
 
 impl std::error::Error for Error {
@@ -68,6 +70,7 @@ impl Display for Error {
             PatternError(e) => write!(f, "couldn't list probe files: {}", e),
             BTF => write!(f, "failed to fix BTF section"),
             InvalidLLVMVersion(p) => write!(f, "Invalid LLVMVersion: {}", p),
+            IllegalProgram(p) => write!(f, "Illegal Program: {}", p),
         }
     }
 }
@@ -209,8 +212,8 @@ fn build_probe(
 
     let bc_file = bc_files.drain(..).next().unwrap();
     let opt_bc_file = bc_file.with_extension("bc.opt");
-    let target = artifacts_dir.join(format!("{}.elf", probe));
-    unsafe { llvm::compile(&bc_file, &target, Some(&opt_bc_file)) }.map_err(|msg| {
+    let target_tmp = artifacts_dir.join(format!("{}.elf.tmp", probe));
+    unsafe { llvm::compile(&bc_file, &target_tmp, Some(&opt_bc_file)) }.map_err(|msg| {
         Error::Compile(
             probe.into(),
             Some(format!("couldn't process IR file: {}", msg)),
@@ -227,13 +230,70 @@ fn build_probe(
             .is_some()
     };
     if contains_tc {
-        let elf_bytes = fs::read(&target).or_else(|e| Err(Error::IOError(e)))?;
-        let fixed =
-            btf::tc_legacy_fix_btf_section(elf_bytes.as_slice()).or_else(|_| Err(Error::BTF))?;
-        fs::write(&target, fixed).or_else(|e| Err(Error::IOError(e)))?;
+        let elf_bytes = fs::read(&target_tmp).map_err(|e| Error::IOError(e))?;
+        let binary = Elf::parse(&elf_bytes).map_err(|_| -> Error {
+            Error::IllegalProgram(format!("{}: failed to parse ELF", probe))
+        })?;
+        check_tc_action_relocs(&binary)?;
+        let fixed = btf::tc_legacy_fix_btf_section(elf_bytes.as_slice()).map_err(|_| Error::BTF)?;
+        fs::write(&target_tmp, fixed).map_err(|e| Error::IOError(e))?;
     }
-    let _ = llvm::strip_unnecessary(&target, contains_tc);
+    let _ = llvm::strip_unnecessary(&target_tmp, contains_tc);
+    let target = artifacts_dir.join(format!("{}.elf", probe));
+    fs::rename(&target_tmp, &target).map_err(|e| Error::IOError(e))?;
+    Ok(())
+}
 
+/// Check if the sections of tc_action program have relocation of data other
+/// than maps.
+///
+/// For example, `map.get(&42)` can not be supported by tc utility as of now.
+/// Since 42 is stored at .rodata section, the tc_action program needs to be
+/// relocated properly before it is loaded into the Linux kernel. But tc
+/// utility does not support relocation other than maps.
+fn check_tc_action_relocs(binary: &Elf) -> Result<(), Error> {
+    for (shidx, relsec) in binary.shdr_relocs.iter() {
+        let shdr = if let Some(shdr) = binary.section_headers.get(*shidx) {
+            shdr
+        } else {
+            continue;
+        };
+        let hdr_name_off = shdr.sh_name;
+        let hdr_name = if let Some(hdr_name) = binary.shdr_strtab.get_at(hdr_name_off) {
+            hdr_name
+        } else {
+            continue;
+        };
+        if !hdr_name.starts_with(".reltc_action/") {
+            continue;
+        }
+        for reloc in relsec.iter() {
+            let symidx = reloc.r_sym;
+            let sym = if let Some(sym) = binary.syms.get(symidx) {
+                sym
+            } else {
+                continue;
+            };
+
+            let sym_shdr = if let Some(shdr) = binary.section_headers.get(sym.st_shndx) {
+                shdr
+            } else {
+                continue;
+            };
+            let sym_hdr_name_off = sym_shdr.sh_name;
+            let sym_hdr_name = if let Some(hdr_name) = binary.shdr_strtab.get_at(sym_hdr_name_off) {
+                hdr_name
+            } else {
+                continue;
+            };
+
+            // If `map.get(&42)` is written in the code, the 42 is stored at
+            // `.rodata` section and st_type is `STT_SECTION`
+            if sym.st_type() == STT_SECTION {
+                return Err(Error::IllegalProgram(format!("`{}` section has a relocation for `{}` section. But tc utility does not support relocation except for maps. Did you use `map.get(&42)` instead of `map.get(&key)`?", &hdr_name[4..], sym_hdr_name)));
+            }
+        }
+    }
     Ok(())
 }
 
