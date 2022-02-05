@@ -14,8 +14,11 @@
 //! ```
 pub use crate::bindings::*;
 pub use crate::helpers::*;
-pub use crate::maps::{HashMap, PerfMapFlags};
+pub use crate::maps::*;
 pub use crate::net::*;
+
+pub use crate::xdp::PerfMap;
 pub use crate::xdp::*;
+
 pub use cty::*;
 pub use redbpf_macros::{map, program, xdp};
