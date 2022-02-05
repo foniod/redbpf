@@ -17,3 +17,4 @@ pub mod mallocstacks;
 pub mod tasks;
 pub mod tcp_lifetime;
 pub mod vfsreadlat;
+pub mod p0f;
