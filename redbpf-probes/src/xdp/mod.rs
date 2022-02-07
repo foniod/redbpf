@@ -36,8 +36,10 @@ fn block_port_80(ctx: XdpContext) -> XdpResult {
  */
 pub mod prelude;
 mod devmap;
+mod xskmap;
 
 pub use devmap::DevMap;
+pub use xskmap::XskMap;
 
 use crate::bindings::*;
 use crate::maps::{PerfMap as PerfMapBase, PerfMapFlags};
