@@ -18,10 +18,10 @@ syntax. So macro constants can not be generated from vmlinux image. But
 system.
 */
 
-use super::{
+use libbpf_sys::{
     btf, btf__free, btf__get_nr_types, btf__name_by_offset, btf__parse_elf, btf__parse_raw,
     btf__type_by_id, btf_dump, btf_dump__dump_type, btf_dump__free, btf_dump__new, btf_dump_opts,
-    libbpf_find_kernel_btf, vdprintf,
+    libbpf_find_kernel_btf, __va_list_tag,
 };
 use libc::{c_char, c_void};
 use regex::RegexSet;
@@ -35,6 +35,14 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::ptr;
 pub const ENV_VMLINUX_PATH: &'static str = "REDBPF_VMLINUX";
+
+extern "C" {
+    fn vdprintf(
+        __fd: libc::c_int, 
+        __fmt: *const c_char, 
+        __arg: *mut __va_list_tag
+    ) -> libc::c_int;
+}
 
 // only used for RAII
 struct RawFdWrapper(RawFd);
@@ -194,16 +202,16 @@ impl VmlinuxBtfDump {
             None
         };
         unsafe {
-            let dump_opts = {
+            let mut dump_opts = {
                 let mut uninit = MaybeUninit::<btf_dump_opts>::zeroed();
-                (*uninit.as_mut_ptr()).ctx = &mut rawfd as *mut _ as *mut _;
+                (*uninit.as_mut_ptr()).__bindgen_anon_1.ctx = &mut rawfd as *mut _ as *mut _;
                 uninit.assume_init()
             };
             let dumpptr = btf_dump__new(
                 self.btfptr,
-                ptr::null(),
-                &dump_opts as *const _,
-                Some(vdprintf_wrapper),
+                None,
+                &mut dump_opts as *const _ as *mut _,
+                vdprintf_wrapper as *const _,
             );
             if (dumpptr as isize) < 0 {
                 return Err(TypeGenError::DumpError);
@@ -250,7 +258,7 @@ impl Drop for VmlinuxBtfDump {
 unsafe extern "C" fn vdprintf_wrapper(
     ctx: *mut c_void,
     format: *const c_char,
-    va_list: *mut super::__va_list_tag,
+    va_list: *mut __va_list_tag,
 ) {
     let rawfd_wrapper = &*(ctx as *mut RawFdWrapper);
     vdprintf(rawfd_wrapper.0, format, va_list);

@@ -269,13 +269,6 @@ It describes build tests of RedBPF that run inside docker containers.
 
 # License
 
-This repository contains code from other software in the following
-directories, licensed under their own particular licenses:
-
- * `bpf-sys/libbpf`: LGPL2 + BSD-2
-
-Where '+' means they are dual licensed.
-
 RedBPF and its components, unless otherwise stated, are licensed under either of
 
  * Apache License, Version 2.0, ([LICENSE-APACHE](LICENSE-APACHE) or
