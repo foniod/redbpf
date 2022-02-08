@@ -263,7 +263,7 @@ pub fn map(attrs: TokenStream, item: TokenStream) -> TokenStream {
             } else {
                 // without generic types
                 match map_type_name.as_str() {
-                    "StackTrace" | "SockMap" | "ProgramArray" | "DevMap" => {}
+                    "StackTrace" | "SockMap" | "ProgramArray" | "DevMap" | "XskMap" => {}
                     _ => {
                         panic!("unknown map type name: {}", map_type_name);
                     }
