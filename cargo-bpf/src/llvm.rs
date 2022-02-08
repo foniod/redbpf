@@ -46,13 +46,20 @@ use std::process::{Command, Stdio};
 use std::ptr;
 use std::slice;
 
-pub unsafe fn init() {
+pub(crate) unsafe fn init() {
     LLVM_InitializeAllTargets();
     LLVM_InitializeAllTargetInfos();
     LLVM_InitializeAllTargetMCs();
     LLVM_InitializeAllAsmPrinters();
     LLVM_InitializeAllAsmParsers();
+}
 
+/// Force loop unroll
+///
+/// Normally if loop iteration count is big, loop is intact. Loops with small
+/// iteration count are unrolled. But if this function is called, every loop is
+/// unrolled.
+pub(crate) unsafe fn force_loop_unroll() {
     let mut args = Vec::new();
     args.push(CString::new("cargo-bpf").unwrap());
     args.push(CString::new(format!("-unroll-threshold={}", std::u32::MAX)).unwrap());

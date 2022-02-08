@@ -72,7 +72,7 @@ programs using Rust. It includes:
   3. Raw BTF data i.e. `/sys/kernel/btf/vmlinux`  
   These are needed to generate Rust bindings of the data structures of the Linux kernel.
 
-### On Ubuntu 21.04 LTS
+### On Ubuntu 20.04 LTS
 
 Install LLVM 13 and the Linux kernel headers
 ```console
@@ -104,6 +104,23 @@ Install LLVM 13 and the Linux kernel headers
 	make \
     zstd
 # llvm-config --version | grep 13
+```
+
+### On Arch Linux
+
+Install LLVM 13 and the Linux kernel headers
+
+```console
+# pacman --noconfirm -Syu \
+  && pacman -S --noconfirm \
+       llvm \
+       llvm-libs \
+       libffi \
+       clang \
+       make \
+       linux-headers \
+       linux
+# llvm-config --version | grep -q '^13'
 ```
 
 ### Building LLVM from source
@@ -265,6 +282,10 @@ section in it, you can specify it instead of the Linux kernel headers.
 
 See [build-test.yml](.github/workflows/build-test.yml) for more information.
 It describes build tests of RedBPF that run inside docker containers.
+
+## Supported Architectures
+
+Currently, `x86-64` and `aarch64` architectures are supported.
 
 
 # License

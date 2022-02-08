@@ -83,3 +83,8 @@ required-features = ["probes"]
 name = "p0f"
 path = "src/p0f/main.rs"
 required-features = ["probes"]
+
+[[bin]]
+name = "bounded_loop"
+path = "src/bounded_loop/main.rs"
+required-features = ["probes"]

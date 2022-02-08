@@ -134,6 +134,7 @@ $ sudo cargo bpf load -i eth0 target/bpf/programs/block_http.elf
 use clap::{self, crate_authors, crate_version, App, AppSettings, Arg, SubCommand};
 use std::path::PathBuf;
 
+use cargo_bpf::BuildOptions;
 use cargo_bpf_lib as cargo_bpf;
 
 fn main() {
@@ -185,6 +186,9 @@ fn main() {
                             .arg(Arg::with_name("TARGET_DIR").value_name("DIRECTORY").long("target-dir").help(
                                 "Directory for all generated artifacts"
                             ))
+                            .arg(Arg::with_name("FORCE_LOOP_UNROLL").long("force-loop-unroll").help(
+                                "Ensure every loop is unrolled"
+                            ))
                             .arg(Arg::with_name("NAME").required(false).multiple(true).help(
                                 "The names of the programs to compile. When no names are specified, all the programs are built",
                             ))
@@ -231,16 +235,16 @@ fn main() {
         }
     }
     if let Some(m) = matches.subcommand_matches("build") {
-        let current_dir = std::env::current_dir().unwrap();
-        let target_dir = m
-            .value_of("TARGET_DIR")
-            .map(PathBuf::from)
-            .unwrap_or_else(|| current_dir.join("target"));
+        let mut buildopt = BuildOptions::default();
+        if let Some(v) = m.value_of("TARGET_DIR") {
+            buildopt.target_dir = PathBuf::from(v);
+        }
+        buildopt.force_loop_unroll = m.is_present("FORCE_LOOP_UNROLL");
         let programs = m
             .values_of("NAME")
             .map(|i| i.map(String::from).collect())
             .unwrap_or_else(Vec::new);
-        if let Err(e) = cargo_bpf::cmd_build(programs, target_dir) {
+        if let Err(e) = cargo_bpf::cmd_build(programs, &buildopt) {
             clap::Error::with_description(&e.0, clap::ErrorKind::InvalidValue).exit()
         }
     }
