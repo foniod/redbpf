@@ -411,10 +411,14 @@ use redbpf::load::Loader;
 
     let mut loaded = Loader::load(probe_code()).expect("error on Loader::load");
 
-    loaded
+    let probe = loaded
         .kprobe_mut("do_sys_open")
-        .expect("error on Loaded::kprobe_mut")
+        .expect("error on Loaded::kprobe_mut");
+    probe
         .attach_kprobe("do_sys_open", 0)
+        .expect("error on KProbe::attach_kprobe");
+    probe
+        .attach_kprobe("do_sys_openat2", 0)
         .expect("error on KProbe::attach_kprobe");
 ```
 
@@ -429,7 +433,10 @@ which name is `do_sys_open` in the previous step? `#[kprobe]` attribute can
 assign a name of a BPF program like this: `#[kprobe("CUSTOM_NAME_HERE")]`. If
 no custom name is specified explicitly, the function's name is used as a kprobe
 BPF program's name instead. So you can get the BPF program by calling
-`loaded.kprobe_mut("do_sys_open")`.
+`loaded.kprobe_mut("do_sys_open")`. On some systems, attaching to `do_sys_open`
+may not result in any output. Instead, you can attach to do_sys_openat2.
+You can also attach to both kernel functions, because the second param for
+do_sys_openat2 is the same.
 
 `KProbe::attach_kprobe` attaches a kprobe BPF program to a specified kernel
 function.  So `attach_kprobe("do_sys_open", 0)` attaches the kprobe BPF
@@ -509,10 +516,14 @@ async fn main() {
 
     let mut loaded = Loader::load(probe_code()).expect("error on Loader::load");
 
-    loaded
+    let probe = loaded
         .kprobe_mut("do_sys_open")
-        .expect("error on Loaded::kprobe_mut")
+        .expect("error on Loaded::kprobe_mut");
+    probe
         .attach_kprobe("do_sys_open", 0)
+        .expect("error on KProbe::attach_kprobe");
+    probe
+        .attach_kprobe("do_sys_openat2", 0)
         .expect("error on KProbe::attach_kprobe");
 
     while let Some((map_name, events)) = loaded.events.next().await {
