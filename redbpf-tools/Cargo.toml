@@ -7,7 +7,7 @@ repository = "https://github.com/foniod/redbpf"
 publish = false
 
 [build-dependencies]
-cargo-bpf = { path = "../cargo-bpf", default-features = false, features = ["build"] }
+cargo-bpf = { path = "../cargo-bpf", default-features = false, features = ["build", "llvm-sys"] }
 
 [dependencies]
 probes = { path = "./probes" }
