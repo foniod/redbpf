@@ -13,4 +13,5 @@
 #define asm_inline asm
 #endif
 #include <linux/blkdev.h>
+#include <linux/blk-mq.h>
 #endif
