@@ -43,6 +43,11 @@ fn print_cargo_bpf_llvm_version() {
         Some(_) => captures[0].to_string(),
     };
 
+    // Support compiling cargo-bpf in gentoo.
+    if let Some(major) = captures.name("major") {
+        println!("cargo:rustc-link-lib=LLVM-{}", major.as_str());
+    }
+
     println!(
         "cargo:rustc-env=CARGO_BPF_LLVM_VERSION={}",
         norm_version_str
