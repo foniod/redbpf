@@ -18,10 +18,10 @@ syntax. So macro constants can not be generated from vmlinux image. But
 system.
 */
 
+use super::libbpf_bindings;
 use libbpf_sys::{
     btf, btf__free, btf__get_nr_types, btf__name_by_offset, btf__parse_elf, btf__parse_raw,
-    btf__type_by_id, btf_dump, btf_dump__dump_type, btf_dump__free, btf_dump__new, btf_dump_opts,
-    libbpf_find_kernel_btf, __va_list_tag,
+    btf__type_by_id, btf_dump, btf_dump__dump_type, btf_dump__free, libbpf_find_kernel_btf,
 };
 use libc::{c_char, c_void};
 use regex::RegexSet;
@@ -29,20 +29,12 @@ use std::env;
 use std::ffi::{CStr, CString};
 use std::fs::File;
 use std::io::{self, Write};
-use std::mem::{self, MaybeUninit};
+use std::mem;
 use std::os::unix::io::{FromRawFd, IntoRawFd, RawFd};
 use std::path::Path;
 use std::path::PathBuf;
 use std::ptr;
 pub const ENV_VMLINUX_PATH: &'static str = "REDBPF_VMLINUX";
-
-extern "C" {
-    fn vdprintf(
-        __fd: libc::c_int, 
-        __fmt: *const c_char, 
-        __arg: *mut __va_list_tag
-    ) -> libc::c_int;
-}
 
 // only used for RAII
 struct RawFdWrapper(RawFd);
@@ -202,21 +194,16 @@ impl VmlinuxBtfDump {
             None
         };
         unsafe {
-            let mut dump_opts = {
-                let mut uninit = MaybeUninit::<btf_dump_opts>::zeroed();
-                (*uninit.as_mut_ptr()).__bindgen_anon_1.ctx = &mut rawfd as *mut _ as *mut _;
-                uninit.assume_init()
-            };
-            let dumpptr = btf_dump__new(
-                self.btfptr,
-                None,
-                &mut dump_opts as *const _ as *mut _,
-                vdprintf_wrapper as *const _,
+            let dumpptr = libbpf_bindings::btf_dump__new(
+                self.btfptr as _,
+                Some(vdprintf_wrapper),
+                &mut rawfd as *mut _ as *mut _,
+                ptr::null(),
             );
             if (dumpptr as isize) < 0 {
                 return Err(TypeGenError::DumpError);
             }
-            let dumpptr = BtfDumpWrapper(dumpptr);
+            let dumpptr = BtfDumpWrapper(dumpptr as _);
             for type_id in 1..=btf__get_nr_types(self.btfptr) {
                 let btftypeptr = btf__type_by_id(self.btfptr, type_id);
                 let nameptr = btf__name_by_offset(self.btfptr, (*btftypeptr).name_off);
@@ -253,27 +240,22 @@ impl Drop for VmlinuxBtfDump {
     }
 }
 
+// FIXME: remove libbpf_bindings in favor of libbpf-sys
 // wrapping vdprintf to get rid of return type
-#[cfg(not(any(target_arch = "arm", target_arch = "aarch64")))]
 unsafe extern "C" fn vdprintf_wrapper(
     ctx: *mut c_void,
     format: *const c_char,
-    va_list: *mut __va_list_tag,
+    #[cfg(any(target_arch = "arm", target_arch = "aarch64"))]
+    #[cfg(target_env = "musl")]
+    va_list: libbpf_bindings::__isoc_va_list,
+    #[cfg(any(target_arch = "arm", target_arch = "aarch64"))]
+    #[cfg(not(target_env = "musl"))]
+    va_list: libbpf_bindings::__gnuc_va_list,
+    #[cfg(not(any(target_arch = "arm", target_arch = "aarch64")))]
+    va_list: *mut libbpf_bindings::__va_list_tag,
 ) {
     let rawfd_wrapper = &*(ctx as *mut RawFdWrapper);
-    vdprintf(rawfd_wrapper.0, format, va_list);
-}
-
-// wrapping vdprintf to get rid of return type
-#[cfg(any(target_arch = "arm", target_arch = "aarch64"))]
-unsafe extern "C" fn vdprintf_wrapper(
-    ctx: *mut c_void,
-    format: *const c_char,
-    #[cfg(target_env = "musl")] va_list: super::__isoc_va_list,
-    #[cfg(not(target_env = "musl"))] va_list: super::__gnuc_va_list,
-) {
-    let rawfd_wrapper = &*(ctx as *mut RawFdWrapper);
-    vdprintf(rawfd_wrapper.0, format, va_list);
+    libbpf_bindings::vdprintf(rawfd_wrapper.0, format, va_list);
 }
 
 pub fn get_custom_vmlinux_path() -> Option<PathBuf> {
