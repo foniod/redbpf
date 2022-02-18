@@ -33,6 +33,8 @@ fn main() {
         panic!("probes build failed");
     }
 
+    println!("cargo:rerun-if-changed=../../redbpf-probes");
+    println!("cargo:rerun-if-changed=../../redbpf-macros");
     cargo_bpf::probe_files(&package)
         .expect("couldn't list probe files")
         .iter()
