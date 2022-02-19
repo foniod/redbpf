@@ -242,6 +242,35 @@ jobs:
           && cargo build --bin cargo-bpf \
           && cargo build --examples'
 
+  build-on-x86_64-gentoo:
+    runs-on: ubuntu-latest
+    steps:
+    -
+      name: Checkout
+      uses: actions/checkout@v2
+    -
+      name: Build host info
+      run: |
+        uname -a
+        cat /etc/os-release
+    -
+      name: Initialize git submodules
+      run: |
+        git submodule update --init --recursive
+    -
+      name: Build RedBPF with the kernel headers on x86_64 Gentoo
+      run: |
+        docker run --privileged \
+        -v $PWD:/build \
+        -w /build \
+        $REDBPF_IMAGE_NAME:latest-x86_64-gentoo \
+        bash -c 'export KERNEL_SOURCE=$(echo /lib/modules/*) \
+          && echo KERNEL_SOURCE=$KERNEL_SOURCE \
+          && cargo clean \
+          && cargo build \
+          && cargo build --bin cargo-bpf \
+          && cargo build --examples'
+
   build-on-aarch64-ubuntu-2104:
     runs-on: ubuntu-latest
     steps:
@@ -514,6 +543,7 @@ jobs:
     # - build-on-x86_64-alpine315
     - build-on-x86_64-archlinux
     - build-on-x86_64-ubuntu-2004
+    - build-on-x86_64-gentoo
     - build-on-aarch64-ubuntu-2104
     - build-on-aarch64-debian11
     - build-on-aarch64-fedora35-header
