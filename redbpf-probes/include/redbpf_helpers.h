@@ -19,6 +19,7 @@
 #include <uapi/linux/bpf.h>
 #include <net/sock.h>
 #include <net/inet_sock.h>
+#include <net/af_unix.h>
 #include <linux/ipv6.h>
 #include "xdp.h"
 #include "bpf_iter.h"

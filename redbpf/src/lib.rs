@@ -55,14 +55,14 @@ pub mod sys;
 pub mod xdp;
 
 pub use bpf_sys::uname;
-use bpf_sys::{
-    bpf_attach_type_BPF_SK_LOOKUP, bpf_attach_type_BPF_SK_SKB_STREAM_PARSER,
-    bpf_attach_type_BPF_SK_SKB_STREAM_VERDICT, bpf_attach_type_BPF_TRACE_ITER, bpf_create_map_attr,
+use libbpf_sys::{
+    BPF_SK_LOOKUP, BPF_SK_SKB_STREAM_PARSER,
+    BPF_SK_SKB_STREAM_VERDICT, BPF_TRACE_ITER, bpf_create_map_attr,
     bpf_create_map_xattr, bpf_insn, bpf_iter_create, bpf_link_create, bpf_load_program_xattr,
-    bpf_map_def, bpf_map_info, bpf_map_type_BPF_MAP_TYPE_ARRAY, bpf_map_type_BPF_MAP_TYPE_HASH,
-    bpf_map_type_BPF_MAP_TYPE_LRU_HASH, bpf_map_type_BPF_MAP_TYPE_LRU_PERCPU_HASH,
-    bpf_map_type_BPF_MAP_TYPE_PERCPU_ARRAY, bpf_map_type_BPF_MAP_TYPE_PERCPU_HASH,
-    bpf_map_type_BPF_MAP_TYPE_PERF_EVENT_ARRAY, bpf_prog_type, BPF_ANY,
+    bpf_map_def, bpf_map_info, BPF_MAP_TYPE_ARRAY, BPF_MAP_TYPE_HASH,
+    BPF_MAP_TYPE_LRU_HASH, BPF_MAP_TYPE_LRU_PERCPU_HASH,
+    BPF_MAP_TYPE_PERCPU_ARRAY, BPF_MAP_TYPE_PERCPU_HASH,
+    BPF_MAP_TYPE_PERF_EVENT_ARRAY, bpf_prog_type, BPF_ANY,
 };
 use goblin::elf::{reloc::RelocSection, section_header as hdr, Elf, SectionHeader, Sym};
 
@@ -256,7 +256,7 @@ pub struct TaskIter {
 /// ```no_run
 /// # static SK_LOOKUP: &[u8] = &[];
 /// use std::net::TcpListener;
-/// use std::os::unix::io::AsRawFd
+/// use std::os::unix::io::AsRawFd;
 ///
 /// use redbpf::{HashMap, SockMap};
 /// use redbpf::load::Loader;
@@ -265,11 +265,11 @@ pub struct TaskIter {
 /// let mut loaded = Loader::load(SK_LOOKUP).unwrap();
 ///
 /// // Pass the listener fd to the BPF program
-/// let mut socket = SockMap::new(loaded.map("socket")).unwrap();
+/// let mut socket = SockMap::new(loaded.map("socket").unwrap()).unwrap();
 /// socket.set(0, listener.as_raw_fd());
 ///
 /// // Pass our port range to the BPF program
-/// let mut ports = HashMap::<u16, u8>::new(loaded.map("ports")).unwrap();
+/// let mut ports = HashMap::<u16, u8>::new(loaded.map("ports").unwrap()).unwrap();
 /// for port in 80..430 {
 ///     ports.set(port, 1);
 /// }
@@ -458,7 +458,7 @@ trait MapIterable<K: Clone, V: Clone> {
 impl Program {
     #[allow(clippy::unnecessary_wraps)]
     fn new(kind: &str, name: &str, code: &[u8]) -> Result<Program> {
-        let code = zero::read_array(code).to_vec();
+        let code = unsafe { zero::read_array_unsafe(code) }.to_vec();
         let name = name.to_string();
 
         let common = ProgramData {
@@ -502,7 +502,7 @@ impl Program {
     }
 
     fn with_btf(kind: &str, name: &str, code: &[u8], btf: &BTF) -> Result<Program> {
-        let code = zero::read_array(code).to_vec();
+        let code = unsafe { zero::read_array_unsafe(code) }.to_vec();
         let name = name.to_string();
 
         let common = ProgramData {
@@ -532,14 +532,14 @@ impl Program {
 
         match self {
             KProbe(_) | KRetProbe(_) | UProbe(_) | URetProbe(_) => {
-                bpf_sys::bpf_prog_type_BPF_PROG_TYPE_KPROBE
+                libbpf_sys::BPF_PROG_TYPE_KPROBE
             }
-            XDP(_) => bpf_sys::bpf_prog_type_BPF_PROG_TYPE_XDP,
-            SocketFilter(_) => bpf_sys::bpf_prog_type_BPF_PROG_TYPE_SOCKET_FILTER,
-            TracePoint(_) => bpf_sys::bpf_prog_type_BPF_PROG_TYPE_TRACEPOINT,
-            StreamParser(_) | StreamVerdict(_) => bpf_sys::bpf_prog_type_BPF_PROG_TYPE_SK_SKB,
-            TaskIter(_) => bpf_sys::bpf_prog_type_BPF_PROG_TYPE_TRACING,
-            SkLookup(_) => bpf_sys::bpf_prog_type_BPF_PROG_TYPE_SK_LOOKUP,
+            XDP(_) => libbpf_sys::BPF_PROG_TYPE_XDP,
+            SocketFilter(_) => libbpf_sys::BPF_PROG_TYPE_SOCKET_FILTER,
+            TracePoint(_) => libbpf_sys::BPF_PROG_TYPE_TRACEPOINT,
+            StreamParser(_) | StreamVerdict(_) => libbpf_sys::BPF_PROG_TYPE_SK_SKB,
+            TaskIter(_) => libbpf_sys::BPF_PROG_TYPE_TRACING,
+            SkLookup(_) => libbpf_sys::BPF_PROG_TYPE_SK_LOOKUP,
         }
     }
 
@@ -606,7 +606,7 @@ impl Program {
         let cname = CString::new(self.name().clone())?;
         let clicense = CString::new(license)?;
 
-        let mut attr = unsafe { mem::zeroed::<bpf_sys::bpf_load_program_attr>() };
+        let mut attr = unsafe { mem::zeroed::<libbpf_sys::bpf_load_program_attr>() };
 
         attr.prog_type = self.to_prog_type();
         attr.name = cname.as_ptr();
@@ -617,11 +617,11 @@ impl Program {
 
         match self {
             Program::TaskIter(bpf_iter) => {
-                attr.expected_attach_type = bpf_attach_type_BPF_TRACE_ITER;
+                attr.expected_attach_type = BPF_TRACE_ITER;
                 attr.__bindgen_anon_2.attach_btf_id = bpf_iter.attach_btf_id;
             }
             Program::SkLookup(_) => {
-                attr.expected_attach_type = bpf_attach_type_BPF_SK_LOOKUP;
+                attr.expected_attach_type = BPF_SK_LOOKUP;
                 attr.__bindgen_anon_1.kern_version = kernel_version;
             }
             _ => {
@@ -670,7 +670,7 @@ impl Program {
             let mut buf_vec = vec![0; vec_len];
             let log_buffer: MutDataPtr = buf_vec.as_mut_ptr();
             let buf_size = buf_vec.capacity() * mem::size_of_val(unsafe { &*log_buffer });
-            let fd = unsafe { bpf_sys::bpf_load_program_xattr(&attr, log_buffer, buf_size as u64) };
+            let fd = unsafe { libbpf_sys::bpf_load_program_xattr(&attr, log_buffer, buf_size as u64) };
             if fd >= 0 {
                 warn!(
                     "bpf_load_program_xattr had failed but it unexpectedly succeeded while reproducing the error"
@@ -746,7 +746,7 @@ fn pin_bpf_obj(fd: RawFd, file: impl AsRef<Path>) -> Result<()> {
     fs::create_dir_all(dir)?;
     unsafe {
         let cpathname = CString::new(file.to_str().unwrap())?;
-        if bpf_sys::bpf_obj_pin(fd, cpathname.as_ptr()) != 0 {
+        if libbpf_sys::bpf_obj_pin(fd, cpathname.as_ptr()) != 0 {
             error!("error on bpf_obj_pin: {}", io::Error::last_os_error());
             Err(Error::IO(io::Error::last_os_error()))
         } else {
@@ -1094,7 +1094,7 @@ unsafe fn attach_xdp(dev_name: &str, progfd: libc::c_int, flags: libc::c_uint) -
         return Err(Error::IO(io::Error::last_os_error()));
     }
 
-    if bpf_sys::bpf_set_link_xdp_fd(ifindex, progfd, flags) != 0 {
+    if libbpf_sys::bpf_set_link_xdp_fd(ifindex, progfd, flags) != 0 {
         return Err(Error::IO(io::Error::last_os_error()));
     }
     Ok(())
@@ -1159,7 +1159,7 @@ impl SkLookup {
                 return Err(Error::IO(io::Error::last_os_error()));
             }
 
-            let lfd = bpf_link_create(fd, nfd, bpf_attach_type_BPF_SK_LOOKUP, ptr::null());
+            let lfd = bpf_link_create(fd, nfd, BPF_SK_LOOKUP, ptr::null());
             if lfd < 0 {
                 libc::close(nfd);
                 return Err(Error::IO(io::Error::last_os_error()));
@@ -1693,10 +1693,10 @@ impl RelocationInfo {
 
         // the index of the instruction we need to patch
         if map.section_data {
-            code[insn_idx].set_src_reg(bpf_sys::BPF_PSEUDO_MAP_VALUE as u8);
+            code[insn_idx].set_src_reg(libbpf_sys::BPF_PSEUDO_MAP_VALUE as u8);
             code[insn_idx + 1].imm = code[insn_idx].imm + sym.st_value as i32;
         } else {
-            code[insn_idx].set_src_reg(bpf_sys::BPF_PSEUDO_MAP_FD as u8);
+            code[insn_idx].set_src_reg(libbpf_sys::BPF_PSEUDO_MAP_FD as u8);
         }
         code[insn_idx].imm = map.fd;
         Ok(())
@@ -1714,7 +1714,7 @@ impl RelocationInfo {
         let insn_idx = (self.offset / std::mem::size_of::<bpf_insn>() as u64) as usize;
         let code = &mut prog.data_mut().code;
         let map = symval_to_maps.get(&sym.st_value).ok_or(Error::Reloc)?;
-        code[insn_idx].set_src_reg(bpf_sys::BPF_PSEUDO_MAP_FD as u8);
+        code[insn_idx].set_src_reg(libbpf_sys::BPF_PSEUDO_MAP_FD as u8);
         code[insn_idx].imm = map.fd;
         Ok(())
     }
@@ -1722,7 +1722,7 @@ impl RelocationInfo {
 
 impl Map {
     pub fn load(name: &str, code: &[u8]) -> Result<Map> {
-        let config: bpf_map_def = *zero::read(code);
+        let config: bpf_map_def = *unsafe { zero::read_unsafe(code) };
         Map::with_map_def(name, config, None)
     }
 
@@ -1730,7 +1730,7 @@ impl Map {
         let mut map = Map::with_map_def(
             name,
             bpf_map_def {
-                type_: bpf_sys::bpf_map_type_BPF_MAP_TYPE_ARRAY,
+                type_: libbpf_sys::BPF_MAP_TYPE_ARRAY,
                 key_size: mem::size_of::<u32>() as u32,
                 value_size: data.len() as u32,
                 max_entries: 1,
@@ -1742,7 +1742,7 @@ impl Map {
         // for BSS we don't need to copy the data, it's already 0-initialized
         if name != ".bss" {
             unsafe {
-                let ret = bpf_sys::bpf_map_update_elem(
+                let ret = libbpf_sys::bpf_map_update_elem(
                     map.fd,
                     &mut 0 as *mut _ as *mut _,
                     data.as_ptr() as *mut u8 as *mut _,
@@ -1830,7 +1830,7 @@ impl Map {
         let file = file.as_ref();
         let fd = unsafe {
             let cpathname = CString::new(file.to_str().unwrap())?;
-            bpf_sys::bpf_obj_get(cpathname.as_ptr())
+            libbpf_sys::bpf_obj_get(cpathname.as_ptr())
         };
         if fd < 0 {
             error!("error on bpf_obj_get: {}", io::Error::last_os_error());
@@ -1839,7 +1839,7 @@ impl Map {
         let map_info = unsafe {
             let mut info = mem::zeroed::<bpf_map_info>();
             let mut info_len = mem::size_of_val(&info) as u32;
-            if bpf_sys::bpf_obj_get_info_by_fd(fd, &mut info as *mut _ as *mut _, &mut info_len)
+            if libbpf_sys::bpf_obj_get_info_by_fd(fd, &mut info as *mut _ as *mut _, &mut info_len)
                 != 0
             {
                 error!(
@@ -1972,7 +1972,7 @@ impl<'a> MapBuilder<'a> {
                 name.as_ref(),
                 bytes,
                 if name.starts_with(".rodata") {
-                    bpf_sys::BPF_F_RDONLY_PROG
+                    libbpf_sys::BPF_F_RDONLY_PROG
                 } else {
                     0
                 },
@@ -1986,8 +1986,8 @@ impl<'base, K: Clone, V: Clone> HashMap<'base, K, V> {
     pub fn new(base: &Map) -> Result<HashMap<K, V>> {
         if mem::size_of::<K>() != base.config.key_size as usize
             || mem::size_of::<V>() != base.config.value_size as usize
-            || (bpf_map_type_BPF_MAP_TYPE_HASH != base.config.type_
-                && bpf_map_type_BPF_MAP_TYPE_PERF_EVENT_ARRAY != base.config.type_)
+            || (BPF_MAP_TYPE_HASH != base.config.type_
+                && BPF_MAP_TYPE_PERF_EVENT_ARRAY != base.config.type_)
         {
             error!(
                 "map definitions (map type and key/value size) of base `Map' and
@@ -2038,7 +2038,7 @@ impl<'base, K: Clone, V: Clone> LruHashMap<'base, K, V> {
     pub fn new(base: &Map) -> Result<LruHashMap<K, V>> {
         if mem::size_of::<K>() != base.config.key_size as usize
             || mem::size_of::<V>() != base.config.value_size as usize
-            || bpf_map_type_BPF_MAP_TYPE_LRU_HASH != base.config.type_
+            || BPF_MAP_TYPE_LRU_HASH != base.config.type_
         {
             error!(
                 "map definitions (map type and key/value sizes) of base `Map' and `LruHashMap' do not match"
@@ -2088,7 +2088,7 @@ impl<'base, K: Clone, V: Clone> PerCpuHashMap<'base, K, V> {
     pub fn new(base: &Map) -> Result<PerCpuHashMap<K, V>> {
         if mem::size_of::<K>() != base.config.key_size as usize
             || mem::size_of::<V>() != base.config.value_size as usize
-            || bpf_map_type_BPF_MAP_TYPE_PERCPU_HASH != base.config.type_
+            || BPF_MAP_TYPE_PERCPU_HASH != base.config.type_
         {
             error!("map definitions (size of key/value and map type) of base `Map' and `PerCpuHashMap' do not match");
             return Err(Error::Map);
@@ -2150,7 +2150,7 @@ impl<'base, K: Clone, V: Clone> LruPerCpuHashMap<'base, K, V> {
     pub fn new(base: &Map) -> Result<LruPerCpuHashMap<K, V>> {
         if mem::size_of::<K>() != base.config.key_size as usize
             || mem::size_of::<V>() != base.config.value_size as usize
-            || bpf_map_type_BPF_MAP_TYPE_LRU_PERCPU_HASH != base.config.type_
+            || BPF_MAP_TYPE_LRU_PERCPU_HASH != base.config.type_
         {
             error!("map definitions (size of key/value and map type) of base `Map' and `LruPerCpuHashMap' do not match");
             return Err(Error::Map);
@@ -2212,7 +2212,7 @@ impl<'base, T: Clone> Array<'base, T> {
     /// Create `Array` map from `base`
     pub fn new(base: &Map) -> Result<Array<T>> {
         if mem::size_of::<T>() != base.config.value_size as usize
-            || bpf_map_type_BPF_MAP_TYPE_ARRAY != base.config.type_
+            || BPF_MAP_TYPE_ARRAY != base.config.type_
         {
             error!(
                 "map definitions (size of value, map type) of base `Map' and
@@ -2232,7 +2232,7 @@ impl<'base, T: Clone> Array<'base, T> {
     /// This method can fail if `index` is out of bound
     pub fn set(&self, mut index: u32, mut value: T) -> Result<()> {
         let rv = unsafe {
-            bpf_sys::bpf_map_update_elem(
+            libbpf_sys::bpf_map_update_elem(
                 self.base.fd,
                 &mut index as *mut _ as *mut _,
                 &mut value as *mut _ as *mut _,
@@ -2253,7 +2253,7 @@ impl<'base, T: Clone> Array<'base, T> {
     pub fn get(&self, mut index: u32) -> Option<T> {
         let mut value = MaybeUninit::zeroed();
         if unsafe {
-            bpf_sys::bpf_map_lookup_elem(
+            libbpf_sys::bpf_map_lookup_elem(
                 self.base.fd,
                 &mut index as *mut _ as *mut _,
                 &mut value as *mut _ as *mut _,
@@ -2336,7 +2336,7 @@ impl<T: Clone> DerefMut for PerCpuValues<T> {
 impl<'base, T: Clone> PerCpuArray<'base, T> {
     pub fn new(base: &Map) -> Result<PerCpuArray<T>> {
         if mem::size_of::<T>() != base.config.value_size as usize
-            || bpf_map_type_BPF_MAP_TYPE_PERCPU_ARRAY != base.config.type_
+            || BPF_MAP_TYPE_PERCPU_ARRAY != base.config.type_
         {
             error!(
                 "map definitions (size of value, map type) of base `Map' and
@@ -2369,15 +2369,16 @@ impl<'base, T: Clone> PerCpuArray<'base, T> {
         let value_size = round_up::<T>(8);
         let alloc_size = value_size * count;
         let mut alloc = vec![0u8; alloc_size];
-        let mut data = alloc.as_mut_ptr();
+        let data = alloc.as_mut_ptr();
         for i in 0..count {
             unsafe {
                 let dst_ptr = data.add(value_size * i) as *mut T;
                 dst_ptr.write_unaligned(values[i].clone());
             }
         }
+
         if unsafe {
-            bpf_sys::bpf_map_update_elem(
+            libbpf_sys::bpf_map_update_elem(
                 self.base.fd,
                 &mut index as *mut _ as *mut _,
                 data as *mut _,
@@ -2406,7 +2407,7 @@ impl<'base, T: Clone> PerCpuArray<'base, T> {
         let mut alloc = vec![0u8; alloc_size];
         let ptr = alloc.as_mut_ptr();
         if unsafe {
-            bpf_sys::bpf_map_lookup_elem(
+            libbpf_sys::bpf_map_lookup_elem(
                 self.base.fd,
                 &mut index as *mut _ as *mut _,
                 ptr as *mut _,
@@ -2452,7 +2453,7 @@ impl<'base> ProgramArray<'base> {
     pub fn get(&self, mut index: u32) -> Result<RawFd> {
         let mut fd: RawFd = 0;
         if unsafe {
-            bpf_sys::bpf_map_lookup_elem(
+            libbpf_sys::bpf_map_lookup_elem(
                 self.base.fd,
                 &mut index as *mut _ as *mut _,
                 &mut fd as *mut _ as *mut _,
@@ -2484,7 +2485,7 @@ impl<'base> ProgramArray<'base> {
     /// ```
     pub fn set(&mut self, mut index: u32, mut fd: RawFd) -> Result<()> {
         let ret = unsafe {
-            bpf_sys::bpf_map_update_elem(
+            libbpf_sys::bpf_map_update_elem(
                 self.base.fd,
                 &mut index as *mut _ as *mut _,
                 &mut fd as *mut _ as *mut _,
@@ -2526,7 +2527,7 @@ impl StackTrace<'_> {
         unsafe {
             let mut value = MaybeUninit::uninit();
 
-            let ret = bpf_sys::bpf_map_lookup_elem(
+            let ret = libbpf_sys::bpf_map_lookup_elem(
                 self.base.fd,
                 &mut id as *const _ as *mut _,
                 value.as_mut_ptr() as *mut _,
@@ -2542,7 +2543,7 @@ impl StackTrace<'_> {
 
     pub fn delete(&mut self, id: i64) -> Result<()> {
         unsafe {
-            let ret = bpf_sys::bpf_map_delete_elem(self.base.fd, &id as *const _ as *mut _);
+            let ret = libbpf_sys::bpf_map_delete_elem(self.base.fd, &id as *const _ as *mut _);
 
             if ret == 0 {
                 Ok(())
@@ -2569,10 +2570,10 @@ impl StreamParser {
         let prog_fd = self.common.fd.unwrap();
 
         let ret = unsafe {
-            bpf_sys::bpf_prog_attach(
+            libbpf_sys::bpf_prog_attach(
                 prog_fd,
                 attach_fd,
-                bpf_attach_type_BPF_SK_SKB_STREAM_PARSER,
+                BPF_SK_SKB_STREAM_PARSER,
                 0,
             )
         };
@@ -2600,10 +2601,10 @@ impl StreamVerdict {
         let prog_fd = self.common.fd.unwrap();
 
         let ret = unsafe {
-            bpf_sys::bpf_prog_attach(
+            libbpf_sys::bpf_prog_attach(
                 prog_fd,
                 attach_fd,
-                bpf_attach_type_BPF_SK_SKB_STREAM_VERDICT,
+                BPF_SK_SKB_STREAM_VERDICT,
                 0,
             )
         };
@@ -2622,7 +2623,7 @@ impl<'a> SockMap<'a> {
 
     pub fn set(&mut self, mut idx: u32, mut fd: RawFd) -> Result<()> {
         let ret = unsafe {
-            bpf_sys::bpf_map_update_elem(
+            libbpf_sys::bpf_map_update_elem(
                 self.base.fd,
                 &mut idx as *mut _ as *mut _,
                 &mut fd as *mut _ as *mut _,
@@ -2638,7 +2639,7 @@ impl<'a> SockMap<'a> {
 
     pub fn delete(&mut self, mut idx: u32) -> Result<()> {
         let ret =
-            unsafe { bpf_sys::bpf_map_delete_elem(self.base.fd, &mut idx as *mut _ as *mut _) };
+            unsafe { libbpf_sys::bpf_map_delete_elem(self.base.fd, &mut idx as *mut _ as *mut _) };
         if ret < 0 {
             Err(Error::Map)
         } else {
@@ -2697,7 +2698,7 @@ impl TaskIter {
             bpf_link_create(
                 self.common.fd.unwrap(),
                 0,
-                bpf_attach_type_BPF_TRACE_ITER,
+                BPF_TRACE_ITER,
                 ptr::null(),
             )
         };
@@ -2777,7 +2778,7 @@ fn data<'d>(bytes: &'d [u8], shdr: &SectionHeader) -> &'d [u8] {
 
 fn bpf_map_set<K: Clone, V: Clone>(fd: RawFd, mut key: K, mut value: V) -> Result<()> {
     if unsafe {
-        bpf_sys::bpf_map_update_elem(
+        libbpf_sys::bpf_map_update_elem(
             fd,
             &mut key as *mut _ as *mut _,
             &mut value as *mut _ as *mut _,
@@ -2794,7 +2795,7 @@ fn bpf_map_set<K: Clone, V: Clone>(fd: RawFd, mut key: K, mut value: V) -> Resul
 fn bpf_map_get<K: Clone, V: Clone>(fd: RawFd, mut key: K) -> Option<V> {
     let mut value = MaybeUninit::zeroed();
     if unsafe {
-        bpf_sys::bpf_map_lookup_elem(
+        libbpf_sys::bpf_map_lookup_elem(
             fd,
             &mut key as *mut _ as *mut _,
             &mut value as *mut _ as *mut _,
@@ -2807,7 +2808,7 @@ fn bpf_map_get<K: Clone, V: Clone>(fd: RawFd, mut key: K) -> Option<V> {
 }
 
 fn bpf_map_delete<K: Clone>(fd: RawFd, mut key: K) -> Result<()> {
-    if unsafe { bpf_sys::bpf_map_delete_elem(fd, &mut key as *mut _ as *mut _) } < 0 {
+    if unsafe { libbpf_sys::bpf_map_delete_elem(fd, &mut key as *mut _ as *mut _) } < 0 {
         Err(Error::Map)
     } else {
         Ok(())
@@ -2818,7 +2819,7 @@ fn bpf_map_get_next_key<K: Clone>(fd: RawFd, key: Option<K>) -> Option<K> {
     if let Some(mut key) = key {
         let mut next_key = MaybeUninit::<K>::zeroed();
         let ret = unsafe {
-            bpf_sys::bpf_map_get_next_key(
+            libbpf_sys::bpf_map_get_next_key(
                 fd,
                 &mut key as *mut _ as *mut _,
                 &mut next_key as *mut _ as *mut _,
@@ -2831,7 +2832,7 @@ fn bpf_map_get_next_key<K: Clone>(fd: RawFd, key: Option<K>) -> Option<K> {
         }
     } else {
         let mut key = MaybeUninit::<K>::zeroed();
-        if unsafe { bpf_sys::bpf_map_get_next_key(fd, ptr::null(), &mut key as *mut _ as *mut _) }
+        if unsafe { libbpf_sys::bpf_map_get_next_key(fd, ptr::null(), &mut key as *mut _ as *mut _) }
             < 0
         {
             None
@@ -2856,15 +2857,17 @@ fn bpf_percpu_map_set<K: Clone, V: Clone>(
     let value_size = round_up::<V>(8);
     let alloc_size = value_size * count;
     let mut alloc = vec![0u8; alloc_size];
-    let mut data = alloc.as_mut_ptr();
+    let data = alloc.as_mut_ptr();
     for i in 0..count {
         unsafe {
             let dst_ptr = data.add(value_size * i) as *mut V;
             dst_ptr.write_unaligned(values[i].clone());
         }
     }
-    if unsafe { bpf_sys::bpf_map_update_elem(fd, &mut key as *mut _ as *mut _, data as *mut _, 0) }
-        < 0
+
+    if unsafe {
+        libbpf_sys::bpf_map_update_elem(fd, &mut key as *mut _ as *mut _, data as *mut _, 0)
+    } < 0
     {
         Err(Error::Map)
     } else {
@@ -2880,7 +2883,7 @@ fn bpf_percpu_map_get<K: Clone, V: Clone>(fd: RawFd, mut key: K) -> Option<PerCp
     let alloc_size = value_size * count;
     let mut alloc = vec![0u8; alloc_size];
     let data = alloc.as_mut_ptr();
-    if unsafe { bpf_sys::bpf_map_lookup_elem(fd, &mut key as *mut _ as *mut _, data as *mut _) } < 0
+    if unsafe { libbpf_sys::bpf_map_lookup_elem(fd, &mut key as *mut _ as *mut _, data as *mut _) } < 0
     {
         return None;
     }

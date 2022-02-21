@@ -4,9 +4,9 @@ use std::mem;
 
 use crate::error::{Error, Result};
 use crate::{Map, Sample};
-use bpf_sys::{
+use libbpf_sys::{
     XDP_FLAGS_DRV_MODE, XDP_FLAGS_HW_MODE, XDP_FLAGS_MASK, XDP_FLAGS_MODES, XDP_FLAGS_SKB_MODE,
-    XDP_FLAGS_UPDATE_IF_NOEXIST, BPF_ANY, bpf_map_type_BPF_MAP_TYPE_DEVMAP,
+    XDP_FLAGS_UPDATE_IF_NOEXIST, BPF_ANY, BPF_MAP_TYPE_DEVMAP,
 };
 
 use tracing::error;
@@ -78,7 +78,7 @@ impl<'a> DevMap<'a> {
     pub fn new(base: &'a Map) -> Result<DevMap<'a>> {
         if mem::size_of::<u32>() != base.config.key_size as usize
             || mem::size_of::<u32>() != base.config.value_size as usize
-            || (bpf_map_type_BPF_MAP_TYPE_DEVMAP != base.config.type_)
+            || (BPF_MAP_TYPE_DEVMAP != base.config.type_)
         {
             error!(
                 "map definitions (map type and key/value size) of base `Map' and
@@ -92,7 +92,7 @@ impl<'a> DevMap<'a> {
 
     pub fn set(&mut self, mut idx: u32, mut interface_index: u32) -> Result<()> {
         let ret = unsafe {
-            bpf_sys::bpf_map_update_elem(
+            libbpf_sys::bpf_map_update_elem(
                 self.base.fd,
                 &mut idx as *mut _ as *mut _ as *mut _,
                 &mut interface_index as *mut _ as *mut _,
@@ -108,7 +108,7 @@ impl<'a> DevMap<'a> {
 
     pub fn delete(&mut self, mut idx: u32) -> Result<()> {
         let ret =
-            unsafe { bpf_sys::bpf_map_delete_elem(self.base.fd, &mut idx as *mut _ as *mut _) };
+            unsafe { libbpf_sys::bpf_map_delete_elem(self.base.fd, &mut idx as *mut _ as *mut _) };
         if ret < 0 {
             Err(Error::Map)
         } else {

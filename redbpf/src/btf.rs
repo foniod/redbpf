@@ -19,7 +19,7 @@ use std::ptr;
 use std::slice;
 use tracing::{debug, error, warn};
 
-use bpf_sys::{
+use libbpf_sys::{
     btf_array, btf_enum, btf_header, btf_member, btf_param, btf_type, btf_var, btf_var_secinfo,
     BTF_INT_BOOL, BTF_INT_CHAR, BTF_INT_SIGNED, BTF_KIND_ARRAY, BTF_KIND_CONST, BTF_KIND_DATASEC,
     BTF_KIND_ENUM, BTF_KIND_FLOAT, BTF_KIND_FUNC, BTF_KIND_FUNC_PROTO, BTF_KIND_FWD, BTF_KIND_INT,
@@ -129,7 +129,7 @@ impl BTF {
         let log_buf_size = v.capacity() * mem::size_of_val(&v[0]);
         let fd;
         unsafe {
-            fd = bpf_sys::bpf_load_btf(
+            fd = libbpf_sys::bpf_load_btf(
                 raw_bytes.as_ptr() as *const _,
                 raw_bytes.len() as u32,
                 log_buf as _,
