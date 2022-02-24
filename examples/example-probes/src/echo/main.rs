@@ -21,7 +21,7 @@ fn parse_message_boundary(skb: SkBuff) -> StreamParserResult {
         let addr = (skb.skb as usize + offset_of!(__sk_buff, len)) as *const u32;
         ptr::read(addr)
     };
-    trace_print(b"length: ", len);
+    printk!("length: %u", len);
     Ok(StreamParserAction::MessageLength(len))
 }
 
@@ -33,8 +33,8 @@ fn verdict(skb: SkBuff) -> SkAction {
         (ptr::read(ip_addr), ptr::read(port_addr))
     };
 
-    trace_print(b"ip as BE: ", ip);
-    trace_print(b"port as BE: ", port);
+    printk!("ip: %x", u32::from_be(ip));
+    printk!("port: %u", u32::from_be(port));
 
     let mut idx = 0;
     match unsafe {
@@ -49,46 +49,4 @@ fn verdict(skb: SkBuff) -> SkAction {
         Ok(_) => SkAction::Pass,
         Err(_) => SkAction::Drop,
     }
-}
-
-fn hex_u8(v: u8, buf: &mut [u8]) {
-    let w = v / 0x10;
-    buf[0] = if w < 0xa { w + b'0' } else { w - 0xa + b'a' };
-    let u = v % 0x10;
-    buf[1] = if u < 0xa { u + b'0' } else { u - 0xa + b'a' };
-}
-
-fn hex_bytes(arr: &[u8], buf: &mut [u8]) -> usize {
-    let mut pos = 0;
-    for (i, b) in arr.iter().enumerate() {
-        if i != 0 {
-            buf[pos] = b' ';
-            pos += 1;
-        }
-        hex_u8(*b, &mut buf[pos..pos + 2]);
-        pos += 2;
-    }
-    pos
-}
-
-fn trace_print<T>(msg: &[u8], x: T) {
-    let mut buf = [0u8; 128];
-    let mut pos = 0;
-    for c in msg {
-        buf[pos] = *c;
-        pos += 1;
-    }
-
-    let ptr = &x as *const T as *const usize as usize;
-    let sz = mem::size_of::<T>();
-    let mut arr = [0u8; 64];
-    for i in 0..sz {
-        arr[i] = unsafe { ptr::read((ptr + i) as *const usize as *const u8) };
-    }
-
-    pos += hex_bytes(&arr[..sz], &mut buf[pos..]);
-    buf[pos] = b'\n';
-    pos += 2;
-
-    bpf_trace_printk(&buf[..pos]);
 }
