@@ -21,4 +21,4 @@ pub use crate::xdp::PerfMap;
 pub use crate::xdp::*;
 
 pub use cty::*;
-pub use redbpf_macros::{map, program, xdp};
+pub use redbpf_macros::{map, printk, program, xdp};
