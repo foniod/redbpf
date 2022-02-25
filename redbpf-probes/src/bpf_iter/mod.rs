@@ -24,5 +24,5 @@ pub mod prelude {
     pub use crate::bindings::*;
     pub use crate::helpers::*;
     pub use crate::maps::*;
-    pub use redbpf_macros::{map, program, task_iter};
+    pub use redbpf_macros::{map, printk, program, task_iter};
 }

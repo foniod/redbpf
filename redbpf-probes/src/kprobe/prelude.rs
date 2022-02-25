@@ -18,4 +18,4 @@ pub use crate::helpers::*;
 pub use crate::maps::*;
 pub use crate::registers::*;
 pub use cty::*;
-pub use redbpf_macros::{kprobe, kretprobe, map, program};
+pub use redbpf_macros::{kprobe, kretprobe, map, printk, program};
