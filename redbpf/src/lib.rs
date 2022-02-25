@@ -1430,10 +1430,12 @@ impl<'a> ModuleBuilder<'a> {
                 (hdr::SHT_PROGBITS, Some("license"), _) => {
                     license = zero::read_str(content).to_string()
                 }
+                (hdr::SHT_NOBITS, Some(name @ ".bss"), None) => {
+                    let map_builder = MapBuilder::with_section_data(name, &content)?;
+                    map_builders.insert(shndx, map_builder);
+                }
                 (hdr::SHT_PROGBITS, Some(name), None)
-                    if name == ".bss"
-                        || name.starts_with(".data")
-                        || name.starts_with(".rodata") =>
+                    if name.starts_with(".data") || name.starts_with(".rodata") =>
                 {
                     let map_builder = MapBuilder::with_section_data(name, &content)?;
                     map_builders.insert(shndx, map_builder);
