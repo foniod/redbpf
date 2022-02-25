@@ -84,6 +84,7 @@ Install LLVM 13 and the Linux kernel headers
        lsb-release \
        libelf-dev \
        linux-headers-generic \
+       pkg-config \
   && wget https://apt.llvm.org/llvm.sh && chmod +x llvm.sh && ./llvm.sh 13 && rm -f ./llvm.sh
 # llvm-config-13 --version | grep 13
 ```
@@ -102,6 +103,7 @@ Install LLVM 13 and the Linux kernel headers
 	kernel-devel \
 	elfutils-libelf-devel \
 	make \
+    pkg-config \
     zstd
 # llvm-config --version | grep 13
 ```
@@ -118,6 +120,7 @@ Install LLVM 13 and the Linux kernel headers
        libffi \
        clang \
        make \
+       pkg-config \
        linux-headers \
        linux
 # llvm-config --version | grep -q '^13'
