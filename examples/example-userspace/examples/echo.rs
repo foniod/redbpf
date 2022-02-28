@@ -3,13 +3,13 @@
 
 use std::env;
 use std::net::{IpAddr, SocketAddr};
-use std::os::unix::io::{AsRawFd, RawFd};
+use std::os::unix::io::AsRawFd;
 use std::process;
-use tokio::io::AsyncReadExt;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
 use tokio::sync::mpsc;
 use tokio::task;
-use tracing::{error, Level};
+use tracing::{debug, error, Level};
 use tracing_subscriber::FmtSubscriber;
 
 use probes::echo::IdxMapKey;
@@ -17,7 +17,6 @@ use redbpf::load::Loader;
 use redbpf::{HashMap, SockMap};
 #[derive(Debug)]
 enum Command {
-    Set { fd: RawFd, key: IdxMapKey },
     Delete { key: IdxMapKey },
 }
 
@@ -40,91 +39,91 @@ async fn main() {
         .parse()
         .expect("invalid port number");
 
+    let loaded = Loader::load(include_bytes!(concat!(
+        env!("OUT_DIR"),
+        "/target/bpf/programs/echo/echo.elf"
+    )))
+    .expect("error loading BPF program");
+    let mut echo_sockmap =
+        SockMap::new(loaded.map("echo_sockmap").expect("sockmap not found")).unwrap();
+    loaded
+        .stream_parsers()
+        .next()
+        .unwrap()
+        .attach_sockmap(&echo_sockmap)
+        .expect("Attaching sockmap failed");
+    loaded
+        .stream_verdicts()
+        .next()
+        .unwrap()
+        .attach_sockmap(&echo_sockmap)
+        .expect("Attaching sockmap failed");
+    let idx_map =
+        HashMap::<IdxMapKey, u32>::new(loaded.map("idx_map").expect("idx map not found")).unwrap();
+
+    let mut counter: u32 = 0;
+    let listener = TcpListener::bind(SocketAddr::from(([0, 0, 0, 0], port)))
+        .await
+        .unwrap();
     let (tx, mut rx) = mpsc::channel(128);
-    let local = task::LocalSet::new();
-    local.spawn_local(async move {
-        let listener = TcpListener::bind(SocketAddr::from(([0, 0, 0, 0], port)))
-            .await
-            .unwrap();
-        loop {
-            let (mut tcp_stream, client_addr) = listener.accept().await.unwrap();
-            let fd = tcp_stream.as_raw_fd();
-            if let IpAddr::V4(ipaddr) = client_addr.ip() {
-                println!("new client: {:?}, fd: {}", client_addr, fd);
+    loop {
+        tokio::select! {
+            Ok((mut tcp_stream, client_addr)) = listener.accept() => {
+                let fd = tcp_stream.as_raw_fd();
+                let ipaddr = if let IpAddr::V4(ipaddr) = client_addr.ip() {
+                    ipaddr
+                } else {
+                    error!("not an IPv4 address: {:?}", client_addr);
+                    continue;
+                };
+                debug!("new client: {:?}, fd: {}", client_addr, fd);
                 let key = IdxMapKey {
                     // use big endian because __sk_buff.remote_ip4 and
                     // __sk_buff.remote_port are big endian
-                    addr: u32::to_be(u32::from(ipaddr)),
-                    port: u32::to_be(client_addr.port().into()),
+                    addr: u32::from(ipaddr).to_be(),
+                    port: (client_addr.port() as u32).to_be(),
                 };
-                tx.send(Command::Set { fd, key }).await.unwrap();
+                idx_map.set(key, counter);
+                // NOTE: Sockmap should be set before any data is read from the
+                // socket descriptor or before some epoll event of the socket
+                // descriptor occurs. Otherwise setting sockmap results in
+                // EOPNOTSUPP error. So setting sockmap here asap.
+                let _ = echo_sockmap
+                    .set(counter, fd)
+                    .map_err(|_| error!("SockMap::set failed. Perhaps the socket is already half closed"));
+                counter += 1;
+
+                // Keep tcp_stream not to be dropped. And notify connection
+                // close to delete itself from the sockmap
                 let tx = tx.clone();
-                task::spawn_local(async move {
-                    let mut buf = [0; 0];
+                task::spawn(async move {
+                    let mut buf = Vec::new();
+                    tcp_stream.write(&buf).await.unwrap();
                     // Even though it awaits for something to read, it only
-                    // ends after the connection is hung up. Because all data
-                    // is echo-ed by BPF program, the user level socket does
-                    // not receive anything.
-                    tcp_stream.read(&mut buf[..]).await.unwrap();
-                    println!("delete client: {:?} fd: {}", client_addr, fd);
+                    // ends after the connection is half closed by the peer.
+                    // Normally the read call reads nothing but some data can
+                    // be read if setting sockmap had failed. So write all
+                    // buffer to echo it.
+                    tcp_stream.read_to_end(&mut buf).await.unwrap();
+                    tcp_stream.write_all(&buf).await.unwrap();
+                    debug!("delete client: {:?} fd: {}", client_addr, fd);
                     tx.send(Command::Delete { key }).await.unwrap();
                 });
-            } else {
-                error!("error: not an IPv4 address: {:?}", client_addr);
             }
-        }
-    });
-
-    local.spawn_local(async move {
-        let loaded = Loader::load(include_bytes!(concat!(
-            env!("OUT_DIR"),
-            "/target/bpf/programs/echo/echo.elf"
-        )))
-        .expect("error loading BPF program");
-        let mut echo_sockmap =
-            SockMap::new(loaded.map("echo_sockmap").expect("sockmap not found")).unwrap();
-        loaded
-            .stream_parsers()
-            .next()
-            .unwrap()
-            .attach_sockmap(&echo_sockmap)
-            .expect("Attaching sockmap failed");
-        loaded
-            .stream_verdicts()
-            .next()
-            .unwrap()
-            .attach_sockmap(&echo_sockmap)
-            .expect("Attaching sockmap failed");
-        let idx_map =
-            HashMap::<IdxMapKey, u32>::new(loaded.map("idx_map").expect("idx map not found"))
-                .unwrap();
-        let mut counter: u32 = 0;
-        while let Some(cmd) = rx.recv().await {
-            match cmd {
-                Command::Set { fd, key } => {
-                    unsafe {
-                        let addr: [u8; 4] = std::mem::transmute(key.addr);
-                        let port: [u8; 4] = std::mem::transmute(key.port);
-                        println!(
-                            "ipv4: {:x} {:x} {:x} {:x} port: {:x} {:x} {:x} {:x}",
-                            addr[0], addr[1], addr[2], addr[3], port[0], port[1], port[2], port[3]
-                        );
-                    }
-
-                    idx_map.set(key, counter);
-                    echo_sockmap.set(counter, fd).unwrap();
-                    counter += 1;
-                }
-                Command::Delete { key } => {
-                    if let Some(idx) = idx_map.get(key) {
-                        idx_map.delete(key);
-                        // This can be failed when the fd had been closed
-                        let _ = echo_sockmap.delete(idx);
+            Some(cmd) = rx.recv() => {
+                match cmd {
+                    Command::Delete { key } => {
+                        if let Some(idx) = idx_map.get(key) {
+                            // This can be failed when the fd had been closed
+                            let _ = echo_sockmap.delete(idx);
+                            idx_map.delete(key);
+                        }
                     }
                 }
             }
+            _ = tokio::signal::ctrl_c() => {
+                break;
+            }
         }
-    });
-
-    let _ = local.run_until(tokio::signal::ctrl_c()).await;
+    }
 }

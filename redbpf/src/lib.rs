@@ -2631,6 +2631,10 @@ impl<'a> SockMap<'a> {
             )
         };
         if ret < 0 {
+            error!(
+                "error on updating sockmap: {:?}",
+                io::Error::last_os_error()
+            );
             Err(Error::Map)
         } else {
             Ok(())
