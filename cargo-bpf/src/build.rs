@@ -197,10 +197,7 @@ fn build_probe(
         .arg("--")
         .arg("--cfg")
         .arg(version)
-        .args(
-            "--emit=llvm-bc -C panic=abort -C lto -C link-arg=-nostartfiles -C opt-level=3"
-                .split(' '),
-        )
+        .args("--emit=llvm-bc -C panic=abort -C lto -C opt-level=3 -C linker=true".split(' ')) // /usr/bin/true or /bin/true
         .arg("-g") // To generate .BTF section
         .arg("-o")
         .arg(artifacts_dir.join(probe).to_str().unwrap())
