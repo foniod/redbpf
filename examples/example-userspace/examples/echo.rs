@@ -93,18 +93,29 @@ async fn main() {
                     .map_err(|_| error!("SockMap::set failed. Perhaps the socket is already half closed"));
                 counter += 1;
 
+                // NOTE: Call setsockopt to trigger stream parser manually. If
+                // this workaround is not involved, the packets received before
+                // setting sockmap won't be handled until the next packet
+                // arrives.
+                let optval: u32 = 1;
+                if unsafe {libc::setsockopt(fd, libc::SOL_SOCKET, libc::SO_RCVLOWAT, &optval as *const _ as *const _, 4)} < 0 {
+                    error!("setsockopt error: {:?}", std::io::Error::last_os_error());
+                }
+
                 // Keep tcp_stream not to be dropped. And notify connection
                 // close to delete itself from the sockmap
                 let tx = tx.clone();
                 task::spawn(async move {
                     let mut buf = Vec::new();
-                    tcp_stream.write(&buf).await.unwrap();
                     // Even though it awaits for something to read, it only
                     // ends after the connection is half closed by the peer.
                     // Normally the read call reads nothing but some data can
                     // be read if setting sockmap had failed. So write all
                     // buffer to echo it.
                     tcp_stream.read_to_end(&mut buf).await.unwrap();
+                    if !buf.is_empty() {
+                        debug!("some data is read by userspace: {:x?}", &buf);
+                    }
                     tcp_stream.write_all(&buf).await.unwrap();
                     debug!("delete client: {:?} fd: {}", client_addr, fd);
                     tx.send(Command::Delete { key }).await.unwrap();
