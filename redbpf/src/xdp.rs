@@ -1,12 +1,12 @@
 use std::default::Default;
-use std::slice;
 use std::mem;
+use std::slice;
 
 use crate::error::{Error, Result};
 use crate::{Map, Sample};
 use libbpf_sys::{
-    XDP_FLAGS_DRV_MODE, XDP_FLAGS_HW_MODE, XDP_FLAGS_MASK, XDP_FLAGS_MODES, XDP_FLAGS_SKB_MODE,
-    XDP_FLAGS_UPDATE_IF_NOEXIST, BPF_ANY, BPF_MAP_TYPE_DEVMAP,
+    BPF_ANY, BPF_MAP_TYPE_DEVMAP, XDP_FLAGS_DRV_MODE, XDP_FLAGS_HW_MODE, XDP_FLAGS_MASK,
+    XDP_FLAGS_MODES, XDP_FLAGS_SKB_MODE, XDP_FLAGS_UPDATE_IF_NOEXIST,
 };
 
 use tracing::error;

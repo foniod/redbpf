@@ -1,9 +1,8 @@
+use crate::xdp::{
+    bpf_map_def, bpf_map_type_BPF_MAP_TYPE_DEVMAP, prelude::bpf_redirect_map, XdpAction,
+};
 use core::mem;
 use cty::c_void;
-use crate::xdp::{
-  bpf_map_def, bpf_map_type_BPF_MAP_TYPE_DEVMAP, XdpAction,
-  prelude::bpf_redirect_map,
-};
 
 /// Device map.
 ///
@@ -37,12 +36,13 @@ impl DevMap {
     pub fn redirect(&mut self, key: u32) -> Result<(), ()> {
         let res = bpf_redirect_map(
             &mut self.def as *mut _ as *mut c_void,
-            key, XdpAction::Aborted as u64
+            key,
+            XdpAction::Aborted as u64,
         );
         if res == XdpAction::Redirect as i64 {
-          Ok(())
+            Ok(())
         } else {
-          Err(())
+            Err(())
         }
     }
 }

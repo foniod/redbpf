@@ -16,7 +16,10 @@ async fn main() -> std::result::Result<(), String> {
     let mut loaded = Loader::load(probe_code()).map_err(|err| format!("{:?}", err))?;
 
     for interface in &interfaces {
-        println!("Attach p0f on interface: {} with mode {:?}", interface, xdp_mode);
+        println!(
+            "Attach p0f on interface: {} with mode {:?}",
+            interface, xdp_mode
+        );
         for prog in loaded.xdps_mut() {
             prog.attach_xdp(interface, xdp_mode)
                 .map_err(|err| format!("{:?}", err))?;
@@ -28,8 +31,9 @@ async fn main() -> std::result::Result<(), String> {
             for event in events {
                 match name.as_str() {
                     "tcp_signatures" => {
-                        let tcp_sig =
-                            unsafe { std::ptr::read_unaligned(event.as_ptr() as *const TcpSignature) };
+                        let tcp_sig = unsafe {
+                            std::ptr::read_unaligned(event.as_ptr() as *const TcpSignature)
+                        };
                         println!("tcp_signature = {:?}", tcp_sig);
                     }
 

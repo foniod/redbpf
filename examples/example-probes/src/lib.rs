@@ -14,7 +14,7 @@ pub mod bindings;
 pub mod echo;
 pub mod hashmaps;
 pub mod mallocstacks;
+pub mod p0f;
 pub mod tasks;
 pub mod tcp_lifetime;
 pub mod vfsreadlat;
-pub mod p0f;
