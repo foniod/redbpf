@@ -5,12 +5,12 @@
 // http://opensource.org/licenses/MIT>, at your option. This file may not be
 // copied, modified, or distributed except according to those terms.
 
-use std::os::raw::c_char;
 use std::ffi::CStr;
+use std::fs;
 use std::mem;
+use std::os::raw::c_char;
 use std::str::from_utf8_unchecked;
 use std::str::FromStr;
-use std::fs;
 
 #[allow(clippy::result_unit_err)]
 pub fn uname() -> Result<::libc::utsname, ()> {
@@ -31,9 +31,7 @@ pub fn get_kernel_internal_version() -> Option<u32> {
         to_str(&uname().ok()?.release).into()
     };
 
-    parse_version(&version).map(|(major, minor, patch)| {
-        major << 16 | minor << 8 | patch
-    })
+    parse_version(&version).map(|(major, minor, patch)| major << 16 | minor << 8 | patch)
 }
 
 #[allow(clippy::result_unit_err)]
@@ -67,11 +65,14 @@ fn parse_version_signature(signature: &str) -> Option<String> {
 fn parse_version(version: &str) -> Option<(u32, u32, u32)> {
     if let Some(version) = version.splitn(2, '-').next() {
         if let Some(version) = version.splitn(2, '+').next() {
-            let parts: Vec<_> = version.splitn(3, '.').filter_map(|v| u32::from_str(v).ok()).collect();
+            let parts: Vec<_> = version
+                .splitn(3, '.')
+                .filter_map(|v| u32::from_str(v).ok())
+                .collect();
             if parts.len() != 3 {
                 return None;
             }
-            return Some((parts[0], parts[1], parts[2]))
+            return Some((parts[0], parts[1], parts[2]));
         }
     }
 
@@ -98,8 +99,14 @@ mod test {
 
     #[test]
     fn test_parse_version_signature() {
-        assert_eq!(parse_version_signature("Ubuntu 4.15.0-55.60-generic 4.15.18"), Some("4.15.18".into()));
-        assert_eq!(parse_version_signature("Ubuntu 4.15.0-55.60-generic 4.15.18 foo"), None);
+        assert_eq!(
+            parse_version_signature("Ubuntu 4.15.0-55.60-generic 4.15.18"),
+            Some("4.15.18".into())
+        );
+        assert_eq!(
+            parse_version_signature("Ubuntu 4.15.0-55.60-generic 4.15.18 foo"),
+            None
+        );
         assert_eq!(parse_version_signature("Ubuntu 4.15.0-55.60-generic"), None);
     }
 }

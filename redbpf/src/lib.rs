@@ -55,16 +55,14 @@ pub mod sys;
 pub mod xdp;
 
 pub use bpf_sys::uname;
-use libbpf_sys::{
-    BPF_SK_LOOKUP, BPF_SK_SKB_STREAM_PARSER,
-    BPF_SK_SKB_STREAM_VERDICT, BPF_TRACE_ITER, bpf_create_map_attr,
-    bpf_create_map_xattr, bpf_insn, bpf_iter_create, bpf_link_create, bpf_load_program_xattr,
-    bpf_map_def, bpf_map_info, BPF_MAP_TYPE_ARRAY, BPF_MAP_TYPE_HASH,
-    BPF_MAP_TYPE_LRU_HASH, BPF_MAP_TYPE_LRU_PERCPU_HASH,
-    BPF_MAP_TYPE_PERCPU_ARRAY, BPF_MAP_TYPE_PERCPU_HASH,
-    BPF_MAP_TYPE_PERF_EVENT_ARRAY, bpf_prog_type, BPF_ANY,
-};
 use goblin::elf::{reloc::RelocSection, section_header as hdr, Elf, SectionHeader, Sym};
+use libbpf_sys::{
+    bpf_create_map_attr, bpf_create_map_xattr, bpf_insn, bpf_iter_create, bpf_link_create,
+    bpf_load_program_xattr, bpf_map_def, bpf_map_info, bpf_prog_type, BPF_ANY, BPF_MAP_TYPE_ARRAY,
+    BPF_MAP_TYPE_HASH, BPF_MAP_TYPE_LRU_HASH, BPF_MAP_TYPE_LRU_PERCPU_HASH,
+    BPF_MAP_TYPE_PERCPU_ARRAY, BPF_MAP_TYPE_PERCPU_HASH, BPF_MAP_TYPE_PERF_EVENT_ARRAY,
+    BPF_SK_LOOKUP, BPF_SK_SKB_STREAM_PARSER, BPF_SK_SKB_STREAM_VERDICT, BPF_TRACE_ITER,
+};
 
 use libc::{self, pid_t};
 use std::collections::HashMap as RSHashMap;
@@ -531,9 +529,7 @@ impl Program {
         use Program::*;
 
         match self {
-            KProbe(_) | KRetProbe(_) | UProbe(_) | URetProbe(_) => {
-                libbpf_sys::BPF_PROG_TYPE_KPROBE
-            }
+            KProbe(_) | KRetProbe(_) | UProbe(_) | URetProbe(_) => libbpf_sys::BPF_PROG_TYPE_KPROBE,
             XDP(_) => libbpf_sys::BPF_PROG_TYPE_XDP,
             SocketFilter(_) => libbpf_sys::BPF_PROG_TYPE_SOCKET_FILTER,
             TracePoint(_) => libbpf_sys::BPF_PROG_TYPE_TRACEPOINT,
@@ -670,7 +666,8 @@ impl Program {
             let mut buf_vec = vec![0; vec_len];
             let log_buffer: MutDataPtr = buf_vec.as_mut_ptr();
             let buf_size = buf_vec.capacity() * mem::size_of_val(unsafe { &*log_buffer });
-            let fd = unsafe { libbpf_sys::bpf_load_program_xattr(&attr, log_buffer, buf_size as u64) };
+            let fd =
+                unsafe { libbpf_sys::bpf_load_program_xattr(&attr, log_buffer, buf_size as u64) };
             if fd >= 0 {
                 warn!(
                     "bpf_load_program_xattr had failed but it unexpectedly succeeded while reproducing the error"
@@ -2571,14 +2568,8 @@ impl StreamParser {
         let attach_fd = sock_map.base.fd;
         let prog_fd = self.common.fd.unwrap();
 
-        let ret = unsafe {
-            libbpf_sys::bpf_prog_attach(
-                prog_fd,
-                attach_fd,
-                BPF_SK_SKB_STREAM_PARSER,
-                0,
-            )
-        };
+        let ret =
+            unsafe { libbpf_sys::bpf_prog_attach(prog_fd, attach_fd, BPF_SK_SKB_STREAM_PARSER, 0) };
         if ret < 0 {
             Err(Error::BPF)
         } else {
@@ -2603,12 +2594,7 @@ impl StreamVerdict {
         let prog_fd = self.common.fd.unwrap();
 
         let ret = unsafe {
-            libbpf_sys::bpf_prog_attach(
-                prog_fd,
-                attach_fd,
-                BPF_SK_SKB_STREAM_VERDICT,
-                0,
-            )
+            libbpf_sys::bpf_prog_attach(prog_fd, attach_fd, BPF_SK_SKB_STREAM_VERDICT, 0)
         };
         if ret < 0 {
             Err(Error::BPF)
@@ -2700,14 +2686,8 @@ impl<T> Iterator for BPFIter<T> {
 
 impl TaskIter {
     fn create_link(&mut self) -> Result<()> {
-        let link_fd = unsafe {
-            bpf_link_create(
-                self.common.fd.unwrap(),
-                0,
-                BPF_TRACE_ITER,
-                ptr::null(),
-            )
-        };
+        let link_fd =
+            unsafe { bpf_link_create(self.common.fd.unwrap(), 0, BPF_TRACE_ITER, ptr::null()) };
         if link_fd < 0 {
             error!("Error on bpf_link_create");
             return Err(Error::BPF);
@@ -2838,8 +2818,9 @@ fn bpf_map_get_next_key<K: Clone>(fd: RawFd, key: Option<K>) -> Option<K> {
         }
     } else {
         let mut key = MaybeUninit::<K>::zeroed();
-        if unsafe { libbpf_sys::bpf_map_get_next_key(fd, ptr::null(), &mut key as *mut _ as *mut _) }
-            < 0
+        if unsafe {
+            libbpf_sys::bpf_map_get_next_key(fd, ptr::null(), &mut key as *mut _ as *mut _)
+        } < 0
         {
             None
         } else {
@@ -2889,7 +2870,8 @@ fn bpf_percpu_map_get<K: Clone, V: Clone>(fd: RawFd, mut key: K) -> Option<PerCp
     let alloc_size = value_size * count;
     let mut alloc = vec![0u8; alloc_size];
     let data = alloc.as_mut_ptr();
-    if unsafe { libbpf_sys::bpf_map_lookup_elem(fd, &mut key as *mut _ as *mut _, data as *mut _) } < 0
+    if unsafe { libbpf_sys::bpf_map_lookup_elem(fd, &mut key as *mut _ as *mut _, data as *mut _) }
+        < 0
     {
         return None;
     }

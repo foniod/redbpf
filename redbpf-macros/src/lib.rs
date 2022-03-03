@@ -775,7 +775,7 @@ pub fn task_iter(attrs: TokenStream, item: TokenStream) -> TokenStream {
 ///
 /// Maximum three arguments are accepted, only one of
 /// them may be string.
-/// 
+///
 /// Supported formats:
 ///  * %d - i32
 ///  * %u - u32
@@ -822,7 +822,12 @@ pub fn printk(input: TokenStream) -> TokenStream {
     if placeholders.len() > 3 {
         panic!("maximum 3 arguments to printk! are supported");
     }
-    if placeholders.iter().filter(|p| matches!(p, FmtPlaceholder::String)).count() > 1 {
+    if placeholders
+        .iter()
+        .filter(|p| matches!(p, FmtPlaceholder::String))
+        .count()
+        > 1
+    {
         panic!("maximum 1 string argument to printk! is supported");
     }
 
@@ -832,12 +837,16 @@ pub fn printk(input: TokenStream) -> TokenStream {
     }
 
     let (_fmt_ty, fmt) = inline_string_literal(&fmt_arg);
-    let mut tok_args = args.iter().zip(placeholders).map(|(arg, placeholder)| {
-        match placeholder {
-            FmtPlaceholder::Number(typ) => quote! { ::core::convert::Into::<#typ>::into(#arg) as u64 },
+    let mut tok_args = args
+        .iter()
+        .zip(placeholders)
+        .map(|(arg, placeholder)| match placeholder {
+            FmtPlaceholder::Number(typ) => {
+                quote! { ::core::convert::Into::<#typ>::into(#arg) as u64 }
+            }
             FmtPlaceholder::String => quote! { AsRef::<::core::ffi::CStr>::as_ref(#arg).as_ptr() },
-        }
-    }).collect::<Vec<_>>();
+        })
+        .collect::<Vec<_>>();
 
     // bpf_trace_printk_raw accepts 3 parameters, pass 0 for left ones.
     while tok_args.len() < 3 {
@@ -861,7 +870,7 @@ fn parse_format_string(fmt: &str) -> Vec<FmtPlaceholder> {
     let mut iter = fmt.bytes();
     while let Some(ch) = iter.next() {
         if ch != b'%' {
-            continue
+            continue;
         }
 
         match iter.next() {

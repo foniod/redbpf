@@ -4,7 +4,7 @@ use cty::*;
 #[repr(C)]
 pub struct Process {
     pub pid: u64,
-    pub comm: [c_char; 16]
+    pub comm: [c_char; 16],
 }
 
 #[derive(Clone, Debug)]
@@ -21,5 +21,5 @@ pub struct CounterKey {
 pub struct Counter {
     pub bytes: u64,
     pub us: u64,
-    pub io: u64
+    pub io: u64,
 }

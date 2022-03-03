@@ -34,8 +34,8 @@ fn block_port_80(ctx: XdpContext) -> XdpResult {
 }
 ```
  */
-pub mod prelude;
 mod devmap;
+pub mod prelude;
 mod xskmap;
 
 pub use devmap::DevMap;
