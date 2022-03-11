@@ -355,13 +355,14 @@ pub fn build_with_features(
     Ok(())
 }
 
-pub fn cmd_build(mut programs: Vec<String>, buildopt: &BuildOptions) -> Result<(), CommandError> {
+pub fn cmd_build(mut programs: Vec<String>, buildopt: &BuildOptions, features: &Vec<String>) -> Result<(), CommandError> {
     let current_dir = std::env::current_dir().unwrap();
-    Ok(build(
+    Ok(build_with_features(
         Path::new("cargo"),
         &current_dir,
         &mut programs,
         buildopt,
+        features,
     )?)
 }
 

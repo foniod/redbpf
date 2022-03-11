@@ -192,6 +192,9 @@ fn main() {
                             .arg(Arg::with_name("NAME").required(false).multiple(true).help(
                                 "The names of the programs to compile. When no names are specified, all the programs are built",
                             ))
+                            .arg(Arg::with_name("FEATURES").value_name("FEATURES").short("f").long("features").required(false).multiple(true).help(
+                                "The features of the programs to compile. `probes` features are added by default.",
+                            ))
                     )
                     .subcommand(
                         SubCommand::with_name("load")
@@ -244,7 +247,15 @@ fn main() {
             .values_of("NAME")
             .map(|i| i.map(String::from).collect())
             .unwrap_or_else(Vec::new);
-        if let Err(e) = cargo_bpf::cmd_build(programs, &buildopt) {
+        let mut features = m
+            .values_of("FEATURES")
+            .map(|i| i.map(String::from).collect())
+            .unwrap_or_else(Vec::new);
+        let probes_feature = "probes".to_owned();
+        if !features.contains(&probes_feature) {
+            features.push(probes_feature)
+        }
+        if let Err(e) = cargo_bpf::cmd_build(programs, &buildopt, &features) {
             clap::Error::with_description(&e.0, clap::ErrorKind::InvalidValue).exit()
         }
     }
