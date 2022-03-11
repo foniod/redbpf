@@ -42,7 +42,7 @@ pub use devmap::DevMap;
 pub use xskmap::XskMap;
 
 use crate::bindings::*;
-use crate::maps::{PerfMap as PerfMapBase, PerfMapFlags};
+use crate::maps::{BpfMap, PerfMap as PerfMapBase, PerfMapFlags};
 use crate::net::{NetworkBuffer, NetworkResult};
 
 /// The result type for XDP programs.
@@ -168,4 +168,9 @@ impl<T> PerfMap<T> {
         flags.xdp_size = data.size;
         self.0.insert_with_flags(ctx.inner(), data, flags)
     }
+}
+
+impl<T> BpfMap for PerfMap<T> {
+    type Key = <PerfMapBase<T> as BpfMap>::Key;
+    type Value = <PerfMapBase<T> as BpfMap>::Value;
 }
