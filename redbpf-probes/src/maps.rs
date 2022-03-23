@@ -581,3 +581,141 @@ impl BpfMap for SockMap {
     type Key = i32;
     type Value = i32;
 }
+
+/// LPM trie map.
+///
+/// An LPM (longest prefix match) trie map is a BPF map type that can be
+/// used to find entry having longest prefix match with provided one.
+#[repr(transparent)]
+pub struct LpmTrieMap<K, V> {
+    def: bpf_map_def,
+    _k: PhantomData<K>,
+    _v: PhantomData<V>,
+}
+
+#[repr(C)]
+pub struct LpmTrieMapKey<T> {
+    pub prefix_len: u32,
+    pub data: T,
+}
+
+impl<K, V> LpmTrieMap<K, V> {
+    pub const fn with_max_entries(max_entries: u32) -> Self {
+        Self {
+            def: bpf_map_def {
+                type_: bpf_map_type_BPF_MAP_TYPE_LPM_TRIE,
+                key_size: mem::size_of::<LpmTrieMapKey<K>>() as u32,
+                value_size: mem::size_of::<V>() as u32,
+                max_entries,
+                map_flags: BPF_F_NO_PREALLOC,
+            },
+            _k: PhantomData,
+            _v: PhantomData,
+        }
+    }
+
+    /// Returns a reference to the value corresponding to the key.
+    ///
+    /// **CUATION** The value that the returned reference refers to is
+    /// stored at 8 bytes aligned memory. So the reference is not
+    /// guaranteed to be aligned properly if the alignment of the value
+    /// exceeds 8 bytes. So this method should not be called if the
+    /// alignment is greater than 8 bytes.
+    ///
+    /// Use `get_val` method instead if the alignment of value is
+    /// greater than 8 bytes.
+    #[inline]
+    pub fn get(&mut self, key: &LpmTrieMapKey<K>) -> Option<&V> {
+        unsafe {
+            let value = bpf_map_lookup_elem(
+                &mut self.def as *mut _ as *mut c_void,
+                key as *const _ as *const c_void,
+            );
+            if value.is_null() {
+                None
+            } else {
+                Some(&*(value as *const V))
+            }
+        }
+    }
+
+    /// Returns a mutable reference to the value corresponding to the key.
+    ///
+    /// **CUATION** The value that the returned mutable reference
+    /// refers to is stored at 8 bytes aligned memory. So the mutable
+    /// reference is not guaranteed to be aligned properly if the
+    /// alignment of the value exceeds 8 bytes. So this method should
+    /// not be called if the alignment is greater than 8 bytes.
+    ///
+    /// Use `get_val` method instead if the alignment of value is
+    /// greater than 8 bytes. But you should call `set` method to
+    /// update the modified value to BPF maps.
+    #[inline]
+    pub fn get_mut(&mut self, key: &LpmTrieMapKey<K>) -> Option<&mut V> {
+        unsafe {
+            let value = bpf_map_lookup_elem(
+                &mut self.def as *mut _ as *mut c_void,
+                key as *const _ as *const c_void,
+            );
+            if value.is_null() {
+                None
+            } else {
+                Some(&mut *(value as *mut V))
+            }
+        }
+    }
+
+    /// Returns a value corresponding to the key
+    ///
+    /// **NOTE** It is better to use more efficient `get_mut` method
+    /// instead if the alignment of the value is equal to or less than
+    /// 8 bytes. i.e, alignment is 8, 4, 2 bytes or 1 byte. Rust
+    /// compiler expects that the value a reference refers to should be
+    /// aligned properly. But the Linux kernel does not guarantee the
+    /// alignment of the value the rust compiler assumes but the Linux
+    /// kernel just stores values at 8 bytes aligned memory.
+    #[inline]
+    pub fn get_val(&mut self, key: &LpmTrieMapKey<K>) -> Option<V> {
+        unsafe {
+            let value = bpf_map_lookup_elem(
+                &mut self.def as *mut _ as *mut c_void,
+                key as *const _ as *const c_void,
+            );
+            if value.is_null() {
+                None
+            } else {
+                Some(ptr::read_unaligned(value as *const V))
+            }
+        }
+    }
+
+    /// Set the `value` in the map for `key`
+    #[inline]
+    pub fn set(&mut self, key: &LpmTrieMapKey<K>, value: &V) {
+        unsafe {
+            bpf_map_update_elem(
+                &mut self.def as *mut _ as *mut c_void,
+                key as *const _ as *const c_void,
+                value as *const _ as *const c_void,
+                BPF_ANY.into(),
+            );
+        }
+    }
+
+    /// Delete the entry indexed by `key`
+    #[inline]
+    pub fn delete(&mut self, key: &LpmTrieMapKey<K>) {
+        unsafe {
+            bpf_map_delete_elem(
+                &mut self.def as *mut _ as *mut c_void,
+                key as *const _ as *const c_void,
+            );
+        }
+    }
+}
+
+impl<K, V> BpfMap for LpmTrieMap<K, V> {
+    type Key = LpmTrieMapKey<K>;
+    type Value = V;
+}
+

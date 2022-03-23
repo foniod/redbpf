@@ -61,6 +61,7 @@ use libbpf_sys::{
     bpf_load_program_xattr, bpf_map_def, bpf_map_info, bpf_prog_type, BPF_ANY, BPF_MAP_TYPE_ARRAY,
     BPF_MAP_TYPE_HASH, BPF_MAP_TYPE_LRU_HASH, BPF_MAP_TYPE_LRU_PERCPU_HASH,
     BPF_MAP_TYPE_PERCPU_ARRAY, BPF_MAP_TYPE_PERCPU_HASH, BPF_MAP_TYPE_PERF_EVENT_ARRAY,
+    BPF_MAP_TYPE_LPM_TRIE,
     BPF_SK_LOOKUP, BPF_SK_SKB_STREAM_PARSER, BPF_SK_SKB_STREAM_VERDICT, BPF_TRACE_ITER,
 };
 
@@ -420,6 +421,23 @@ pub struct Array<'a, T: Clone> {
 pub struct PerCpuArray<'a, T: Clone> {
     base: &'a Map,
     _element: PhantomData<T>,
+}
+
+#[repr(C)]
+#[derive(Clone)]
+pub struct LpmTrieMapKey<T> {
+    pub prefix_len: u32,
+    pub data: T,
+}
+
+/// A BPF LPM trie map structure
+///
+/// This provides higher level API for BPF maps whose type is
+/// `BPF_MAP_TYPE_LPM_TRIE`
+pub struct LpmTrieMap<'a, K: Clone, V: Clone> {
+    base: &'a Map,
+    _k: PhantomData<K>,
+    _v: PhantomData<V>,
 }
 
 // TODO Use PERF_MAX_STACK_DEPTH
@@ -2637,6 +2655,57 @@ impl<'a> SockMap<'a> {
         } else {
             Ok(())
         }
+    }
+}
+
+impl<'base, K: Clone, V: Clone> LpmTrieMap<'base, K, V> {
+    pub fn new(base: &'base Map) -> Result<Self> {
+        if mem::size_of::<K>() + mem::size_of::<u32>() != base.config.key_size as usize
+            || mem::size_of::<V>() != base.config.value_size as usize
+            || BPF_MAP_TYPE_LPM_TRIE != base.config.type_
+        {
+            error!(
+                "map definitions (map type and key/value size) of base `Map' and
+            `LpmTrieMap' do not match"
+            );
+            return Err(Error::Map);
+        }
+
+        Ok(Self {
+            base,
+            _k: PhantomData,
+            _v: PhantomData,
+        })
+    }
+
+    pub fn set(&self, key: LpmTrieMapKey<K>, value: V) {
+        let _ = bpf_map_set(self.base.fd, key, value);
+    }
+
+    pub fn get(&self, key: LpmTrieMapKey<K>) -> Option<V> {
+        bpf_map_get(self.base.fd, key)
+    }
+
+    pub fn delete(&self, key: LpmTrieMapKey<K>) {
+        let _ = bpf_map_delete(self.base.fd, key);
+    }
+
+    /// Return an iterator over all items in the map
+    pub fn iter<'a>(&'a self) -> MapIter<'a, LpmTrieMapKey<K>, V> {
+        MapIter {
+            iterable: self,
+            last_key: None,
+        }
+    }
+}
+
+impl<K: Clone, V: Clone> MapIterable<LpmTrieMapKey<K>, V> for LpmTrieMap<'_, K, V> {
+    fn get(&self, key: LpmTrieMapKey<K>) -> Option<V> {
+        LpmTrieMap::get(self, key)
+    }
+
+    fn next_key(&self, key: Option<LpmTrieMapKey<K>>) -> Option<LpmTrieMapKey<K>> {
+        bpf_map_get_next_key(self.base.fd, key)
     }
 }
 
