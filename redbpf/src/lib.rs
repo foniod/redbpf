@@ -313,6 +313,19 @@ pub struct Map {
     pin_file: Option<Box<Path>>,
 }
 
+impl Clone for Map {
+    fn clone(&self) -> Self {
+        Map {
+            name: self.name.clone(),
+            kind: self.kind,
+            fd: unsafe { libc::dup(self.fd) },
+            config: self.config.clone(),
+            section_data: self.section_data,
+            pin_file: self.pin_file.clone(),
+        }
+    }
+}
+
 enum MapBuilder<'a> {
     Normal {
         name: String,
