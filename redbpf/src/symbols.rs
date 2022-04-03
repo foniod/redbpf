@@ -34,23 +34,55 @@ impl<'a> ElfSymbols<'a> {
     }
 
     fn resolve_dyn_syms(&self, sym_name: &str) -> Option<Sym> {
-        self.elf.dynsyms.iter().find(|sym| {
-            self.elf
-                .dynstrtab
-                .get_at(sym.st_name)
-                .map(|n| n == sym_name)
-                .unwrap_or(false)
-        })
+        self.elf
+            .dynsyms
+            .iter()
+            .find(|sym| {
+                self.elf
+                    .dynstrtab
+                    .get_at(sym.st_name)
+                    .map(|n| n == sym_name)
+                    .unwrap_or(false)
+            })
+            .map(|s| self.translate_sym_addr(s))
+    }
+
+    fn needs_addr_translation(&self) -> bool {
+        self.elf.header.e_type == goblin::elf::header::ET_DYN
+            || self.elf.header.e_type == goblin::elf::header::ET_EXEC
+    }
+
+    fn translate_sym_addr(&self, sym: Sym) -> Sym {
+        if !self.needs_addr_translation() {
+            return sym;
+        }
+        if let Some(shdr) = self
+            .elf
+            .section_headers
+            .iter()
+            .find(|shdr| shdr.vm_range().contains(&(sym.st_value as usize)))
+        {
+            Sym {
+                st_value: sym.st_value - shdr.sh_addr + shdr.sh_offset,
+                ..sym
+            }
+        } else {
+            sym
+        }
     }
 
     fn resolve_syms(&self, sym_name: &str) -> Option<Sym> {
-        self.elf.syms.iter().find(|sym| {
-            self.elf
-                .strtab
-                .get_at(sym.st_name)
-                .map(|n| n == sym_name)
-                .unwrap_or(false)
-        })
+        self.elf
+            .syms
+            .iter()
+            .find(|sym| {
+                self.elf
+                    .strtab
+                    .get_at(sym.st_name)
+                    .map(|n| n == sym_name)
+                    .unwrap_or(false)
+            })
+            .map(|s| self.translate_sym_addr(s))
     }
 
     pub fn resolve(&self, sym_name: &str) -> Option<Sym> {
