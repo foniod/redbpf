@@ -15,8 +15,8 @@ use std::path::Path;
 use crate::load::map_io::PerfMessageStream;
 use crate::{cpus, Program};
 use crate::{
-    Error, KProbe, Map, Module, PerfMap, SkLookup, SocketFilter, StreamParser, StreamVerdict,
-    TaskIter, UProbe, XDP,
+    Error, GlobalVariable, KProbe, Map, Module, PerfMap, SkLookup, SocketFilter, StreamParser,
+    StreamVerdict, TaskIter, UProbe, XDP,
 };
 
 #[derive(Debug)]
@@ -187,5 +187,9 @@ impl Loaded {
 
     pub fn task_iter_mut(&mut self, name: &str) -> Option<&mut TaskIter> {
         self.module.task_iter_mut(name)
+    }
+
+    pub fn global<T: Clone>(&self, name: &str) -> Result<GlobalVariable<'_, T>, Error> {
+        self.module.global(name)
     }
 }

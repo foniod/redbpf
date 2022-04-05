@@ -834,3 +834,22 @@ fn parse_format_string(fmt: &str) -> Vec<FmtPlaceholder> {
     }
     res
 }
+
+/// Attribute macro for defining global variables that can be accessed by
+/// userspace programs
+///
+/// It is not necessary to call this attribute for all global variables. This
+/// attribute is needed to be called only if global variables are accessed by
+/// userspace programs. You can omit this attribute if the global variable is
+/// used among only BPF programs.
+#[proc_macro_attribute]
+pub fn global(_attrs: TokenStream, item: TokenStream) -> TokenStream {
+    let item = parse_macro_input!(item as ItemStatic);
+    let section_name = format!("globals/{}", item.ident.to_string());
+    quote! {
+        #[no_mangle]
+        #[link_section = #section_name]
+        #item
+    }
+    .into()
+}

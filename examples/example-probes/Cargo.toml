@@ -88,3 +88,8 @@ required-features = ["probes"]
 name = "bounded_loop"
 path = "src/bounded_loop/main.rs"
 required-features = ["probes"]
+
+[[bin]]
+name = "global_var"
+path = "src/global_var/main.rs"
+required-features = ["probes"]

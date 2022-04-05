@@ -1447,6 +1447,19 @@ impl Module {
     pub fn task_iter_mut(&mut self, name: &str) -> Option<&mut TaskIter> {
         self.task_iters_mut().find(|p| p.common.name == name)
     }
+
+    /// Get [`GlobalVariable`](struct.GlobalVariable.html)
+    ///
+    /// Returned instance is corresponding to a global variable of which name
+    /// is `name` in BPF programs.
+    pub fn global<T: Clone>(&self, name: &str) -> Result<GlobalVariable<'_, T>> {
+        let map = self.map(name).ok_or_else(|| {
+            error!("map not found: {}", name);
+            Error::Map
+        })?;
+
+        GlobalVariable::new(map)
+    }
 }
 
 impl<'a> ModuleBuilder<'a> {
@@ -1549,6 +1562,10 @@ impl<'a> ModuleBuilder<'a> {
                         }
                         symval_to_map_builders.insert(sym.st_value, map_builder);
                     }
+                }
+                (hdr::SHT_PROGBITS, Some("globals"), Some(name)) => {
+                    let map_builder = MapBuilder::with_section_data(name, &content)?;
+                    map_builders.insert(shndx, map_builder);
                 }
                 (hdr::SHT_PROGBITS, Some(kind @ "kprobe"), Some(name))
                 | (hdr::SHT_PROGBITS, Some(kind @ "kretprobe"), Some(name))
@@ -2844,6 +2861,31 @@ impl Drop for TaskIter {
                 let _ = libc::close(link_fd);
             }
         }
+    }
+}
+
+/// A userspace proxy for global variables of BPF programs
+///
+/// Global variables in BPF programs are implemented by BPF array map.
+/// `GlobalVariable` provides a simple wrapper around it.
+pub struct GlobalVariable<'a, T: Clone> {
+    array: Array<'a, T>,
+}
+
+impl<'a, T: Clone> GlobalVariable<'a, T> {
+    fn new(map: &Map) -> Result<GlobalVariable<T>> {
+        let array = Array::<T>::new(map)?;
+        Ok(GlobalVariable { array })
+    }
+
+    /// Load value from the global variable of BPF programs
+    pub fn load(&self) -> Option<T> {
+        self.array.get(0)
+    }
+
+    /// Store value to the global variable of BPF programs
+    pub fn store(&self, val: T) -> Result<()> {
+        self.array.set(0, val)
     }
 }
 

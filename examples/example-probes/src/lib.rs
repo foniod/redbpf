@@ -12,6 +12,7 @@
 pub mod bindings;
 
 pub mod echo;
+pub mod global_var;
 pub mod hashmaps;
 pub mod mallocstacks;
 pub mod p0f;
