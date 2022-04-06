@@ -111,6 +111,8 @@ pub mod kprobe;
 pub mod maps;
 pub mod net;
 pub mod registers;
+#[cfg(feature = "ringbuf")]
+pub mod ringbuf;
 pub mod socket;
 pub mod socket_filter;
 pub mod sockmap;

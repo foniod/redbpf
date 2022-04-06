@@ -50,6 +50,7 @@ mod error;
 #[cfg(feature = "load")]
 pub mod load;
 mod perf;
+mod ringbuf;
 mod symbols;
 pub mod sys;
 pub mod xdp;
@@ -80,6 +81,7 @@ use std::ptr;
 use crate::btf::{BtfKind, MapBtfTypeId, BTF};
 pub use crate::error::{Error, Result};
 pub use crate::perf::*;
+pub use crate::ringbuf::*;
 use crate::symbols::*;
 use crate::uname::get_kernel_internal_version;
 
