@@ -135,7 +135,7 @@ yet, you may build LLVM from the LLVM source code.
 $ tar -xaf llvm-13.0.0.src.tar.xz
 $ mkdir -p llvm-13.0.0.src/build
 $ cd llvm-13.0.0.src/build
-$ cmake .. -DCMAKE_INSTALL_PREFIX=$HOME/llvm-13-release -DCMAKE_BUILD_TYPE=Release
+$ cmake .. -DCMAKE_INSTALL_PREFIX=$HOME/llvm-13-release -DCMAKE_BUILD_TYPE=Release -DLLVM_BUILD_LLVM_DYLIB=1
 $ cmake --build . --target install
 ```
 
