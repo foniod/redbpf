@@ -4,3 +4,5 @@ GPATH
 *TAGS*
 cscope*
 lsp-target
+.direnv
+/result

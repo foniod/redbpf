@@ -1,2 +1,2 @@
 [workspace]
-members = ["bpf-sys", "redbpf", "redbpf-probes", "redbpf-macros", "cargo-bpf", "redbpf-tools", "examples/example-probes", "examples/example-userspace"]
+members = ["bpf-sys", "redbpf", "redbpf-probes", "redbpf-macros", "cargo-bpf", "redbpf-tools","redbpf-tools/probes",  "examples/example-probes", "examples/example-userspace"]
