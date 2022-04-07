@@ -23,15 +23,13 @@ jobs:
     -
       name: Checkout
       uses: actions/checkout@v2
+      with:
+        submodules: recursive
     -
       name: Build host info
       run: |
         uname -a
         cat /etc/os-release
-    -
-      name: Initialize git submodules
-      run: |
-        git submodule update --init --recursive
     -
       name: Build RedBPF with the kernel headers on x86_64 Ubuntu 21.04
       run: |
@@ -64,15 +62,13 @@ jobs:
     -
       name: Checkout
       uses: actions/checkout@v2
+      with:
+        submodules: recursive
     -
       name: Build host info
       run: |
         uname -a
         cat /etc/os-release
-    -
-      name: Initialize git submodules
-      run: |
-        git submodule update --init --recursive
     -
       name: Build RedBPF with the kernel headers on x86_64 Debian 11
       run: |
@@ -105,15 +101,13 @@ jobs:
     -
       name: Checkout
       uses: actions/checkout@v2
+      with:
+        submodules: recursive
     -
       name: Build host info
       run: |
         uname -a
         cat /etc/os-release
-    -
-      name: Initialize git submodules
-      run: |
-        git submodule update --init --recursive
     -
       name: Build RedBPF with the kernel headers on x86_64 Fedora 35
       run: |
@@ -148,15 +142,13 @@ jobs:
     -
       name: Checkout
       uses: actions/checkout@v2
+      with:
+        submodules: recursive
     -
       name: Build host info
       run: |
         uname -a
         cat /etc/os-release
-    -
-      name: Initialize git submodules
-      run: |
-        git submodule update --init --recursive
     -
       name: Build RedBPF with the kernel headers on x86_64 Alpine 3.15
       run: |
@@ -178,15 +170,13 @@ jobs:
     -
       name: Checkout
       uses: actions/checkout@v2
+      with:
+        submodules: recursive
     -
       name: Build host info
       run: |
         uname -a
         cat /etc/os-release
-    -
-      name: Initialize git submodules
-      run: |
-        git submodule update --init --recursive
     -
       name: Build RedBPF with the kernel headers on x86_64 Arch Linux
       run: |
@@ -219,15 +209,13 @@ jobs:
     -
       name: Checkout
       uses: actions/checkout@v2
+      with:
+        submodules: recursive
     -
       name: Build host info
       run: |
         uname -a
         cat /etc/os-release
-    -
-      name: Initialize git submodules
-      run: |
-        git submodule update --init --recursive
     -
       name: Build RedBPF with the kernel headers on x86_64 Ubuntu 20.04 LTS
       run: |
@@ -248,15 +236,13 @@ jobs:
     -
       name: Checkout
       uses: actions/checkout@v2
+      with:
+        submodules: recursive
     -
       name: Build host info
       run: |
         uname -a
         cat /etc/os-release
-    -
-      name: Initialize git submodules
-      run: |
-        git submodule update --init --recursive
     -
       name: Build RedBPF with the kernel headers on x86_64 Gentoo
       run: |
@@ -277,6 +263,8 @@ jobs:
     -
       name: Checkout
       uses: actions/checkout@v2
+      with:
+        submodules: recursive
     -
       name: Build host info
       run: |
@@ -292,10 +280,6 @@ jobs:
     -
       name: Available platforms
       run: echo ${{ steps.qemu.outputs.platforms }}
-    -
-      name: Initialize git submodules
-      run: |
-        git submodule update --init --recursive
     -
       name: Build RedBPF with the kernel headers on aarch64 Ubuntu 21.04
       run: |
@@ -328,6 +312,8 @@ jobs:
     -
       name: Checkout
       uses: actions/checkout@v2
+      with:
+        submodules: recursive
     -
       name: Build host info
       run: |
@@ -343,10 +329,6 @@ jobs:
     -
       name: Available platforms
       run: echo ${{ steps.qemu.outputs.platforms }}
-    -
-      name: Initialize git submodules
-      run: |
-        git submodule update --init --recursive
     -
       name: Build RedBPF with the kernel headers on aarch64 Debian 11
       run: |
@@ -381,6 +363,8 @@ jobs:
     -
       name: Checkout
       uses: actions/checkout@v2
+      with:
+        submodules: recursive
     -
       name: Build host info
       run: |
@@ -396,10 +380,6 @@ jobs:
     -
       name: Available platforms
       run: echo ${{ steps.qemu.outputs.platforms }}
-    -
-      name: Initialize git submodules
-      run: |
-        git submodule update --init --recursive
     -
       name: Build RedBPF with the kernel headers on aarch64 Fedora 35
       run: |
@@ -420,6 +400,8 @@ jobs:
     -
       name: Checkout
       uses: actions/checkout@v2
+      with:
+        submodules: recursive
     -
       name: Build host info
       run: |
@@ -435,10 +417,6 @@ jobs:
     -
       name: Available platforms
       run: echo ${{ steps.qemu.outputs.platforms }}
-    -
-      name: Initialize git submodules
-      run: |
-        git submodule update --init --recursive
     -
       name: Build RedBPF with vmlinux on aarch64 Fedora 35
       run: |
@@ -460,6 +438,8 @@ jobs:
     -
       name: Checkout
       uses: actions/checkout@v2
+      with:
+        submodules: recursive
     -
       name: Build host info
       run: |
@@ -475,10 +455,6 @@ jobs:
     -
       name: Available platforms
       run: echo ${{ steps.qemu.outputs.platforms }}
-    -
-      name: Initialize git submodules
-      run: |
-        git submodule update --init --recursive
     -
       name: Build RedBPF with the kernel headers on aarch64 Alpine 3.15
       run: |
@@ -533,6 +509,28 @@ jobs:
           && cargo build --bin cargo-bpf \
           && cargo build --examples'
 
+  build-on-x86_64-nix-stable:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2.4.0
+      with:
+        submodules: recursive
+    - uses: cachix/install-nix-action@v17
+      with:
+        nix_path: nixpkgs=channel:nixos-21.11
+    - run: nix build '.?submodules=1'
+
+  build-on-x86_64-nix-unstable:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2.4.0
+      with:
+        submodules: recursive
+    - uses: cachix/install-nix-action@v17
+      with:
+        nix_path: nixpkgs=channel:nixos-unstable
+    - run: nix build '.?submodules=1'
+
   publish:
     runs-on: ubuntu-latest
     if: startsWith( github.ref, 'refs/tags/v')
@@ -544,6 +542,8 @@ jobs:
     - build-on-x86_64-archlinux
     - build-on-x86_64-ubuntu-2004
     - build-on-x86_64-gentoo
+    - build-on-x86_64-nix-stable
+    - build-on-x86_64-nix-unstable
     - build-on-aarch64-ubuntu-2104
     - build-on-aarch64-debian11
     - build-on-aarch64-fedora35-header
