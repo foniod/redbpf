@@ -45,14 +45,14 @@ For some reasons, you may want to build LLVM from source code.
 
 When you build LLVM, consider building LLVM with `Release` build mode.
 
-For example, when you build LLVM13 from source code, you can pass
+For example, when you build LLVM14 from source code, you can pass
 `-DCMAKE_BUILD_TYPE=Release` to the `cmake` command as below:
 
 ```console
-$ tar -xaf llvm-13.0.0.src.tar.xz
-$ mkdir -p llvm-13.0.0.src/build
-$ cd llvm-13.0.0.src/build
-$ cmake .. -DCMAKE_INSTALL_PREFIX=$HOME/llvm-13-release -DCMAKE_BUILD_TYPE=Release
+$ tar -xaf llvm-14.0.0.src.tar.xz
+$ mkdir -p llvm-14.0.0.src/build
+$ cd llvm-14.0.0.src/build
+$ cmake .. -DCMAKE_INSTALL_PREFIX=$HOME/llvm-14-release -DCMAKE_BUILD_TYPE=Release
 $ cmake --build . --target install
 ```
 

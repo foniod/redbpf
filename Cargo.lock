@@ -121,7 +121,8 @@ dependencies = [
  "lazy_static",
  "libbpf-sys",
  "libc",
- "llvm-sys",
+ "llvm-sys 130.0.3",
+ "llvm-sys 140.0.0",
  "proc-macro2",
  "quote",
  "redbpf",
@@ -478,6 +479,19 @@ dependencies = [
  "libc",
  "regex",
  "semver 0.11.0",
+]
+
+[[package]]
+name = "llvm-sys"
+version = "140.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7edbec78fa56ea7a1ff451683a51b8ecf79a65ca9e88a4be6c4b0a6fc300d2a6"
+dependencies = [
+ "cc",
+ "lazy_static",
+ "libc",
+ "regex",
+ "semver 1.0.7",
 ]
 
 [[package]]

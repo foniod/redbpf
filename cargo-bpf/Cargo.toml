@@ -39,6 +39,7 @@ anyhow = "1.0"
 # if `strict-versioning` feature is off, llvm-sys-130 can be linked to
 # libLLVM13 and newer libraries.
 llvm-sys-130 = { version = "130", optional = true, package = "llvm-sys" }
+llvm-sys-140 = { version = "140", optional = true, package = "llvm-sys" }
 cfg-if = "1.0"
 rustversion = "1.0"
 rustc_version = "0.4.0"
@@ -53,11 +54,12 @@ cfg-if = "1.0.0"
 default = ["command-line", "llvm-sys"]
 bindings = ["libbpf-sys", "bpf-sys", "bindgen", "syn", "quote", "proc-macro2", "tempfile"]
 build = ["bindings", "libc", "toml_edit", "redbpf"]
-docsrs-llvm = ["llvm-sys-130/no-llvm-linking", "llvm-sys-130/disable-alltargets-init"]
+docsrs-llvm = ["llvm-sys-140/no-llvm-linking", "llvm-sys-140/disable-alltargets-init"]
 build-c = []
 command-line = ["build", "clap", "redbpf/load", "futures", "tokio", "hexdump"]
-llvm-sys = ["llvm-sys-130"]  # Use current default LLVM version or higher
+llvm-sys = ["llvm-sys-140"]  # Use current default LLVM version or higher
 llvm13 = ["llvm-sys-130"]
+llvm14 = ["llvm-sys-140"]
 
 [package.metadata.docs.rs]
 all-features = false
