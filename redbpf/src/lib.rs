@@ -60,9 +60,8 @@ use goblin::elf::{reloc::RelocSection, section_header as hdr, Elf, SectionHeader
 use libbpf_sys::{
     bpf_create_map_attr, bpf_create_map_xattr, bpf_insn, bpf_iter_create, bpf_link_create,
     bpf_load_program_xattr, bpf_map_def, bpf_map_info, bpf_prog_type, BPF_ANY, BPF_MAP_TYPE_ARRAY,
-    BPF_MAP_TYPE_HASH, BPF_MAP_TYPE_LRU_HASH, BPF_MAP_TYPE_LRU_PERCPU_HASH,
+    BPF_MAP_TYPE_HASH, BPF_MAP_TYPE_LPM_TRIE, BPF_MAP_TYPE_LRU_HASH, BPF_MAP_TYPE_LRU_PERCPU_HASH,
     BPF_MAP_TYPE_PERCPU_ARRAY, BPF_MAP_TYPE_PERCPU_HASH, BPF_MAP_TYPE_PERF_EVENT_ARRAY,
-    BPF_MAP_TYPE_LPM_TRIE,
     BPF_SK_LOOKUP, BPF_SK_SKB_STREAM_PARSER, BPF_SK_SKB_STREAM_VERDICT, BPF_TRACE_ITER,
 };
 
@@ -907,6 +906,38 @@ impl UProbe {
         target: &str,
         pid: Option<pid_t>,
     ) -> Result<()> {
+        self.attach_uprobe_with_semaphore(fn_name, offset, 0, target, pid)
+    }
+
+    /// Attach the `uprobe` or `uretprobe`.
+    ///
+    /// Attach the probe to the function `fn_name` defined in the library or
+    /// binary at `path`. If an `offset` is given, the probe will be attached at
+    /// that byte offset inside the function. If `fn_name` is `None`, then
+    /// `offset` is treated as an absolute address.
+    ///
+    /// Use `semaphore` to set an address for a reference counter that will be
+    /// automatically updated by the kernel to enable a USDT probe. This feature is
+    /// supported by Linux kernels starting from 4.20.
+    ///
+    /// If a `pid` is passed, only the corresponding process is traced.
+    ///
+    /// # Example
+    /// ```no_run
+    /// use redbpf::Module;
+    /// let mut module = Module::parse(&std::fs::read("file.elf").unwrap()).unwrap();
+    /// for uprobe in module.uprobes_mut() {
+    ///     uprobe.attach_uprobe_semaphore(Some(&uprobe.name()), 0, 0, "/lib/x86_64-linux-gnu/libc-2.30.so", None).unwrap();
+    /// }
+    /// ```
+    pub fn attach_uprobe_with_semaphore(
+        &mut self,
+        fn_name: Option<&str>,
+        offset: u64,
+        semaphore: u32,
+        target: &str,
+        pid: Option<pid_t>,
+    ) -> Result<()> {
         let fd = self.common.fd.ok_or(Error::ProgramNotLoaded)?;
 
         let path = if let Some(pid) = pid {
@@ -930,10 +961,10 @@ impl UProbe {
         unsafe {
             let pfd = match self.attach_type {
                 ProbeAttachType::Entry => {
-                    perf::open_uprobe_perf_event(&path, offset + sym_offset, pid)?
+                    perf::open_uprobe_perf_event(&path, offset + sym_offset, semaphore, pid)?
                 }
                 ProbeAttachType::Return => {
-                    perf::open_uretprobe_perf_event(&path, offset + sym_offset, pid)?
+                    perf::open_uretprobe_perf_event(&path, offset + sym_offset, semaphore, pid)?
                 }
             };
             let ret = perf::attach_perf_event(fd, pfd);
@@ -1088,10 +1119,7 @@ impl XDP {
             .ok_or(Error::ProgramNotLoaded)?;
         if let Err(e) = unsafe { detach_xdp(ifindex) } {
             if let Error::IO(ref oserr) = e {
-                error!(
-                    "error detaching xdp from interface #{}: {}",
-                    ifindex, oserr
-                );
+                error!("error detaching xdp from interface #{}: {}", ifindex, oserr);
             }
             return Err(e);
         }

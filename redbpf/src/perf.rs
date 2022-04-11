@@ -68,6 +68,8 @@ use libc::{
 
 use crate::sys::perf::*;
 
+const PERF_UPROBE_REF_CTR_OFFSET_SHIFT: u64 = 32;
+
 unsafe fn open_perf_buffer(pid: i32, cpu: i32, group: RawFd, flags: u32) -> Result<RawFd> {
     let mut attr = mem::zeroed::<perf_event_attr>();
 
@@ -159,6 +161,7 @@ pub(crate) unsafe fn open_kretprobe_perf_event(name: &str, offset: u64) -> Resul
 unsafe fn perf_event_open_uprobe(
     name: &str,
     offset: u64,
+    ref_ctr_offset: u32,
     pid: Option<libc::pid_t>,
     retprobe: bool,
 ) -> Result<RawFd> {
@@ -176,6 +179,7 @@ unsafe fn perf_event_open_uprobe(
         let bit = v[1].parse::<i32>().unwrap();
         attr.config |= 1 << bit;
     }
+    attr.config |= (ref_ctr_offset as u64) << PERF_UPROBE_REF_CTR_OFFSET_SHIFT;
     attr.size = mem::size_of_val(&attr) as u32;
     attr.type_ = type_;
     let cname = CString::new(name)?;
@@ -200,17 +204,19 @@ unsafe fn perf_event_open_uprobe(
 pub(crate) unsafe fn open_uprobe_perf_event(
     name: &str,
     offset: u64,
+    semaphore: u32,
     pid: Option<libc::pid_t>,
 ) -> Result<RawFd> {
-    perf_event_open_uprobe(name, offset, pid, false)
+    perf_event_open_uprobe(name, offset, semaphore, pid, false)
 }
 
 pub(crate) unsafe fn open_uretprobe_perf_event(
     name: &str,
     offset: u64,
+    semaphore: u32,
     pid: Option<libc::pid_t>,
 ) -> Result<RawFd> {
-    perf_event_open_uprobe(name, offset, pid, true)
+    perf_event_open_uprobe(name, offset, semaphore, pid, true)
 }
 
 pub(crate) unsafe fn open_tracepoint_perf_event(category: &str, name: &str) -> Result<RawFd> {
