@@ -25,13 +25,18 @@ pub fn uname() -> Result<::libc::utsname, ()> {
 
 #[inline]
 pub fn get_kernel_internal_version() -> Option<u32> {
-    let version = if let Ok(version) = fs::read_to_string("/proc/version_signature") {
-        parse_version_signature(&version.trim())?
-    } else {
-        to_str(&uname().ok()?.release).into()
+    let mut version = None;
+
+    if let Ok(version_signature) = fs::read_to_string("/proc/version_signature") {
+        version = parse_version_signature(&version_signature.trim());
+    }
+
+    let final_version = match version {
+        Some(version) => version,
+        None => to_str(&uname().ok()?.release).to_string(),
     };
 
-    parse_version(&version).map(|(major, minor, patch)| major << 16 | minor << 8 | patch)
+    parse_version(&final_version).map(|(major, minor, patch)| major << 16 | minor << 8 | patch)
 }
 
 #[allow(clippy::result_unit_err)]
