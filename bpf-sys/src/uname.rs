@@ -25,11 +25,11 @@ pub fn uname() -> Result<::libc::utsname, ()> {
 
 #[inline]
 pub fn get_kernel_internal_version() -> Option<u32> {
-    let mut version = None;
-
-    if let Ok(version_signature) = fs::read_to_string("/proc/version_signature") {
-        version = parse_version_signature(&version_signature.trim());
-    }
+    let version = if let Ok(version_signature) = fs::read_to_string("/proc/version_signature") {
+        parse_version_signature(&version_signature.trim())
+    } else {
+        None
+    };
 
     let final_version = match version {
         Some(version) => version,
