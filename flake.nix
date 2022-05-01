@@ -32,13 +32,13 @@
           root = ./.;
           gitSubmodules = true;
 
-          LIBCLANG_PATH = "${pkgs.llvmPackages_13.libclang.lib}/lib";
+          LIBCLANG_PATH = "${pkgs.llvmPackages_14.libclang.lib}/lib";
           KERNEL_SOURCE = "${pkgs.linuxPackages.kernel.dev}/lib/modules/${pkgs.linuxPackages.kernel.version}";
 
           nativeBuildInputs = with pkgs; [
             pkgconfig
-            llvm_13
-            clang_13
+            llvm_14
+            clang_14
           ];
           buildInputs = with pkgs; [
             openssl
@@ -65,13 +65,14 @@
           inputsFrom = [ self.packages.${system}.cargo-bpf ];
           nativeBuildInputs = with pkgs; [
             cargo
+            pkg-config
             rustc
             rust-analyzer
             rustfmt
             clippy
           ];
 
-          LIBCLANG_PATH = "${pkgs.llvmPackages_13.libclang.lib}/lib";
+          LIBCLANG_PATH = "${pkgs.llvmPackages_14.libclang.lib}/lib";
         };
       });
 }
