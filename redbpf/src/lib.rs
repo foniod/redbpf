@@ -60,9 +60,17 @@ use goblin::elf::{reloc::RelocSection, section_header as hdr, Elf, SectionHeader
 use libbpf_sys::{
     bpf_create_map_attr, bpf_create_map_xattr, bpf_insn, bpf_iter_create, bpf_link_create,
     bpf_load_program_xattr, bpf_map_def, bpf_map_info, bpf_prog_type, BPF_ANY, BPF_MAP_TYPE_ARRAY,
-    BPF_MAP_TYPE_HASH, BPF_MAP_TYPE_LPM_TRIE, BPF_MAP_TYPE_LRU_HASH, BPF_MAP_TYPE_LRU_PERCPU_HASH,
-    BPF_MAP_TYPE_PERCPU_ARRAY, BPF_MAP_TYPE_PERCPU_HASH, BPF_MAP_TYPE_PERF_EVENT_ARRAY,
-    BPF_SK_LOOKUP, BPF_SK_SKB_STREAM_PARSER, BPF_SK_SKB_STREAM_VERDICT, BPF_TRACE_ITER,
+    BPF_MAP_TYPE_ARRAY_OF_MAPS, BPF_MAP_TYPE_BLOOM_FILTER, BPF_MAP_TYPE_CGROUP_ARRAY,
+    BPF_MAP_TYPE_CGROUP_STORAGE, BPF_MAP_TYPE_CPUMAP, BPF_MAP_TYPE_DEVMAP,
+    BPF_MAP_TYPE_DEVMAP_HASH, BPF_MAP_TYPE_HASH, BPF_MAP_TYPE_HASH_OF_MAPS,
+    BPF_MAP_TYPE_INODE_STORAGE, BPF_MAP_TYPE_LPM_TRIE, BPF_MAP_TYPE_LRU_HASH,
+    BPF_MAP_TYPE_LRU_PERCPU_HASH, BPF_MAP_TYPE_PERCPU_ARRAY, BPF_MAP_TYPE_PERCPU_CGROUP_STORAGE,
+    BPF_MAP_TYPE_PERCPU_HASH, BPF_MAP_TYPE_PERF_EVENT_ARRAY, BPF_MAP_TYPE_PROG_ARRAY,
+    BPF_MAP_TYPE_QUEUE, BPF_MAP_TYPE_REUSEPORT_SOCKARRAY, BPF_MAP_TYPE_RINGBUF,
+    BPF_MAP_TYPE_SK_STORAGE, BPF_MAP_TYPE_SOCKHASH, BPF_MAP_TYPE_SOCKMAP, BPF_MAP_TYPE_STACK,
+    BPF_MAP_TYPE_STACK_TRACE, BPF_MAP_TYPE_STRUCT_OPS, BPF_MAP_TYPE_TASK_STORAGE,
+    BPF_MAP_TYPE_XSKMAP, BPF_SK_LOOKUP, BPF_SK_SKB_STREAM_PARSER, BPF_SK_SKB_STREAM_VERDICT,
+    BPF_TRACE_ITER,
 };
 
 use libc::{self, pid_t};
@@ -1858,7 +1866,7 @@ impl Map {
         btf_type_id: Option<MapBtfTypeId>,
     ) -> Result<Map> {
         let cname = CString::new(name)?;
-        let attr = unsafe {
+        let mut attr = unsafe {
             let mut attr_uninit = MaybeUninit::<bpf_create_map_attr>::zeroed();
             let attr_ptr = attr_uninit.as_mut_ptr();
             (*attr_ptr).name = cname.as_ptr();
@@ -1867,7 +1875,7 @@ impl Map {
             (*attr_ptr).key_size = config.key_size;
             (*attr_ptr).value_size = config.value_size;
             (*attr_ptr).max_entries = config.max_entries;
-            if let Some(type_id) = btf_type_id {
+            if let Some(type_id) = btf_type_id.as_ref() {
                 (*attr_ptr).btf_fd = type_id.btf_fd as u32;
                 (*attr_ptr).btf_key_type_id = type_id.key_type_id;
                 (*attr_ptr).btf_value_type_id = type_id.value_type_id;
@@ -1880,6 +1888,7 @@ impl Map {
         // used for the memory accounting and bpf() syscall returned -EPERM on
         // exceeding the limit.
         if fd < 0 {
+            const ENOTSUPP: i32 = 524; // ENOTSUPP of the Linux kernel
             if let Some(libc::EPERM) = io::Error::last_os_error().raw_os_error() {
                 let mut uninit = MaybeUninit::<libc::rlimit>::zeroed();
                 let p = uninit.as_mut_ptr();
@@ -1891,6 +1900,21 @@ impl Map {
                         if libc::setrlimit(libc::RLIMIT_MEMLOCK, &rlim) == 0 {
                             fd = bpf_create_map_xattr(&attr);
                         }
+                    }
+                }
+            } else if let Some(ENOTSUPP) = io::Error::last_os_error().raw_os_error() {
+                if btf_type_id.is_some() {
+                    debug!(
+                        "The kernel does not support BTF for {}. Ignoring BTF for map {}.",
+                        map_type_name(config.type_),
+                        name
+                    );
+                    attr.btf_fd = 0;
+                    attr.btf_key_type_id = 0;
+                    attr.btf_value_type_id = 0;
+
+                    unsafe {
+                        fd = bpf_create_map_xattr(&attr);
                     }
                 }
             }
@@ -3033,4 +3057,41 @@ fn bpf_percpu_map_get<K: Clone, V: Clone>(fd: RawFd, mut key: K) -> Option<PerCp
     }
 
     Some(values.into())
+}
+
+fn map_type_name(map_type: u32) -> String {
+    match map_type {
+        BPF_MAP_TYPE_HASH => "HashMap",
+        BPF_MAP_TYPE_ARRAY => "Array",
+        BPF_MAP_TYPE_PROG_ARRAY => "ProgramArray",
+        BPF_MAP_TYPE_PERF_EVENT_ARRAY => "PerfMap",
+        BPF_MAP_TYPE_PERCPU_HASH => "PerCpuHashMap",
+        BPF_MAP_TYPE_PERCPU_ARRAY => "PerCpuArray",
+        BPF_MAP_TYPE_STACK_TRACE => "StackTrace",
+        BPF_MAP_TYPE_CGROUP_ARRAY => "CgroupArray",
+        BPF_MAP_TYPE_LRU_HASH => "LruHashMap",
+        BPF_MAP_TYPE_LRU_PERCPU_HASH => "LruPerCpuHashMap",
+        BPF_MAP_TYPE_LPM_TRIE => "LpmTrieMap",
+        BPF_MAP_TYPE_ARRAY_OF_MAPS => "ArrayOfMaps",
+        BPF_MAP_TYPE_HASH_OF_MAPS => "HashOfMaps",
+        BPF_MAP_TYPE_DEVMAP => "DevMap",
+        BPF_MAP_TYPE_SOCKMAP => "SockMap",
+        BPF_MAP_TYPE_CPUMAP => "CpuMap",
+        BPF_MAP_TYPE_XSKMAP => "XskMap",
+        BPF_MAP_TYPE_SOCKHASH => "SockHashMap",
+        BPF_MAP_TYPE_CGROUP_STORAGE => "CgroupStorage",
+        BPF_MAP_TYPE_REUSEPORT_SOCKARRAY => "ReusePortSockArray",
+        BPF_MAP_TYPE_PERCPU_CGROUP_STORAGE => "PerCpuCgroupStorage",
+        BPF_MAP_TYPE_QUEUE => "Queue",
+        BPF_MAP_TYPE_STACK => "Stack",
+        BPF_MAP_TYPE_SK_STORAGE => "SkStorage",
+        BPF_MAP_TYPE_DEVMAP_HASH => "DevMapHashMap",
+        BPF_MAP_TYPE_STRUCT_OPS => "StructOps",
+        BPF_MAP_TYPE_RINGBUF => "RingBuf",
+        BPF_MAP_TYPE_INODE_STORAGE => "InodeStorage",
+        BPF_MAP_TYPE_TASK_STORAGE => "TaskStorage",
+        BPF_MAP_TYPE_BLOOM_FILTER => "BloomFilter",
+        _ => "(unknown)",
+    }
+    .to_string()
 }
