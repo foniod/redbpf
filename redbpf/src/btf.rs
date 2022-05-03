@@ -354,8 +354,9 @@ impl BTF {
 
     /// Get BTF type ids of a map of which symbol name is `map_sym_name`
     ///
-    /// A variable of which name is `MAP_BTF_<map_sym_name>` holds `MapBtf`
-    /// structure that in turn holds key and value types of the map.
+    /// A variable of which name is `MAP_BTF_<map_sym_name>` holds
+    /// `____btf_map_<map_sym_name>` structure type that in turn holds `key`
+    /// and `value` members.
     pub(crate) fn get_map_type_ids(&self, map_sym_name: &str) -> Result<MapBtfTypeId> {
         if !self.is_loaded() {
             return Err(Error::BTF("BTF is not loaded yet".to_string()));
@@ -383,7 +384,8 @@ impl BTF {
 
         match map_btf_type {
             Structure(struct_comm, members) => {
-                if &struct_comm.name_raw != "MapBtf" {
+                let btf_type_name = format!("____btf_map_{}", map_sym_name);
+                if struct_comm.name_raw != btf_type_name {
                     let msg = format!("illegal structure name: {}", struct_comm.name_raw);
                     error!("{}", msg);
                     return Err(Error::BTF(msg));
@@ -392,14 +394,14 @@ impl BTF {
                 let key_type_id = members
                     .iter()
                     .find_map(|memb| {
-                        if &memb.name == "key_type" {
+                        if &memb.name == "key" {
                             Some(memb.type_id())
                         } else {
                             None
                         }
                     })
                     .ok_or_else(|| {
-                        let msg = format!("MapBtf::key_type field not found");
+                        let msg = format!("{}::key_type field not found", btf_type_name);
                         error!("{}", msg);
                         Error::BTF(msg)
                     })?;
@@ -407,14 +409,14 @@ impl BTF {
                 let value_type_id = members
                     .iter()
                     .find_map(|memb| {
-                        if &memb.name == "value_type" {
+                        if &memb.name == "value" {
                             Some(memb.type_id())
                         } else {
                             None
                         }
                     })
                     .ok_or_else(|| {
-                        let msg = format!("MapBtf::value_type field not found");
+                        let msg = format!("{}::value field not found", btf_type_name);
                         error!("{}", msg);
                         Error::BTF(msg)
                     })?;
