@@ -242,7 +242,7 @@ There are two LLVM versions involved in compiling BPF programs:
 
 | Rust version | LLVM version of the rustc | Valid LLVM version of system |
 |:-------------|:-------------------------:|:-----------------------------|
-| 1.56 ~ 1.60  | LLVM 13                   | LLVM 13 and newer            |
+| 1.56 ~ 1.59  | LLVM 13                   | LLVM 13 and newer            |
 | 1.60 ~       | LLVM 14                   | LLVM 14 and newer            |
 
 ## Docker images for RedBPF build test
