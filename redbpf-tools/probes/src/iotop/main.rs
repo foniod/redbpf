@@ -49,7 +49,7 @@ fn do_complete(regs: Registers) -> Option<()> {
     let delta_us = (bpf_ktime_get_ns() - start_ts) / 1000u64;
 
     let request = unsafe { &*req };
-    let rq_disk = unsafe { &*request.rq_disk()? };
+    let rq_disk = unsafe { &*(&*request.q()?).disk };
     let major = rq_disk.major()?;
     let minor = rq_disk.first_minor()?;
     let write = (request.cmd_flags()? & REQ_OP_WRITE != 0) as u64;
