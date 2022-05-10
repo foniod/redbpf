@@ -1877,8 +1877,12 @@ impl Map {
             (*attr_ptr).max_entries = config.max_entries;
             if let Some(type_id) = btf_type_id.as_ref() {
                 (*attr_ptr).btf_fd = type_id.btf_fd as u32;
-                (*attr_ptr).btf_key_type_id = type_id.key_type_id;
-                (*attr_ptr).btf_value_type_id = type_id.value_type_id;
+                if config.key_size != 0 {
+                    (*attr_ptr).btf_key_type_id = type_id.key_type_id;
+                }
+                if config.value_size != 0 {
+                    (*attr_ptr).btf_value_type_id = type_id.value_type_id;
+                }
             }
             attr_uninit.assume_init()
         };
