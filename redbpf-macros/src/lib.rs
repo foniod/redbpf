@@ -498,6 +498,32 @@ pub fn uretprobe(attrs: TokenStream, item: TokenStream) -> TokenStream {
     probe_impl("uretprobe", attrs, wrapper, name)
 }
 
+/// Attribute macro that must be used to define [`tracepoint probes`](https://www.kernel.org/doc/Documentation/trace/tracepoint-analysis.txt).
+///
+/// # Example
+///
+/// ```no_run
+/// use redbpf_probes::tracepoint::prelude::*;
+///
+/// #[tracepoint("syscalls:sys_enter_ioctl")]
+/// pub fn sys_enter_ioctl(args: *const c_void) {
+///     // do something here
+/// }
+/// ```
+///
+/// # Function parameters
+///
+/// The input parameter is a raw pointer to a struct containing tracepoint-specific members.
+/// Members and their offsets for your kernel can be found in (if debugfs is available)
+///
+/// `sudo cat /sys/kernel/debug/tracing/events/<category>/<tracepoint>/format`
+#[proc_macro_attribute]
+pub fn tracepoint(attrs: TokenStream, item: TokenStream) -> TokenStream {
+    let item = parse_macro_input!(item as ItemFn);
+    let name = item.sig.ident.to_string();
+    probe_impl("tracepoint", attrs, item, name)
+}
+
 /// Attribute macro that must be used to define [`XDP` probes](https://www.iovisor.org/technology/xdp).
 ///
 /// See also the [`XDP` API provided by

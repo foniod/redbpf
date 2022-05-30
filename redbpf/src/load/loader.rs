@@ -13,7 +13,7 @@ use std::io;
 use std::path::Path;
 
 use crate::load::map_io::{PerfMessageStream, RingBufMessageStream};
-use crate::{cpus, Program};
+use crate::{cpus, Program, TracePoint};
 use crate::{
     Error, KProbe, Map, Module, PerfMap, RingBufMap, SkLookup, SocketFilter, StreamParser,
     StreamVerdict, TaskIter, UProbe, XDP,
@@ -201,5 +201,13 @@ impl Loaded {
 
     pub fn task_iter_mut(&mut self, name: &str) -> Option<&mut TaskIter> {
         self.module.task_iter_mut(name)
+    }
+
+    pub fn tracepoints_mut(&mut self) -> impl Iterator<Item = &mut TracePoint> {
+        self.module.trace_points_mut()
+    }
+
+    pub fn tracepoint_mut(&mut self, name: &str) -> Option<&mut TracePoint> {
+        self.module.trace_point_mut(name)
     }
 }
