@@ -11,6 +11,7 @@
 #[cfg(feature = "probes")]
 pub mod bindings;
 
+pub mod connection_tracer;
 pub mod echo;
 pub mod hashmaps;
 pub mod mallocstacks;
