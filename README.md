@@ -31,15 +31,15 @@ programs using Rust. It includes:
 - Offers many BPF map types
   1. `HashMap`, `PerCpuHashMap`, `LruHashMap`, `LruPerCpuHashMap`, `Array`,
      `PerCpuArray`, `PerfMap`, `TcHashMap`, `StackTrace`, `ProgramArray`,
-     `SockMap`, `DevMap`
+     `SockMap`, `DevMap`, `RingBuf`
 - Offers several BPF program types
   1. `KProbe`, `KRetProbe`, `UProbe`, `URetProbe`, `SocketFilter`, `XDP`,
-     `StreamParser`, `StreamVerdict`, `TaskIter`, `SkLookup`
+     `StreamParser`, `StreamVerdict`, `TaskIter`, `SkLookup`, `Tracepoint`
 - Provides attribute macros that define various kind of BPF programs and BPF
   maps in a declarative way.
   1. `#[kprobe]`, `#[kretprobe]`, `#[uprobe]`, `#[uretprobe]`, `#[xdp]`,
      `#[tc_action]`, `#[socket_filter]`, `#[stream_parser]`,
-     `#[stream_verdict]`, `#[task_iter]`
+     `#[stream_verdict]`, `#[task_iter]`, `#[tracepoint]`
   2. `#[map]`
 - Can generate Rust bindings from the Linux kernel headers or from the BTF of
   `vmlinux`
