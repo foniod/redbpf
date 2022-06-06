@@ -81,9 +81,9 @@ fn main() {
     // specify kernel headers in include/bindings.h, not here.
     builder = builder.header("include/bindings.h");
     // designate whitelist types
-    let types = ["request"];
+    let types = ["request", "sockaddr_in"];
     // allowing variables
-    let variables = ["NSEC_PER_MSEC", "NSEC_PER_USEC"];
+    let variables = ["NSEC_PER_MSEC", "NSEC_PER_USEC", "AF_INET"];
     for &ty in types.iter() {
         builder = builder.allowlist_type(ty);
     }

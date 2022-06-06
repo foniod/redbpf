@@ -24,5 +24,6 @@
 #include <linux/blkdev.h>
 #include <linux/blk-mq.h>
 #include <linux/time64.h>
+#include <linux/in.h>
 
 #endif

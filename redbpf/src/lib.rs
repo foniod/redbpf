@@ -1033,7 +1033,6 @@ impl UProbe {
 impl TracePoint {
     pub fn attach_trace_point(&mut self, category: &str, name: &str) -> Result<()> {
         let fd = self.common.fd.ok_or(Error::ProgramNotLoaded)?;
-        // TODO Check this works correctly
         unsafe {
             let pfd = perf::open_tracepoint_perf_event(category, name)?;
             perf::attach_perf_event(fd, pfd)
@@ -1592,6 +1591,7 @@ impl<'a> ModuleBuilder<'a> {
                 | (hdr::SHT_PROGBITS, Some(kind @ "kretprobe"), Some(name))
                 | (hdr::SHT_PROGBITS, Some(kind @ "uprobe"), Some(name))
                 | (hdr::SHT_PROGBITS, Some(kind @ "uretprobe"), Some(name))
+                | (hdr::SHT_PROGBITS, Some(kind @ "tracepoint"), Some(name))
                 | (hdr::SHT_PROGBITS, Some(kind @ "xdp"), Some(name))
                 | (hdr::SHT_PROGBITS, Some(kind @ "socketfilter"), Some(name))
                 | (hdr::SHT_PROGBITS, Some(kind @ "streamparser"), Some(name))

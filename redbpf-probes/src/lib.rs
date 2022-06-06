@@ -117,5 +117,6 @@ pub mod socket;
 pub mod socket_filter;
 pub mod sockmap;
 pub mod tc;
+pub mod tracepoint;
 pub mod uprobe;
 pub mod xdp;

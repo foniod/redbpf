@@ -223,6 +223,7 @@ pub(crate) unsafe fn open_tracepoint_perf_event(category: &str, name: &str) -> R
     let file = format!("/sys/kernel/debug/tracing/events/{}/{}/id", category, name);
     let tp_id = fs::read_to_string(&file)
         .expect(&format!("Cannot read {}", &file))
+        .trim()
         .parse::<i32>()
         .unwrap();
     if tp_id < 0 {
