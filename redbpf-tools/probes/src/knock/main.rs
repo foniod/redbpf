@@ -32,8 +32,13 @@ pub fn probe(ctx: XdpContext) -> XdpResult {
         t @ Transport::TCP(_) => t,
         _ => return Ok(XdpAction::Pass),
     };
-    let ip = unsafe { *ctx.ip()? };
-
+    //for now ipv4
+    let ip = match ctx.ip()? {
+    Ip::IPv4(ip) => ip,
+    _ => panic!("NO IPv4")
+    };
+    //let ip = unsafe { *ctx.ip()? };
+    let source_addr = unsafe{u32::from_be((*ip).saddr)};
     // get the knock sequence as configured by user space
     let target_seq = unsafe {
         let seq_id = 0u8;
@@ -47,7 +52,7 @@ pub fn probe(ctx: XdpContext) -> XdpResult {
 
     // get the knock data for the source IP address
     let mut knock = unsafe {
-        let key = ip.saddr;
+        let key = source_addr;
         match knocks.get_mut(&key) {
             Some(k) => k,
             None => {
@@ -69,7 +74,7 @@ pub fn probe(ctx: XdpContext) -> XdpResult {
         if !target_seq.is_complete(&knock.sequence) {
             // notify user space that we're blocking the connection
             let conn = Connection {
-                source_ip: u32::from_be(ip.saddr),
+                source_ip: source_addr,
                 allowed: 0,
             };
             unsafe { connections.insert(&ctx, &MapData::new(conn)) }
@@ -83,7 +88,7 @@ pub fn probe(ctx: XdpContext) -> XdpResult {
 
         // notify user space that we're allowing the connection
         let conn = Connection {
-            source_ip: u32::from_be(ip.saddr),
+            source_ip: source_addr,
             allowed: 1,
         };
         unsafe { connections.insert(&ctx, &MapData::new(conn)) }
@@ -105,7 +110,7 @@ pub fn probe(ctx: XdpContext) -> XdpResult {
 
     // notify user space that ip.saddr knocked on tcp.dest()
     let attempt = KnockAttempt {
-        source_ip: u32::from_be(ip.saddr),
+        source_ip: source_addr,
         padding: 0,
         sequence: knock.sequence.clone(),
     };

@@ -25,7 +25,10 @@ pub enum Transport {
     TCP(*const tcphdr),
     UDP(*const udphdr),
 }
-
+pub enum Ip {
+    IPv4(*const iphdr),
+    IPv6(*const ipv6hdr),
+}
 impl Transport {
     /// Returns the source port.
     #[inline]
@@ -126,30 +129,48 @@ where
 
     /// Returns the packet's `IP` header if present.
     #[inline]
-    fn ip(&self) -> NetworkResult<*const iphdr> {
+    fn ip(&self) -> NetworkResult<Ip> {
         let eth = self.eth()?;
         unsafe {
-            if (*eth).h_proto != u16::from_be(ETH_P_IP as u16) {
-                return Err(NetworkError::NoIPHeader);
-            }
+            let ip = match u16::from_be((*eth).h_proto as u16) as u32 {
+                ETH_P_IP => (Ip::IPv4(self.ptr_after(eth)?)),
+                ETH_P_IPV6 => (Ip::IPv6(self.ptr_after(eth)?)),
+                _t => return Err(NetworkError::NoIPHeader),
+            };
+            Ok(ip)
+        }
+    }
+    fn transport_ipv6(&self, ipv6header: *const ipv6hdr) -> NetworkResult<Transport> {
+        //the next header after the ipv6-header is always 40 bytes away
+        let addr = ipv6header as usize + 40;
 
-            self.ptr_after(eth)
+        unsafe {
+            match (*ipv6header).nexthdr as u32 {
+                IPPROTO_TCP => Ok(Transport::TCP(self.ptr_at(addr)?)),
+                IPPROTO_UDP => Ok(Transport::UDP(self.ptr_at(addr)?)),
+                t => Err(NetworkError::UnsupportedTransport(t)),
+            }
         }
     }
 
-    /// Returns the packet's transport header if present.
-    #[inline]
-    fn transport(&self) -> NetworkResult<Transport> {
+    fn transport_ipv4(&self, ipv4header: *const iphdr) -> NetworkResult<Transport> {
+        let addr = unsafe { ipv4header as usize + ((*ipv4header).ihl() * 4) as usize };
         unsafe {
-            let ip = self.ip()?;
-            let addr = ip as usize + ((*ip).ihl() * 4) as usize;
-            let transport = match (*ip).protocol as u32 {
+            let transport = match (*ipv4header).protocol as u32 {
                 IPPROTO_TCP => (Transport::TCP(self.ptr_at(addr)?)),
                 IPPROTO_UDP => (Transport::UDP(self.ptr_at(addr)?)),
                 t => return Err(NetworkError::UnsupportedTransport(t)),
             };
-
             Ok(transport)
+        }
+    }
+    /// Returns the packet's transport header if present.
+    #[inline]
+    fn transport(&self) -> NetworkResult<Transport> {
+        use Ip::*;
+        match self.ip()? {
+            IPv6(ipaddr) => self.transport_ipv6(ipaddr),
+            IPv4(ipaddr) => self.transport_ipv4(ipaddr),
         }
     }
 
