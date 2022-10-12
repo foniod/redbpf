@@ -29,6 +29,19 @@ pub enum LoaderError {
 /// High level API to load bpf programs.
 pub struct Loader {}
 
+// save for tasks of PerfMessageStream and RingBufMessageStream to abort when Loaded destoryed to avoid fd leak
+struct JoinHandles {
+    inner: Vec<tokio::task::JoinHandle<()>>,
+}
+
+impl Drop for JoinHandles {
+    fn drop(&mut self) {
+        for handle in self.inner.iter() {
+            handle.abort();
+        }
+    }
+}
+
 impl Loader {
     /// Loads the programs included in `data`.
     ///
@@ -45,6 +58,7 @@ impl Loader {
         let online_cpus = cpus::get_online().unwrap();
         let (sender, receiver) = mpsc::unbounded();
 
+        let mut _join_handles = JoinHandles { inner: Vec::new() };
         // bpf_map_type_BPF_MAP_TYPE_PERF_EVENT_ARRAY = 4
         for m in module.maps.iter_mut().filter(|m| m.kind == 4) {
             for cpuid in online_cpus.iter() {
@@ -56,7 +70,7 @@ impl Loader {
                     s.start_send((name.clone(), events)).unwrap();
                     future::ready(())
                 });
-                tokio::spawn(fut);
+                _join_handles.inner.push(tokio::spawn(fut));
             }
         }
 
@@ -70,12 +84,13 @@ impl Loader {
                 s.start_send((name.clone(), events)).unwrap();
                 future::ready(())
             });
-            tokio::spawn(fut);
+            _join_handles.inner.push(tokio::spawn(fut));
         }
 
         Ok(Loaded {
             module,
             events: receiver,
+            _join_handles,
         })
     }
 
@@ -108,6 +123,7 @@ pub struct Loaded {
     /// # };
     /// ```
     pub events: mpsc::UnboundedReceiver<(String, <PerfMessageStream as Stream>::Item)>,
+    _join_handles: JoinHandles,
 }
 
 impl Loaded {
