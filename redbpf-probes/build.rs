@@ -99,7 +99,8 @@ fn generate_bindings_kernel_headers() -> Result<()> {
     let mut builder = bpf_bindgen::get_builder_kernel_headers()
         .or_else(|e| bail!("error on Builder::get_builder_kernel_headers: {}", e))?
         .header("include/redbpf_helpers.h")
-        .header("include/bpf_helpers.h");
+        .header("include/bpf_helpers.h")
+        .header("include/kernel_supplement.h");
 
     for ty in types.iter().chain(xdp_types.iter()) {
         builder = builder.allowlist_type(ty);
@@ -114,6 +115,8 @@ fn generate_bindings_kernel_headers() -> Result<()> {
         .generate()
         .or_else(|e| bail!("error on Builder::generate: {:?}", e))?
         .to_string();
+
+    // Generate BPF helper function to access struct fields
     let accessors = bpf_bindgen::generate_read_accessors(
         &bindings,
         &[
@@ -126,6 +129,8 @@ fn generate_bindings_kernel_headers() -> Result<()> {
             "path",
             "dentry",
             "qstr",
+            "task_struct",
+            "fs_struct",
         ],
     );
     bindings.push_str("use crate::helpers::bpf_probe_read;");
@@ -224,6 +229,8 @@ fn generate_bindings_vmlinux() -> Result<()> {
         .generate()
         .or_else(|e| bail!("error on Builder::generate: {:?}", e))?
         .to_string();
+
+    // Generate BPF helper function to access struct fields
     let accessors = bpf_bindgen::generate_read_accessors(
         &bindings,
         &[
@@ -236,6 +243,8 @@ fn generate_bindings_vmlinux() -> Result<()> {
             "path",
             "dentry",
             "qstr",
+            "task_struct",
+            "fs_struct",
         ],
     );
     bindings.push_str("use crate::helpers::bpf_probe_read;");
@@ -281,7 +290,6 @@ fn main() {
         .with_max_level(Level::TRACE)
         .finish();
     tracing::subscriber::set_global_default(subscriber).unwrap();
-
     if let Ok(_) = env::var("DOCS_RS") {
         let mut paths = available_kernel_header_paths();
         paths.sort();
