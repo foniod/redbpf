@@ -31,6 +31,53 @@ use syn::{
 use tracing::{debug, warn, Level};
 use tracing_subscriber::FmtSubscriber;
 
+const XDP_TYPES: &[&'static str] = &[
+    "^xdp_md$",
+    "^ethhdr$",
+    "^iphdr$",
+    "^ipv6hdr$",
+    "^tcphdr$",
+    "^udphdr$",
+    "^xdp_action$",
+    "^__sk_.*",
+    "^sk_.*",
+    "^inet_sock$",
+    "^unix_sock$",
+    "^sockaddr$",
+    "^sockaddr_in$",
+    "^in_addr$",
+    "^tcp.*_sock$",
+    "^udp.*_sock$",
+    "^btf_ptr$",
+    "^sock_type$",  // for enum of SOCK_*
+    "^sock_flags$", // for enum of SOCK_*
+    "^linux_binprm$",
+];
+
+const READ_ACCESSORS: &[&'static str] = &[
+    // network
+    "sock",
+    "sockaddr",
+    "sockaddr_in",
+    "in_addr",
+    // file-system
+    "file",
+    "inode",
+    "path",
+    "dentry",
+    "qstr",
+    "fs_struct",
+    "vfsmount",
+    // this structure is not available in kernel headers but it is
+    // in .BTF section of vmlinux so if you want to generate it make
+    // sure to build with one of the vmlinux variants
+    "mount",
+    // task
+    "task_struct",
+    "mm_struct",
+    "cred",
+];
+
 fn create_module(path: PathBuf, name: &str, bindings: &str) -> io::Result<()> {
     {
         let mut file = File::create(&path)?;
@@ -72,28 +119,7 @@ fn generate_bindings_kernel_headers() -> Result<()> {
     let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
     let types = ["pt_regs", "s32", "bpf_.*"];
     let vars = ["BPF_.*"];
-    let xdp_types = [
-        "xdp_md",
-        "ethhdr",
-        "iphdr",
-        "ipv6hdr",
-        "tcphdr",
-        "udphdr",
-        "xdp_action",
-        "__sk_.*",
-        "sk_.*",
-        "inet_sock",
-        "unix_sock",
-        "sockaddr",
-        "sockaddr_in",
-        "in_addr",
-        "tcp.*_sock",
-        "udp.*_sock",
-        "btf_ptr",
-        "linux_binprm",
-        "^sock_type$",  // for enum of SOCK_*
-        "^sock_flags$", // for enum of SOCK_*
-    ];
+
     let xdp_vars = ["ETH_.*", "IPPROTO_.*", "SOCK_.*", "SK_FL_.*", "AF_.*"];
 
     let mut builder = bpf_bindgen::get_builder_kernel_headers()
@@ -102,7 +128,7 @@ fn generate_bindings_kernel_headers() -> Result<()> {
         .header("include/bpf_helpers.h")
         .header("include/kernel_supplement.h");
 
-    for ty in types.iter().chain(xdp_types.iter()) {
+    for ty in types.iter().chain(XDP_TYPES.iter()) {
         builder = builder.allowlist_type(ty);
     }
 
@@ -117,22 +143,8 @@ fn generate_bindings_kernel_headers() -> Result<()> {
         .to_string();
 
     // Generate BPF helper function to access struct fields
-    let accessors = bpf_bindgen::generate_read_accessors(
-        &bindings,
-        &[
-            "sock",
-            "sockaddr",
-            "sockaddr_in",
-            "in_addr",
-            "file",
-            "inode",
-            "path",
-            "dentry",
-            "qstr",
-            "task_struct",
-            "fs_struct",
-        ],
-    );
+    let accessors = bpf_bindgen::generate_read_accessors(&bindings, READ_ACCESSORS);
+
     bindings.push_str("use crate::helpers::bpf_probe_read;");
     bindings.push_str(&accessors);
     create_module(out_dir.join("gen_bindings.rs"), "gen_bindings", &bindings)?;
@@ -176,27 +188,7 @@ fn generate_bindings_vmlinux() -> Result<()> {
     // match the exact name.
     let types = ["^pt_regs$", "^s32$", "^bpf_.*"];
     let vars = ["^BPF_.*"];
-    let xdp_types = [
-        "^xdp_md$",
-        "^ethhdr$",
-        "^iphdr$",
-        "^ipv6hdr$",
-        "^tcphdr$",
-        "^udphdr$",
-        "^xdp_action$",
-        "^__sk_.*",
-        "^sk_.*",
-        "^inet_sock$",
-        "^unix_sock$",
-        "^sockaddr$",
-        "^sockaddr_in$",
-        "^in_addr$",
-        "^tcp.*_sock$",
-        "^udp.*_sock$",
-        "^btf_ptr$",
-        "^sock_type$",  // for enum of SOCK_*
-        "^sock_flags$", // for enum of SOCK_*
-    ];
+
     let xdp_vars = ["^IPPROTO_.*"];
     let mut builder = bpf_bindgen::get_builder_vmlinux(out_dir.join("vmlinux.h"))
         .or_else(|e| bail!("error on bpf_bindgen::get_builder_vmlinux: {}", e))?
@@ -217,7 +209,7 @@ fn generate_bindings_vmlinux() -> Result<()> {
     // kernel. And the generated bindings can be used to compile BPF
     // programs. But if all types are generated, compiling BPF programs takes a
     // long time. So keep whitelist types.
-    for ty in types.iter().chain(xdp_types.iter()) {
+    for ty in types.iter().chain(XDP_TYPES.iter()) {
         builder = builder.allowlist_type(ty);
     }
 
@@ -231,22 +223,8 @@ fn generate_bindings_vmlinux() -> Result<()> {
         .to_string();
 
     // Generate BPF helper function to access struct fields
-    let accessors = bpf_bindgen::generate_read_accessors(
-        &bindings,
-        &[
-            "sock",
-            "sockaddr",
-            "sockaddr_in",
-            "in_addr",
-            "file",
-            "inode",
-            "path",
-            "dentry",
-            "qstr",
-            "task_struct",
-            "fs_struct",
-        ],
-    );
+    let accessors = bpf_bindgen::generate_read_accessors(&bindings, READ_ACCESSORS);
+
     bindings.push_str("use crate::helpers::bpf_probe_read;");
     bindings.push_str(&accessors);
     // macro constants and structures of userspace can not be generated by BTF
