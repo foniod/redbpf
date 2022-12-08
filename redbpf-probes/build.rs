@@ -45,6 +45,7 @@ const XDP_TYPES: &[&'static str] = &[
     "^unix_sock$",
     "^sockaddr$",
     "^sockaddr_in$",
+    "^sockaddr_in6$",
     "^in_addr$",
     "^tcp.*_sock$",
     "^udp.*_sock$",
@@ -59,6 +60,7 @@ const READ_ACCESSORS: &[&'static str] = &[
     "sock",
     "sockaddr",
     "sockaddr_in",
+    "sockaddr_in6",
     "in_addr",
     // file-system
     "file",
