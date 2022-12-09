@@ -63,8 +63,9 @@ programs using Rust. It includes:
 
 `LLVM` is required in your build system to compile BPF bytecode using RedBPF.
 
-- **LLVM 13**  
-  It is needed to compile BPF bytecode.
+- **LLVM 14 or 13**
+  It is needed to compile BPF bytecode. If you're using Rust 1.60 or later, LLVM 14 is required.
+  If you need to use LLVM 13, use the feature `llvm13`.
 
 - One of the followings:
   1. The Linux kernel headers
@@ -74,7 +75,7 @@ programs using Rust. It includes:
 
 ### On Ubuntu 20.04 LTS
 
-Install LLVM 13 and the Linux kernel headers
+Install LLVM 14 and the Linux kernel headers
 ```console
 # apt-get update \
   && apt-get -y install \
@@ -85,11 +86,14 @@ Install LLVM 13 and the Linux kernel headers
        libelf-dev \
        linux-headers-generic \
        pkg-config \
-  && wget https://apt.llvm.org/llvm.sh && chmod +x llvm.sh && ./llvm.sh 13 && rm -f ./llvm.sh
-# llvm-config-13 --version | grep 13
+  && wget https://apt.llvm.org/llvm.sh && chmod +x llvm.sh && ./llvm.sh 14 && rm -f ./llvm.sh
+# llvm-config-14 --version | grep 14
 ```
 
 ### On Fedora 35
+
+Currently, only LLVM 13 is available in the official Fedora repositories.
+Consider building LLVM from source until Fedora 36 is released.
 
 Install LLVM 13 and the Linux kernel headers
 ```console
@@ -126,16 +130,19 @@ Install LLVM 13 and the Linux kernel headers
 # llvm-config --version | grep -q '^13'
 ```
 
+At the time of writing, LLVM 14 is not available in the official package repository.
+If you need to use Rust 1.60 or later, please build LLVM from source.
+
 ### Building LLVM from source
 
 If your Linux distro does not support the latest LLVM as pre-built packages
 yet, you may build LLVM from the LLVM source code.
 
 ```console
-$ tar -xaf llvm-13.0.0.src.tar.xz
-$ mkdir -p llvm-13.0.0.src/build
-$ cd llvm-13.0.0.src/build
-$ cmake .. -DCMAKE_INSTALL_PREFIX=$HOME/llvm-13-release -DCMAKE_BUILD_TYPE=Release -DLLVM_BUILD_LLVM_DYLIB=1
+$ tar -xaf llvm-14.0.0.src.tar.xz
+$ mkdir -p llvm-14.0.0.src/build
+$ cd llvm-14.0.0.src/build
+$ cmake .. -DCMAKE_INSTALL_PREFIX=$HOME/llvm-14-release -DCMAKE_BUILD_TYPE=Release -DLLVM_BUILD_LLVM_DYLIB=1
 $ cmake --build . --target install
 ```
 
@@ -143,8 +150,8 @@ Then you can use your LLVM by specifying the custom installation path when
 installing `cargo-bpf` or building RedBPF like this:
 
 ```console
-$ LLVM_SYS_130_PREFIX=$HOME/llvm-13-release/ cargo install cargo-bpf
-$ LLVM_SYS_130_PREFIX=$HOME/llvm-13-release/ cargo build
+$ LLVM_SYS_140_PREFIX=$HOME/llvm-14-release/ cargo install cargo-bpf
+$ LLVM_SYS_140_PREFIX=$HOME/llvm-14-release/ cargo build
 ```
 
 Make sure correct `-DCMAKE_BUILD_TYPE` is specified. Typically `Debug` type is
@@ -235,7 +242,8 @@ There are two LLVM versions involved in compiling BPF programs:
 
 | Rust version | LLVM version of the rustc | Valid LLVM version of system |
 |:-------------|:-------------------------:|:-----------------------------|
-| 1.56 ~       | LLVM 13                   | LLVM 13 and newer            |
+| 1.56 ~ 1.59  | LLVM 13                   | LLVM 13 and newer            |
+| 1.60 ~       | LLVM 14                   | LLVM 14 and newer            |
 
 ## Docker images for RedBPF build test
 

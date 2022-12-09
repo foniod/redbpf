@@ -56,7 +56,7 @@ fn print_cargo_bpf_llvm_version() {
 
 fn main() {
     cfg_if::cfg_if! {
-        if #[cfg(all(feature = "llvm-sys-130", not(feature = "docsrs-llvm")))] {
+        if #[cfg(all(any(feature = "llvm-sys-130", feature = "llvm-sys-140"), not(feature = "docsrs-llvm")))] {
             print_cargo_bpf_llvm_version();
         } else {
             println!("cargo:rustc-env=CARGO_BPF_LLVM_VERSION=0.0.0");
