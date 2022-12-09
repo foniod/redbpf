@@ -77,6 +77,8 @@ const READ_ACCESSORS: &[&'static str] = &[
     // task
     "task_struct",
     "mm_struct",
+    "vm_area_struct",
+    "rb_node",
     "cred",
 ];
 
