@@ -958,11 +958,18 @@ impl UProbe {
         };
         let sym_offset = if let Some(fn_name) = fn_name {
             let data = fs::read(&path)?;
-            let parser = ElfSymbols::parse(&data)?;
-            parser
+            let elf = Elf::parse(&data)?;
+            let sym = ElfSymbols::new(&elf)
                 .resolve(fn_name)
-                .ok_or_else(|| Error::SymbolNotFound(fn_name.to_string()))?
-                .st_value
+                .ok_or_else(|| Error::SymbolNotFound(fn_name.to_string()))?;
+            // Look up the section header to compute the symbol offset. The symbol offset is
+            // the symbol's offset in the section plus the section's offset. The st_value field
+            // for a symbol is the address in the section.
+            let section_header = elf
+                .section_headers
+                .get(sym.st_shndx)
+                .expect("get section header");
+            sym.st_value - section_header.sh_addr + section_header.sh_offset
         } else {
             0
         };

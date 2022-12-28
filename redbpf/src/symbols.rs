@@ -24,13 +24,12 @@ lazy_static! {
 const CACHE_HEADER: &str = "glibc-ld.so.cache1.1";
 
 pub(crate) struct ElfSymbols<'a> {
-    elf: Elf<'a>,
+    elf: &'a Elf<'a>,
 }
 
 impl<'a> ElfSymbols<'a> {
-    pub fn parse(data: &[u8]) -> goblin::error::Result<ElfSymbols> {
-        let elf = Elf::parse(&data)?;
-        Ok(ElfSymbols { elf })
+    pub fn new(elf: &'a Elf<'a>) -> ElfSymbols {
+        ElfSymbols { elf }
     }
 
     fn resolve_dyn_syms(&self, sym_name: &str) -> Option<Sym> {
