@@ -30,7 +30,7 @@ serde_json = { version = "^1.0", optional = true}
 ring = { version = "0.16", optional = true }
 
 futures = { version = "0.3", optional = true }
-tokio = { version = "^1.0.1", features = ["rt", "macros", "signal", "net"], optional = true }
+tokio = { version = "^1.18.4", features = ["rt", "macros", "signal", "net"], optional = true }
 tracing = "0.1.26"
 
 [features]
