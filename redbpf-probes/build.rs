@@ -57,6 +57,10 @@ const XDP_TYPES: &[&'static str] = &[
 
 const READ_ACCESSORS: &[&'static str] = &[
     // network
+    "socket",
+    "msghdr",
+    "iov_iter",
+    "iovec",
     "sock",
     "sockaddr",
     "sockaddr_in",
