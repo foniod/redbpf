@@ -12,7 +12,7 @@ cargo-bpf = { path = "../cargo-bpf", default-features = false, features = ["buil
 [dependencies]
 probes = { path = "./probes" }
 redbpf = { path = "../redbpf", features = ["load"] }
-tokio = { version = "^1.0.1", features = ["rt", "macros", "signal", "time"] }
+tokio = { version = "^1.18.5", features = ["rt", "macros", "signal", "time"] }
 futures = "0.3"
 getopts = "0.2"
 libc = "0.2"
