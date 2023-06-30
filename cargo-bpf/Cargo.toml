@@ -20,7 +20,7 @@ required-features = ["command-line"]
 
 [dependencies]
 clap = { version = "2.33", optional = true }
-bindgen = {version = "0.59.2", default-features = false, features = ["runtime"], optional = true}
+bindgen = {version = "0.66.1", default-features = false, features = ["runtime"], optional = true}
 toml_edit = { version = "0.2", optional = true }
 libbpf-sys = { version = "0.6.2", optional = true }
 bpf-sys = { version = "2.3.0", path = "../bpf-sys", optional = true }

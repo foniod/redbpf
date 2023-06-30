@@ -22,7 +22,7 @@ libbpf-sys = "0.6.2"
 syn = {version = "1.0", default-features = false, features = ["parsing", "visit"] }
 quote = "1.0"
 glob = "0.3.0"
-bindgen = { version = "0.59.2", default-features = false, features = ["runtime"] }
+bindgen = { version = "0.66.1", default-features = false, features = ["runtime"] }
 anyhow = "1.0"
 tracing = "0.1.26"
 tracing-subscriber = "0.2.18"
